@@ -1,0 +1,7 @@
+# Core API (mock mode needs only these — no heavy/native ML libraries).
+# Loose lower-bounds so pip can grab wheels for newer Python (e.g. 3.14).
+fastapi>=0.118
+uvicorn[standard]>=0.34
+python-multipart>=0.0.20
+pydantic>=2.12
+pydantic-settings>=2.7

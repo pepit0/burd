@@ -1,0 +1,17 @@
+# Heavy / native dependencies — only needed when INFERENCE_MOCK=false.
+# Install with: pip install -r requirements.txt -r requirements-ml.txt
+
+# --- Image decoding / arrays ---
+pillow>=11.3
+numpy>=2.2
+
+# --- Image (birder, PyTorch) ---
+# Install the torch build that matches your hardware first (see pytorch.org).
+torch>=2.10
+birder>=0.6.1
+
+# --- Audio (Google Perch, TensorFlow) ---
+tensorflow>=2.16
+tensorflow-hub>=0.16
+librosa>=0.10        # audio decode/resample to 32kHz mono
+soundfile>=0.12

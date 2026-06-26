@@ -1,0 +1,14 @@
+# Minimal Supabase config for Edge Functions (species-ask).
+# See https://supabase.com/docs/guides/functions
+
+[functions.species-ask]
+verify_jwt = true
+
+[functions.species-profile]
+verify_jwt = true
+
+[functions.activity-push]
+verify_jwt = false
+
+[functions.photo-authenticity]
+verify_jwt = true

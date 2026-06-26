@@ -1,0 +1,92 @@
+{
+  "expo": {
+    "name": "Burd",
+    "slug": "burd",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "burd",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.burd.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSMicrophoneUsageDescription": "Burd uses the microphone so you can record bird calls while photographing.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.burd.app",
+      "usesCleartextTraffic": true,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Burd uses your location to show bird sightings near you and to tag where you spotted a bird."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Burd needs access to your photos so you can add a picture to a sighting.",
+          "cameraPermission": "Burd needs access to your camera so you can take a photo of a bird."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Burd uses the camera so you can capture the birds you spot.",
+          "recordAudioAndroid": true,
+          "microphonePermission": "Burd uses the microphone so you can record bird calls while photographing."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Burd uses the microphone so you can record bird calls while photographing."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Burd needs access to your photos so you can save the birds you capture.",
+          "savePhotosPermission": "Burd needs permission to save your captured photos.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#5f9470"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "eb44b19f-d200-4f0e-a2ed-cc484af04d3e"
+      }
+    },
+    "owner": "tempt-technologies"
+  }
+}
