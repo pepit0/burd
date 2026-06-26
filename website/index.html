@@ -3,31 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Burd — Birding, together</title>
+    <title>Burd · Birding, together</title>
     <meta
       name="description"
       content="Burd is a social birding app to log sightings, explore a field guide, and connect with birders near you."
     />
     <meta name="theme-color" content="#181e16" />
+    <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Lora:ital,wght@0,500;0,600;1,500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none" aria-hidden="true">
+      <symbol id="bird-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L4 11v8h8z" />
+        <path d="M16 8l2-2" />
+        <path d="M12 19v3" />
+      </symbol>
+    </svg>
+
     <div class="page">
       <header class="site-header">
         <a class="logo" href="/">
-          <span class="logo-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L4 11v8h8z" />
-              <path d="M16 8l2-2" />
-              <path d="M12 19v3" />
-            </svg>
-          </span>
+          <img class="logo-mark" src="/assets/logo-mark.svg" width="32" height="32" alt="" />
           Burd
         </a>
       </header>
@@ -37,9 +40,10 @@
           <div class="hero-copy">
             <p class="eyebrow">Social birding for the field</p>
             <h1>Spot birds. <em>Share the moment.</em></h1>
-            <p>
-              Burd is a birding community built around real sightings — log what you see,
-              browse a living field guide, follow local birders, and celebrate rare finds
+            <p class="hero-lede">
+              Burd is a birding community built around real sightings
+              <span class="bird-sep" aria-hidden="true"><svg><use href="#bird-icon"></use></svg></span>
+              log what you see, browse a living field guide, follow local birders, and celebrate rare finds
               with people who get it.
             </p>
 
@@ -50,6 +54,15 @@
                   <circle cx="12" cy="13" r="4" />
                 </svg>
                 Capture sightings with photos, location, and species ID
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" x2="12" y1="19" y2="23" />
+                  <line x1="8" x2="16" y1="23" y2="23" />
+                </svg>
+                Record bird calls while you shoot for photo + sound ID
               </li>
               <li>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -70,27 +83,29 @@
             </ul>
 
             <div class="cta-row">
-              <button type="button" class="store-btn" disabled aria-disabled="true">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-                </svg>
-                <span class="store-btn__text">
-                  <small>Download on the</small>
-                  App Store
-                </span>
-                <span class="coming-soon">Coming soon</span>
-              </button>
+              <div class="store-row">
+                <button type="button" class="store-btn" disabled aria-disabled="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                  </svg>
+                  <span class="store-btn__text">
+                    <small>Download on the</small>
+                    App Store
+                  </span>
+                  <span class="coming-soon">Coming soon</span>
+                </button>
 
-              <button type="button" class="store-btn" disabled aria-disabled="true">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M3.609 1.814 13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893 2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198 2.807 1.626a1 1 0 0 1 0 1.73l-2.808 1.626L15.206 12l2.492-2.491zM5.864 2.658 16.802 8.99l-2.303 2.303-8.635-8.635z" />
-                </svg>
-                <span class="store-btn__text">
-                  <small>Get it on</small>
-                  Google Play
-                </span>
-                <span class="coming-soon">Coming soon</span>
-              </button>
+                <button type="button" class="store-btn" disabled aria-disabled="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M3.609 1.814 13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893 2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198 2.807 1.626a1 1 0 0 1 0 1.73l-2.808 1.626L15.206 12l2.492-2.491zM5.864 2.658 16.802 8.99l-2.303 2.303-8.635-8.635z" />
+                  </svg>
+                  <span class="store-btn__text">
+                    <small>Get it on</small>
+                    Google Play
+                  </span>
+                  <span class="coming-soon">Coming soon</span>
+                </button>
+              </div>
 
               <a class="web-btn" href="/app/">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -108,42 +123,88 @@
               <div class="phone-shell">
                 <div class="phone-notch"></div>
                 <div class="phone-screen">
-                  <div class="mock-app">
-                    <div class="mock-header">
+                  <div class="mock-app mock-app--feed">
+                    <header class="mock-header mock-header--logo">
                       <div class="mock-brand">
-                        <span class="mock-brand-icon">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L4 11v8h8z" />
-                          </svg>
-                        </span>
-                        Burd
+                        <img class="mock-logo" src="/assets/logo-mark.svg" width="14" height="14" alt="" />
+                        <span>Burd</span>
                       </div>
-                      <div class="mock-icons"><span></span><span></span></div>
+                      <div class="mock-header-actions">
+                        <span class="mock-icon-btn"></span>
+                        <span class="mock-icon-btn mock-icon-btn--bell"></span>
+                      </div>
+                    </header>
+
+                    <div class="mock-search">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      Search sightings, species, locations...
                     </div>
-                    <div class="mock-search">Search sightings, species…</div>
+
                     <div class="mock-tabs">
                       <span class="mock-tab mock-tab--active">nearby</span>
                       <span class="mock-tab">following</span>
                       <span class="mock-tab">rare</span>
+                      <span class="mock-tab mock-tab--filter">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                      </span>
                     </div>
-                    <div class="mock-feed">
-                      <article class="mock-card">
-                        <div class="mock-photo">
-                          <div class="mock-photo-label">
-                            <strong>American Robin</strong>
-                            <span>Turdus migratorius</span>
+
+                    <article class="mock-card">
+                      <div class="mock-photo mock-photo--cardinal">
+                        <div class="mock-photo-overlay"></div>
+                        <div class="mock-photo-meta">
+                          <div>
+                            <strong>Northern Cardinal</strong>
+                            <span>Cardinalis cardinalis</span>
                           </div>
-                          <span class="mock-badge">common</span>
+                          <div class="mock-photo-badges">
+                            <span class="mock-rarity mock-rarity--uncommon">uncommon</span>
+                            <span class="mock-count">×1</span>
+                          </div>
                         </div>
-                        <div class="mock-card-body">
+                      </div>
+                      <div class="mock-card-body">
+                        <div class="mock-card-top">
                           <div class="mock-user">
-                            <span class="mock-avatar"></span>
-                            @birder_jane
+                            <span class="mock-avatar">M</span>
+                            <span>@maya_birds</span>
                           </div>
-                          <p class="mock-note">First of the season in the oak grove.</p>
+                          <div class="mock-location">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                            Prospect Park
+                          </div>
                         </div>
-                      </article>
-                    </div>
+                        <p class="mock-note">Male singing from the top of the oak.</p>
+                        <p class="mock-time">2h ago</p>
+                      </div>
+                      <div class="mock-card-actions">
+                        <span><svg viewBox="0 0 24 24" fill="#f87171" stroke="#f87171" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> 12</span>
+                        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg> View</span>
+                        <span class="mock-more">···</span>
+                      </div>
+                    </article>
+
+                    <nav class="mock-tabbar">
+                      <span class="mock-tabbar-item mock-tabbar-item--active">
+                        <svg><use href="#bird-icon"></use></svg>
+                        Feed
+                      </span>
+                      <span class="mock-tabbar-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                        Journal
+                      </span>
+                      <span class="mock-tabbar-camera">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                      </span>
+                      <span class="mock-tabbar-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        Field Guide
+                      </span>
+                      <span class="mock-tabbar-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        Profile
+                      </span>
+                    </nav>
                   </div>
                 </div>
               </div>
@@ -153,42 +214,84 @@
               <div class="phone-shell">
                 <div class="phone-camera"></div>
                 <div class="phone-screen">
-                  <div class="mock-app">
-                    <div class="mock-header">
-                      <div class="mock-brand">
-                        <span class="mock-brand-icon">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L4 11v8h8z" />
-                          </svg>
-                        </span>
-                        Burd
+                  <div class="mock-app mock-app--guide">
+                    <header class="mock-header">
+                      <span class="mock-title">Field Guide</span>
+                      <div class="mock-header-actions">
+                        <span class="mock-icon-btn"></span>
+                        <span class="mock-icon-btn mock-icon-btn--bell"></span>
                       </div>
-                      <div class="mock-icons"><span></span><span></span></div>
+                    </header>
+
+                    <div class="mock-search">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      Find a species...
                     </div>
-                    <div class="mock-search">Search sightings, species…</div>
-                    <div class="mock-tabs">
-                      <span class="mock-tab mock-tab--active">nearby</span>
-                      <span class="mock-tab">following</span>
-                      <span class="mock-tab">rare</span>
+
+                    <div class="mock-progress">
+                      <div class="mock-progress-top">
+                        <span>Lifetime progress</span>
+                        <span class="mock-progress-count">18/240 species logged</span>
+                      </div>
+                      <div class="mock-progress-bar"><span style="width: 7.5%"></span></div>
                     </div>
-                    <div class="mock-feed">
-                      <article class="mock-card">
-                        <div class="mock-photo">
-                          <div class="mock-photo-label">
-                            <strong>American Robin</strong>
-                            <span>Turdus migratorius</span>
-                          </div>
-                          <span class="mock-badge">common</span>
+
+                    <div class="mock-species-grid">
+                      <article class="mock-species">
+                        <div class="mock-species-photo mock-species-photo--robin">
+                          <span class="mock-logged"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>
                         </div>
-                        <div class="mock-card-body">
-                          <div class="mock-user">
-                            <span class="mock-avatar"></span>
-                            @birder_jane
-                          </div>
-                          <p class="mock-note">First of the season in the oak grove.</p>
+                        <strong>American Robin</strong>
+                        <span class="mock-sci">Turdus migratorius</span>
+                        <span class="mock-family">Thrushes</span>
+                        <span class="mock-rarity mock-rarity--common">common</span>
+                      </article>
+                      <article class="mock-species">
+                        <div class="mock-species-photo mock-species-photo--jay"></div>
+                        <strong>Blue Jay</strong>
+                        <span class="mock-sci">Cyanocitta cristata</span>
+                        <span class="mock-family">Corvids</span>
+                        <span class="mock-rarity mock-rarity--common">common</span>
+                      </article>
+                      <article class="mock-species">
+                        <div class="mock-species-photo mock-species-photo--warbler"></div>
+                        <strong>Yellow Warbler</strong>
+                        <span class="mock-sci">Setophaga petechia</span>
+                        <span class="mock-family">Warblers</span>
+                        <span class="mock-rarity mock-rarity--uncommon">uncommon</span>
+                      </article>
+                      <article class="mock-species">
+                        <div class="mock-species-photo mock-species-photo--owl">
+                          <span class="mock-logged"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>
                         </div>
+                        <strong>Barred Owl</strong>
+                        <span class="mock-sci">Strix varia</span>
+                        <span class="mock-family">Owls</span>
+                        <span class="mock-rarity mock-rarity--rare">rare</span>
                       </article>
                     </div>
+
+                    <nav class="mock-tabbar">
+                      <span class="mock-tabbar-item">
+                        <svg><use href="#bird-icon"></use></svg>
+                        Feed
+                      </span>
+                      <span class="mock-tabbar-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                        Journal
+                      </span>
+                      <span class="mock-tabbar-camera">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                      </span>
+                      <span class="mock-tabbar-item mock-tabbar-item--active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        Field Guide
+                      </span>
+                      <span class="mock-tabbar-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        Profile
+                      </span>
+                    </nav>
                   </div>
                 </div>
               </div>
@@ -199,8 +302,9 @@
         <section class="about">
           <h2>Built for birders, not algorithms</h2>
           <p>
-            Burd is where your sightings become part of a local story — a feed of real birds
-            from real places, a journal of what you&apos;ve found, and a field guide that grows
+            Burd is where your sightings become part of a local story
+            <span class="bird-sep" aria-hidden="true"><svg><use href="#bird-icon"></use></svg></span>
+            a feed of real birds from real places, a journal of what you&apos;ve found, and a field guide that grows
             with every trip. Whether you&apos;re chasing a rarity or noting the robin on your
             fence, Burd keeps it simple, social, and rooted in the field.
           </p>
