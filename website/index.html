@@ -21,9 +21,9 @@
   <body>
     <svg xmlns="http://www.w3.org/2000/svg" style="display: none" aria-hidden="true">
       <symbol id="bird-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L4 11v8h8z" />
-        <path d="M16 8l2-2" />
-        <path d="M12 19v3" />
+        <path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z" />
+        <path d="M16 8 2 22" />
+        <path d="M17.5 15H9" />
       </symbol>
     </svg>
 
@@ -38,7 +38,6 @@
       <main>
         <section class="hero">
           <div class="hero-copy">
-            <p class="eyebrow">Social birding for the field</p>
             <h1>Spot birds. <em>Share the moment.</em></h1>
             <p class="hero-lede">
               Burd is a birding community built around real sightings
@@ -89,8 +88,8 @@
                     <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
                   </svg>
                   <span class="store-btn__text">
-                    <small>Download on the</small>
-                    App Store
+                    <small>Download on</small>
+                    <span>App Store</span>
                   </span>
                   <span class="coming-soon">Coming soon</span>
                 </button>
@@ -101,7 +100,7 @@
                   </svg>
                   <span class="store-btn__text">
                     <small>Get it on</small>
-                    Google Play
+                    <span>Google Play</span>
                   </span>
                   <span class="coming-soon">Coming soon</span>
                 </button>
@@ -123,85 +122,139 @@
               <div class="phone-shell">
                 <div class="phone-notch"></div>
                 <div class="phone-screen">
-                  <div class="mock-app mock-app--feed">
-                    <header class="mock-header mock-header--logo">
-                      <div class="mock-brand">
-                        <img class="mock-logo" src="/assets/logo-mark.svg" width="14" height="14" alt="" />
-                        <span>Burd</span>
+                  <div class="mock-canvas mock-canvas--feed">
+                    <header class="app-header">
+                      <div class="app-brand">
+                        <span class="burd-logo-mark burd-logo-mark--sm">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z" />
+                            <path d="M16 8 2 22" />
+                            <path d="M17.5 15H9" />
+                          </svg>
+                        </span>
+                        <span class="app-brand-name">Burd</span>
                       </div>
-                      <div class="mock-header-actions">
-                        <span class="mock-icon-btn"></span>
-                        <span class="mock-icon-btn mock-icon-btn--bell"></span>
+                      <div class="app-header-actions">
+                        <span class="app-header-action" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 19v3" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            <rect x="9" y="2" width="6" height="13" rx="3" />
+                          </svg>
+                        </span>
+                        <span class="app-header-action" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <circle cx="9" cy="7" r="4" />
+                          </svg>
+                        </span>
+                        <span class="app-header-action" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+                            <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
+                          </svg>
+                        </span>
                       </div>
                     </header>
 
-                    <div class="mock-search">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <div class="app-search">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.34-4.34"/></svg>
                       Search sightings, species, locations...
                     </div>
 
-                    <div class="mock-tabs">
-                      <span class="mock-tab mock-tab--active">nearby</span>
-                      <span class="mock-tab">following</span>
-                      <span class="mock-tab">rare</span>
-                      <span class="mock-tab mock-tab--filter">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                    <div class="app-pills">
+                      <span class="app-pill app-pill--active">nearby</span>
+                      <span class="app-pill">following</span>
+                      <span class="app-pill">rare</span>
+                      <span class="app-pill">activity</span>
+                      <span class="app-pill-filter" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z" />
+                        </svg>
                       </span>
                     </div>
 
-                    <article class="mock-card">
-                      <div class="mock-photo mock-photo--cardinal">
-                        <div class="mock-photo-overlay"></div>
-                        <div class="mock-photo-meta">
+                    <div class="app-feed-list">
+                    <article class="app-card">
+                      <div class="app-card-photo app-card-photo--cardinal">
+                        <div class="app-card-gradient"></div>
+                        <div class="app-card-overlay">
                           <div>
-                            <strong>Northern Cardinal</strong>
-                            <span>Cardinalis cardinalis</span>
+                            <h3>Northern Cardinal</h3>
+                            <p class="app-sci">Cardinalis cardinalis</p>
                           </div>
-                          <div class="mock-photo-badges">
-                            <span class="mock-rarity mock-rarity--uncommon">uncommon</span>
-                            <span class="mock-count">×1</span>
+                          <div class="app-card-badges">
+                            <span class="app-rarity app-rarity--common">common</span>
+                            <span class="app-count">×1</span>
                           </div>
                         </div>
                       </div>
-                      <div class="mock-card-body">
-                        <div class="mock-card-top">
-                          <div class="mock-user">
-                            <span class="mock-avatar">M</span>
-                            <span>@maya_birds</span>
+                      <div class="app-card-content">
+                        <div class="app-card-row">
+                          <div class="app-user">
+                            <span class="app-avatar" style="background-color: #6b8f71;">M</span>
+                            @maya_birds
                           </div>
-                          <div class="mock-location">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                          <div class="app-location">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
                             Prospect Park
                           </div>
                         </div>
-                        <p class="mock-note">Male singing from the top of the oak.</p>
-                        <p class="mock-time">2h ago</p>
+                        <p class="app-note">Male singing from the top of the oak.</p>
+                        <p class="app-time">2h ago</p>
                       </div>
-                      <div class="mock-card-actions">
-                        <span><svg viewBox="0 0 24 24" fill="#f87171" stroke="#f87171" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> 12</span>
-                        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg> View</span>
-                        <span class="mock-more">···</span>
+                      <div class="app-card-footer">
+                        <span class="app-action app-action--liked">
+                          <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/></svg>
+                          12
+                        </span>
+                        <span class="app-action">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg>
+                          View
+                        </span>
+                        <span class="app-action app-action--more">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                        </span>
                       </div>
                     </article>
 
-                    <nav class="mock-tabbar">
-                      <span class="mock-tabbar-item mock-tabbar-item--active">
-                        <svg><use href="#bird-icon"></use></svg>
+                    <article class="app-card app-card--peek">
+                      <div class="app-card-photo app-card-photo--robin">
+                        <div class="app-card-gradient"></div>
+                        <div class="app-card-overlay">
+                          <div>
+                            <h3>American Robin</h3>
+                            <p class="app-sci">Turdus migratorius</p>
+                          </div>
+                          <div class="app-card-badges">
+                            <span class="app-rarity app-rarity--common">common</span>
+                            <span class="app-count">×2</span>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                    </div>
+
+                    <nav class="app-tabbar">
+                      <span class="app-tab app-tab--active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg>
                         Feed
                       </span>
-                      <span class="mock-tabbar-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                      <span class="app-tab">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
                         Journal
                       </span>
-                      <span class="mock-tabbar-camera">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                      <span class="app-tab-camera">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg>
                       </span>
-                      <span class="mock-tabbar-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      <span class="app-tab">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
                         Field Guide
                       </span>
-                      <span class="mock-tabbar-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                      <span class="app-tab">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                         Profile
                       </span>
                     </nav>
@@ -214,81 +267,100 @@
               <div class="phone-shell">
                 <div class="phone-camera"></div>
                 <div class="phone-screen">
-                  <div class="mock-app mock-app--guide">
-                    <header class="mock-header">
-                      <span class="mock-title">Field Guide</span>
-                      <div class="mock-header-actions">
-                        <span class="mock-icon-btn"></span>
-                        <span class="mock-icon-btn mock-icon-btn--bell"></span>
+                  <div class="mock-canvas mock-canvas--guide">
+                    <header class="app-header">
+                      <span class="app-title">Field Guide</span>
+                      <div class="app-header-actions">
+                        <span class="app-header-action" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 19v3" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            <rect x="9" y="2" width="6" height="13" rx="3" />
+                          </svg>
+                        </span>
+                        <span class="app-header-action" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <circle cx="9" cy="7" r="4" />
+                          </svg>
+                        </span>
+                        <span class="app-header-action" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+                            <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
+                          </svg>
+                        </span>
                       </div>
                     </header>
 
-                    <div class="mock-search">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <div class="app-search">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.34-4.34"/></svg>
                       Find a species...
                     </div>
 
-                    <div class="mock-progress">
-                      <div class="mock-progress-top">
+                    <div class="app-progress">
+                      <div class="app-progress-top">
                         <span>Lifetime progress</span>
-                        <span class="mock-progress-count">18/240 species logged</span>
+                        <span class="app-progress-count">18/1486 species logged</span>
                       </div>
-                      <div class="mock-progress-bar"><span style="width: 7.5%"></span></div>
+                      <div class="app-progress-track"><span style="width: 1.21%"></span></div>
                     </div>
 
-                    <div class="mock-species-grid">
-                      <article class="mock-species">
-                        <div class="mock-species-photo mock-species-photo--robin">
-                          <span class="mock-logged"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>
+                    <div class="app-guide-grid">
+                      <article class="app-guide-card">
+                        <div class="app-guide-photo app-guide-photo--robin">
+                          <span class="app-logged"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
                         </div>
-                        <strong>American Robin</strong>
-                        <span class="mock-sci">Turdus migratorius</span>
-                        <span class="mock-family">Thrushes</span>
-                        <span class="mock-rarity mock-rarity--common">common</span>
+                        <h3>American Robin</h3>
+                        <p class="app-sci">Turdus migratorius</p>
+                        <p class="app-family">Turdidae · Lawns, parks, woodland edges, and suburban yards</p>
+                        <span class="app-rarity app-rarity--common">common</span>
                       </article>
-                      <article class="mock-species">
-                        <div class="mock-species-photo mock-species-photo--jay"></div>
-                        <strong>Blue Jay</strong>
-                        <span class="mock-sci">Cyanocitta cristata</span>
-                        <span class="mock-family">Corvids</span>
-                        <span class="mock-rarity mock-rarity--common">common</span>
+                      <article class="app-guide-card">
+                        <div class="app-guide-photo app-guide-photo--jay"></div>
+                        <h3>Blue Jay</h3>
+                        <p class="app-sci">Cyanocitta cristata</p>
+                        <p class="app-family">Corvidae · Deciduous and mixed forests, parks, and suburbs</p>
+                        <span class="app-rarity app-rarity--common">common</span>
                       </article>
-                      <article class="mock-species">
-                        <div class="mock-species-photo mock-species-photo--warbler"></div>
-                        <strong>Yellow Warbler</strong>
-                        <span class="mock-sci">Setophaga petechia</span>
-                        <span class="mock-family">Warblers</span>
-                        <span class="mock-rarity mock-rarity--uncommon">uncommon</span>
+                      <article class="app-guide-card">
+                        <div class="app-guide-photo app-guide-photo--hawk"></div>
+                        <h3>Red-tailed Hawk</h3>
+                        <p class="app-sci">Buteo jamaicensis</p>
+                        <p class="app-family">Accipitridae · Open country, fields, highways, and woodland edges</p>
+                        <span class="app-rarity app-rarity--uncommon">uncommon</span>
                       </article>
-                      <article class="mock-species">
-                        <div class="mock-species-photo mock-species-photo--owl">
-                          <span class="mock-logged"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>
+                      <article class="app-guide-card">
+                        <div class="app-guide-photo app-guide-photo--owl">
+                          <span class="app-logged"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
                         </div>
-                        <strong>Barred Owl</strong>
-                        <span class="mock-sci">Strix varia</span>
-                        <span class="mock-family">Owls</span>
-                        <span class="mock-rarity mock-rarity--rare">rare</span>
+                        <h3>Barred Owl</h3>
+                        <p class="app-sci">Strix varia</p>
+                        <p class="app-family">Strigidae · Mature deciduous and mixed forests near water</p>
+                        <span class="app-rarity app-rarity--uncommon">uncommon</span>
                       </article>
                     </div>
 
-                    <nav class="mock-tabbar">
-                      <span class="mock-tabbar-item">
-                        <svg><use href="#bird-icon"></use></svg>
+                    <nav class="app-tabbar">
+                      <span class="app-tab">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg>
                         Feed
                       </span>
-                      <span class="mock-tabbar-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                      <span class="app-tab">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
                         Journal
                       </span>
-                      <span class="mock-tabbar-camera">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                      <span class="app-tab-camera">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg>
                       </span>
-                      <span class="mock-tabbar-item mock-tabbar-item--active">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      <span class="app-tab app-tab--active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
                         Field Guide
                       </span>
-                      <span class="mock-tabbar-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                      <span class="app-tab">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                         Profile
                       </span>
                     </nav>

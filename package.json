@@ -7,6 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "preview:website": "npx --yes serve website -l 4321",
+    "deploy:website": "wrangler pages deploy website --project-name=burd",
     "fetch-species-images": "node scripts/fetch-species-images.mjs",
     "generate-bird-catalog": "server/.venv/Scripts/python.exe scripts/generate-bird-catalog.py"
   },

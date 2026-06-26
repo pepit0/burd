@@ -2,14 +2,14 @@
   <rect width="28" height="28" rx="8" fill="#5f9470" />
   <g
     stroke="#f0ead6"
-    stroke-width="1.75"
+    stroke-width="2"
     stroke-linecap="round"
     stroke-linejoin="round"
     fill="none"
-    transform="translate(7 6.5) scale(0.58)"
+    transform="translate(7 7) scale(0.5833333)"
   >
-    <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L4 11v8h8z" />
-    <path d="M16 8l2-2" />
-    <path d="M12 19v3" />
+    <path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z" />
+    <path d="M16 8 2 22" />
+    <path d="M17.5 15H9" />
   </g>
 </svg>

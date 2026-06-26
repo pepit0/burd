@@ -11,6 +11,8 @@
   --font-sans: "DM Sans", system-ui, sans-serif;
   --font-serif: "Lora", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --mock-width: 375px;
+  --mock-height: 812px;
 }
 
 *,
@@ -73,6 +75,27 @@ img {
   width: 2rem;
   height: 2rem;
   flex-shrink: 0;
+}
+
+.burd-logo-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  flex-shrink: 0;
+}
+
+.burd-logo-mark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.burd-logo-mark--sm {
+  width: 28px;
+  height: 28px;
 }
 
 .bird-sep {
@@ -161,25 +184,26 @@ img {
 
 .cta-row {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.75rem;
-  max-width: 24rem;
 }
 
 .store-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(13rem, 1.28fr) minmax(13rem, 1.28fr);
   gap: 0.75rem;
+  width: 100%;
+  max-width: 36rem;
 }
 
 .store-btn,
 .web-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.65rem;
+  justify-content: flex-start;
+  gap: 0.55rem;
   min-height: 3rem;
-  padding: 0.75rem 0.85rem;
+  padding: 0.7rem 0.85rem;
   border-radius: 0.85rem;
   font: inherit;
   font-size: 0.92rem;
@@ -205,9 +229,13 @@ img {
 }
 
 .store-btn__text {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.05rem;
+  line-height: 1.15;
   text-align: left;
+  white-space: nowrap;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -216,11 +244,13 @@ img {
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .coming-soon {
   margin-left: auto;
-  padding: 0.15rem 0.45rem;
+  flex: 0 0 auto;
+  padding: 0.12rem 0.38rem;
   border-radius: 999px;
   font-size: 0.58rem;
   font-weight: 600;
@@ -232,7 +262,7 @@ img {
 }
 
 .web-btn {
-  width: 100%;
+  justify-content: center;
   border: 1px solid rgba(95, 148, 112, 0.55);
   background: var(--primary);
   color: var(--primary-foreground);
@@ -254,6 +284,8 @@ img {
   align-items: flex-end;
   gap: clamp(1rem, 3vw, 2rem);
   perspective: 1200px;
+  width: 100%;
+  min-width: 0;
 }
 
 .phone {
@@ -262,48 +294,51 @@ img {
 }
 
 .phone--iphone {
-  width: min(230px, 44vw);
+  width: min(275px, 42vw);
   transform: rotate(-4deg);
 }
 
 .phone--android {
-  width: min(220px, 42vw);
+  width: min(265px, 40vw);
   transform: rotate(3deg) translateY(12px);
 }
 
 .phone-shell {
   position: relative;
-  padding: 0.55rem;
-  border-radius: 2rem;
-  background: linear-gradient(145deg, #3a3a3a, #111);
+  padding: 10px;
+  border-radius: 2.4rem;
+  background: linear-gradient(160deg, #454545, #121212);
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.45),
+    0 28px 70px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .phone--android .phone-shell {
-  border-radius: 1.6rem;
-  padding: 0.45rem;
+  border-radius: 1.85rem;
+  padding: 8px;
 }
 
 .phone-screen {
+  container-type: inline-size;
+  position: relative;
   overflow: hidden;
-  border-radius: 1.55rem;
+  border-radius: 1.85rem;
   background: var(--background);
-  aspect-ratio: 9 / 19.5;
+  width: 100%;
+  aspect-ratio: 375 / 812;
 }
 
 .phone--android .phone-screen {
-  border-radius: 1.25rem;
+  border-radius: 1.45rem;
 }
 
 .phone-notch {
   position: absolute;
-  top: 0.85rem;
+  top: 18px;
   left: 50%;
   z-index: 2;
   width: 34%;
-  height: 1.1rem;
+  height: 16px;
   border-radius: 999px;
   background: #111;
   transform: translateX(-50%);
@@ -311,497 +346,553 @@ img {
 
 .phone-camera {
   position: absolute;
-  top: 0.95rem;
+  top: 16px;
   left: 50%;
   z-index: 2;
-  width: 0.55rem;
-  height: 0.55rem;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #222;
   box-shadow: inset 0 0 0 2px #333;
   transform: translateX(-50%);
 }
 
-.mock-app {
+.mock-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--mock-width);
+  height: var(--mock-height);
+  transform: scale(calc(100cqw / var(--mock-width)));
+  transform-origin: top left;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  font-size: 0.48rem;
-  overflow: hidden;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
 }
 
-.mock-header {
+.app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.55rem 0.7rem 0.45rem;
+  padding: 14px 20px 12px;
   border-bottom: 1px solid var(--border);
 }
 
-.mock-header--logo {
-  padding-top: 1.75rem;
-}
-
-.mock-brand {
+.app-brand {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 8px;
+}
+
+.app-brand-name,
+.app-title {
   font-family: var(--font-serif);
-  font-size: 0.88rem;
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 
-.mock-logo {
-  width: 1rem;
-  height: 1rem;
-  border-radius: 0.28rem;
+.app-title {
+  font-size: 18px;
 }
 
-.mock-title {
-  font-family: var(--font-serif);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.mock-header-actions {
+.app-header-icons {
   display: flex;
-  gap: 0.2rem;
+  gap: 4px;
 }
 
-.mock-icon-btn {
-  width: 0.8rem;
-  height: 0.8rem;
-  border-radius: 999px;
-  background: rgba(138, 158, 130, 0.12);
+.app-header-icons span {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: rgba(138, 158, 130, 0.14);
 }
 
-.mock-icon-btn--bell {
-  border-radius: 0.22rem;
-}
-
-.mock-search {
+.app-header-actions {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  margin: 0.45rem 0.7rem 0;
-  padding: 0.42rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.55rem;
-  color: var(--muted-foreground);
-  background: var(--card);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  gap: 2px;
 }
 
-.mock-search svg {
-  width: 0.65rem;
-  height: 0.65rem;
+.app-header-action {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+
+.app-header-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+.app-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+
+.app-search svg {
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
 }
 
-.mock-tabs {
+.app-pills {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.28rem;
-  padding: 0.45rem 0.7rem;
+  gap: 8px;
+  padding: 12px 16px;
 }
 
-.mock-tab {
-  padding: 0.18rem 0.42rem;
-  border: 1px solid transparent;
+.app-pill-filter {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  padding: 6px;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  color: var(--muted-foreground);
   background: var(--card);
+  color: var(--muted-foreground);
+}
+
+.app-pill-filter svg {
+  width: 13px;
+  height: 13px;
+}
+
+.app-pill {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 12px;
   text-transform: capitalize;
 }
 
-.mock-tab--active {
+.app-pill--active {
   border-color: transparent;
-  color: var(--primary-foreground);
   background: var(--primary);
+  color: var(--primary-foreground);
   font-weight: 500;
 }
 
-.mock-tab--filter {
-  margin-left: auto;
-  display: grid;
-  place-items: center;
-  width: 1.05rem;
-  height: 1.05rem;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--card);
-}
-
-.mock-tab--filter svg {
-  width: 0.55rem;
-  height: 0.55rem;
-}
-
-.mock-card {
-  margin: 0 0.7rem;
+.app-card {
+  margin: 0 16px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: 16px;
   background: var(--card);
 }
 
-.mock-photo {
+.app-feed-list {
+  display: grid;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 8px;
+}
+
+.app-card--peek {
+  margin-bottom: 0;
+  max-height: 120px;
+}
+
+.app-card-photo {
   position: relative;
-  height: 5.2rem;
+  height: 192px;
   background-position: center;
   background-size: cover;
+  background-color: var(--muted);
 }
 
-.mock-photo--cardinal {
-  background-image: url("https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=600&q=80");
+.app-card-photo--cardinal {
+  background-image: url("https://inaturalist-open-data.s3.amazonaws.com/photos/189434971/medium.jpg");
 }
 
-.mock-photo-overlay {
+.app-card-photo--robin {
+  background-image: url("https://inaturalist-open-data.s3.amazonaws.com/photos/34859026/medium.jpg");
+}
+
+.app-card-gradient {
   position: absolute;
   inset: 0;
   background: linear-gradient(to top, rgba(31, 42, 28, 0.95), rgba(31, 42, 28, 0.2) 45%, transparent);
 }
 
-.mock-photo-meta {
+.app-card-overlay {
   position: absolute;
-  left: 0.5rem;
-  right: 0.5rem;
-  bottom: 0.45rem;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 0.35rem;
+  gap: 8px;
 }
 
-.mock-photo-meta strong {
-  display: block;
+.app-card-overlay h3 {
+  margin: 0;
   font-family: var(--font-serif);
-  font-size: 0.78rem;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.15;
 }
 
-.mock-photo-meta span {
-  display: block;
+.app-sci {
+  margin: 2px 0 0;
   font-family: var(--font-serif);
-  font-size: 0.48rem;
+  font-size: 11px;
   font-style: italic;
-  opacity: 0.6;
 }
 
-.mock-photo-badges {
+.app-card-overlay .app-sci {
+  color: rgba(238, 232, 212, 0.6);
+}
+
+.app-card-badges {
   display: grid;
-  gap: 0.18rem;
+  gap: 6px;
   justify-items: end;
 }
 
-.mock-count {
+.app-count {
   font-family: var(--font-mono);
-  font-size: 0.48rem;
+  font-size: 11px;
   color: var(--accent);
 }
 
-.mock-rarity {
-  padding: 0.1rem 0.28rem;
+.app-rarity {
+  padding: 2px 6px;
   border: 1px solid;
-  border-radius: 0.18rem;
+  border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 0.4rem;
+  font-size: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.mock-rarity--common {
+.app-rarity--common {
   border-color: rgba(22, 101, 52, 0.5);
   color: #86efac;
   background: rgba(20, 83, 45, 0.35);
 }
 
-.mock-rarity--uncommon {
+.app-rarity--uncommon {
   border-color: rgba(146, 64, 14, 0.5);
   color: #fbbf24;
   background: rgba(120, 53, 15, 0.35);
 }
 
-.mock-rarity--rare {
+.app-rarity--rare {
   border-color: rgba(107, 33, 168, 0.5);
   color: #c084fc;
   background: rgba(88, 28, 135, 0.35);
 }
 
-.mock-card-body {
-  padding: 0.45rem 0.55rem 0.35rem;
+.app-card-content {
+  padding: 12px 16px 8px;
 }
 
-.mock-card-top {
+.app-card-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.35rem;
-  margin-bottom: 0.28rem;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.mock-user {
+.app-user {
   display: flex;
   align-items: center;
-  gap: 0.28rem;
+  gap: 8px;
+  font-size: 12px;
   color: var(--muted-foreground);
 }
 
-.mock-avatar {
+.app-avatar {
   display: grid;
   place-items: center;
-  width: 0.85rem;
-  height: 0.85rem;
-  border-radius: 0.22rem;
-  font-size: 0.42rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--primary-foreground);
-  background: var(--primary);
+  color: #fff;
 }
 
-.mock-location {
+.app-location {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 4px;
+  font-size: 11px;
   color: var(--muted-foreground);
 }
 
-.mock-location svg {
-  width: 0.45rem;
-  height: 0.45rem;
+.app-location svg {
+  width: 10px;
+  height: 10px;
   color: var(--accent);
 }
 
-.mock-note {
+.app-note {
   margin: 0;
-  font-size: 0.52rem;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
   color: rgba(238, 232, 212, 0.82);
 }
 
-.mock-time {
-  margin: 0.18rem 0 0;
+.app-time {
+  margin: 4px 0 0;
   font-family: var(--font-mono);
-  font-size: 0.42rem;
+  font-size: 11px;
   color: rgba(138, 158, 130, 0.5);
 }
 
-.mock-card-actions {
+.app-card-footer {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.38rem 0.55rem;
+  gap: 16px;
+  padding: 12px 16px;
   border-top: 1px solid var(--border);
+}
+
+.app-action--more {
+  margin-left: auto;
+}
+
+.app-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: var(--muted-foreground);
 }
 
-.mock-card-actions span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.18rem;
+.app-action svg {
+  width: 14px;
+  height: 14px;
 }
 
-.mock-card-actions svg {
-  width: 0.55rem;
-  height: 0.55rem;
+.app-action--liked {
+  color: #f87171;
 }
 
-.mock-more {
-  margin-left: auto;
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-}
-
-.mock-progress {
-  margin: 0.45rem 0.7rem 0;
-  padding: 0.45rem;
+.app-progress {
+  margin: 12px 16px 0;
+  padding: 14px;
   border: 1px solid var(--border);
-  border-radius: 0.55rem;
+  border-radius: 12px;
   background: var(--card);
 }
 
-.mock-progress-top {
+.app-progress-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.35rem;
-  margin-bottom: 0.35rem;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
   color: var(--muted-foreground);
 }
 
-.mock-progress-count {
+.app-progress-count {
   font-family: var(--font-mono);
-  font-size: 0.48rem;
+  font-size: 12px;
   color: var(--accent);
 }
 
-.mock-progress-bar {
-  height: 0.28rem;
+.app-progress-track {
+  height: 6px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--muted);
 }
 
-.mock-progress-bar span {
+.app-progress-track span {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: var(--primary);
 }
 
-.mock-species-grid {
+.mock-canvas--guide {
+  overflow: hidden;
+}
+
+.mock-canvas--guide .app-guide-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  align-content: start;
+}
+
+.mock-canvas--guide .app-tabbar {
+  flex-shrink: 0;
+}
+
+.app-guide-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.35rem;
-  padding: 0.45rem 0.7rem 0;
+  gap: 12px;
+  padding: 12px 16px 0;
 }
 
-.mock-species {
+.app-guide-card {
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 0.65rem;
+  border-radius: 16px;
   background: var(--card);
-  padding-bottom: 0.35rem;
+  padding-bottom: 10px;
 }
 
-.mock-species-photo {
+.app-guide-photo {
   position: relative;
-  height: 2.45rem;
+  height: 112px;
   background-position: center;
   background-size: cover;
   background-color: var(--muted);
 }
 
-.mock-species-photo--robin {
-  background-image: url("https://images.unsplash.com/photo-1444464666168-49d633b86797?auto=format&fit=crop&w=400&q=80");
+.app-guide-photo--robin {
+  background-image: url("https://inaturalist-open-data.s3.amazonaws.com/photos/34859026/medium.jpg");
 }
 
-.mock-species-photo--jay {
-  background-image: url("https://images.unsplash.com/photo-1552728080-8c752d3a7b54?auto=format&fit=crop&w=400&q=80");
+.app-guide-photo--jay {
+  background-image: url("https://inaturalist-open-data.s3.amazonaws.com/photos/530721418/medium.jpg");
 }
 
-.mock-species-photo--warbler {
-  background-image: url("https://images.unsplash.com/photo-1501706362039-c4691f5fbf2a?auto=format&fit=crop&w=400&q=80");
+.app-guide-photo--hawk {
+  background-image: url("https://inaturalist-open-data.s3.amazonaws.com/photos/236676280/medium.jpg");
 }
 
-.mock-species-photo--owl {
-  background-image: url("https://images.unsplash.com/photo-1543543007-14a5c4c0d04b?auto=format&fit=crop&w=400&q=80");
+.app-guide-photo--owl {
+  background-image: url("https://inaturalist-open-data.s3.amazonaws.com/photos/359094470/medium.jpg");
 }
 
-.mock-logged {
+.app-logged {
   position: absolute;
-  top: 0.28rem;
-  right: 0.28rem;
+  top: 8px;
+  right: 8px;
   display: grid;
   place-items: center;
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
   color: var(--primary-foreground);
   background: var(--primary);
 }
 
-.mock-logged svg {
-  width: 0.42rem;
-  height: 0.42rem;
+.app-logged svg {
+  width: 10px;
+  height: 10px;
 }
 
-.mock-species strong {
-  display: block;
-  padding: 0.28rem 0.35rem 0;
+.app-guide-card h3 {
+  margin: 0;
+  padding: 10px 10px 0;
   font-family: var(--font-serif);
-  font-size: 0.52rem;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1.15;
 }
 
-.mock-sci {
-  display: block;
-  padding: 0 0.35rem;
-  font-family: var(--font-serif);
-  font-size: 0.42rem;
-  font-style: italic;
+.app-guide-card .app-sci {
+  padding: 0 10px;
+  font-size: 10px;
   color: var(--muted-foreground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.mock-family {
-  display: block;
-  padding: 0.12rem 0.35rem 0.22rem;
-  font-size: 0.42rem;
-  line-height: 1.25;
+.app-family {
+  margin: 0;
+  padding: 4px 10px 6px;
+  font-size: 10px;
+  line-height: 1.3;
   color: rgba(138, 158, 130, 0.8);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.mock-species .mock-rarity {
-  margin: 0 0.35rem;
+.app-guide-card .app-rarity {
+  margin: 0 10px;
 }
 
-.mock-tabbar {
+.app-tabbar {
   display: flex;
   align-items: flex-end;
   margin-top: auto;
-  padding: 0.28rem 0.2rem 0.45rem;
+  padding: 8px 6px 10px;
   border-top: 1px solid var(--border);
   background: var(--card);
 }
 
-.mock-tabbar-item {
+.app-tab {
   flex: 1;
   display: grid;
   justify-items: center;
-  gap: 0.12rem;
-  padding-bottom: 0.18rem;
+  gap: 4px;
+  padding-bottom: 6px;
   color: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: 0.38rem;
-  letter-spacing: 0.08em;
+  font-size: 8px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  text-align: center;
+  line-height: 1.1;
 }
 
-.mock-tabbar-item svg {
-  width: 0.72rem;
-  height: 0.72rem;
+.app-tab svg {
+  width: 18px;
+  height: 18px;
 }
 
-.mock-tabbar-item--active {
+.app-tab--active {
   color: var(--primary);
   position: relative;
 }
 
-.mock-tabbar-item--active::after {
+.app-tab--active::after {
   content: "";
   position: absolute;
   bottom: 0;
-  width: 0.85rem;
-  height: 0.08rem;
+  width: 24px;
+  height: 2px;
   border-radius: 999px 999px 0 0;
   background: var(--primary);
 }
 
-.mock-tabbar-camera {
+.app-tab-camera {
   display: grid;
   place-items: center;
-  width: 1.85rem;
-  height: 1.85rem;
-  margin: -0.75rem 0.08rem 0;
-  border: 0.18rem solid var(--background);
+  width: 72px;
+  height: 72px;
+  margin: -32px 4px 0;
+  border: 5px solid var(--background);
   border-radius: 999px;
   color: var(--primary-foreground);
   background: var(--primary);
-  box-shadow: 0 0.15rem 0.45rem rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
-.mock-tabbar-camera svg {
-  width: 0.85rem;
-  height: 0.85rem;
+.app-tab-camera svg {
+  width: 28px;
+  height: 28px;
 }
 
 .about {
@@ -834,11 +925,24 @@ img {
 @media (min-width: 900px) {
   .hero {
     grid-template-columns: 1fr 1.05fr;
-    gap: 2rem;
+    gap: clamp(2rem, 4vw, 3rem);
+    align-items: center;
+  }
+
+  .hero-copy {
+    position: relative;
+    z-index: 1;
   }
 
   .phones {
     justify-content: flex-end;
+    justify-self: end;
+    align-self: center;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: calc(-1 * clamp(1rem, 3vw, 2rem));
+    translate: clamp(1.25rem, 2.5vw, 2.5rem) 0;
   }
 }
 
@@ -846,10 +950,12 @@ img {
   .phones {
     flex-direction: column;
     align-items: center;
+    margin-top: 0.5rem;
   }
 
   .phone--iphone,
   .phone--android {
+    width: min(290px, 78vw);
     transform: none;
   }
 
@@ -857,11 +963,17 @@ img {
     translate: 0;
   }
 
-  .store-row {
-    grid-template-columns: 1fr;
+  .cta-row {
+    flex-direction: column;
   }
 
-  .cta-row {
+  .store-row {
+    grid-template-columns: 1fr;
     max-width: none;
+  }
+
+  .store-btn,
+  .web-btn {
+    width: 100%;
   }
 }
