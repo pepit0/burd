@@ -363,7 +363,7 @@ img {
   left: 0;
   width: var(--mock-width);
   height: var(--mock-height);
-  transform: scale(calc(100cqw / var(--mock-width)));
+  transform: scale(clamp(0.55, calc(100cqw / var(--mock-width)), 1.2));
   transform-origin: top left;
   display: flex;
   flex-direction: column;
@@ -924,8 +924,8 @@ img {
 
 @media (min-width: 900px) {
   .hero {
-    grid-template-columns: 1fr 1.05fr;
-    gap: clamp(2rem, 4vw, 3rem);
+    grid-template-columns: 1fr minmax(0, 1fr);
+    gap: clamp(1.5rem, 3vw, 2rem);
     align-items: center;
   }
 
@@ -941,6 +941,34 @@ img {
     width: fit-content;
     max-width: 100%;
     margin-left: auto;
+    margin-right: 0;
+    translate: 0;
+  }
+
+  .phone--iphone {
+    width: min(235px, 100%);
+  }
+
+  .phone--android {
+    width: min(225px, 100%);
+  }
+}
+
+@media (min-width: 1200px) {
+  .hero {
+    grid-template-columns: 1fr 1.05fr;
+    gap: clamp(2rem, 4vw, 3rem);
+  }
+
+  .phone--iphone {
+    width: min(275px, 42vw);
+  }
+
+  .phone--android {
+    width: min(265px, 40vw);
+  }
+
+  .phones {
     margin-right: calc(-1 * clamp(1rem, 3vw, 2rem));
     translate: clamp(1.25rem, 2.5vw, 2.5rem) 0;
   }
