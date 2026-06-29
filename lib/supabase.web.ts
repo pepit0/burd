@@ -1,8 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseEnv } from "./supabase.env";
 
-const { url, key } = getSupabaseEnv();
-
 let client: SupabaseClient | undefined;
 
 function getClient(): SupabaseClient {
@@ -13,6 +11,8 @@ function getClient(): SupabaseClient {
   if (typeof window === "undefined") {
     throw new Error("Supabase is only available in the browser.");
   }
+
+  const { url, key } = getSupabaseEnv();
 
   client = createClient(url, key, {
     auth: {
