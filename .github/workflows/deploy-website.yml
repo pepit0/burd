@@ -18,6 +18,7 @@ on:
       - "scripts/sync-web-app.mjs"
       - "scripts/pages-build.mjs"
       - "scripts/verify-web-build.mjs"
+      - "app/+html.tsx"
       - "wrangler.toml"
       - "website/wrangler.toml"
       - "website/package.json"

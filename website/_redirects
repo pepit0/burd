@@ -1,2 +1,2 @@
-# Expo Router client routes and dynamic segments under /app
+# Client-side routes for the Expo web app (static /app/_expo and /app/assets are served as files).
 /app/*  /app/index.html  200

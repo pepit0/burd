@@ -14,10 +14,12 @@ export default function Root({ children }: PropsWithChildren) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
+        <title>Burd - Birding, together</title>
         <base href="/app/" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link rel="stylesheet" href={fontStylesheet} />
+        <meta name="robots" content="noindex, nofollow" />
         <ScrollViewStyleReset />
       </head>
       <body>{children}</body>
