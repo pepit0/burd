@@ -21,6 +21,11 @@ execSync("npm run build:web-app", {
   env: process.env,
 });
 
+execSync("node scripts/verify-web-build.mjs", {
+  cwd: root,
+  stdio: "inherit",
+});
+
 for (const requiredPath of requiredPaths) {
   if (!existsSync(requiredPath)) {
     throw new Error(`Web build is incomplete: missing ${requiredPath}`);

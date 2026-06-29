@@ -39,6 +39,11 @@ if (!existsSync(assetsDir) || !existsSync(expoDir)) {
 
 injectAppShellSeo();
 
+execSync("node scripts/verify-web-build.mjs", {
+  cwd: root,
+  stdio: "inherit",
+});
+
 console.log("Done. Preview with: npm run preview:website → http://localhost:4321/app/");
 
 function injectAppShellSeo() {
