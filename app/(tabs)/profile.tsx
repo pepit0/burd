@@ -10,7 +10,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
@@ -20,18 +19,20 @@ import {
   Feather,
   LogOut,
   MapPin,
+  ShieldAlert,
   Star,
   Users,
 } from "lucide-react-native";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
+import { ProfileStatsRow } from "@/components/ProfileStatsRow";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useProfile } from "@/hooks/useProfile";
 import { getErrorMessage } from "@/lib/errors";
+import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { supabase } from "@/lib/supabase";
-
-const COVER =
-  "https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&h=200&fit=crop&auto=format";
 
 const RADIUS_OPTIONS = [5, 10, 25, 50, 100];
 
@@ -39,6 +40,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const { isAdmin } = useAdmin(userId);
 
   const { profile, followers, following, loading, refreshing, error, refresh, silentRefresh, setRadius, updateAvatar } =
     useProfile(userId);
@@ -75,7 +77,11 @@ export default function ProfileScreen() {
     [sightings],
   );
 
-  const recent = sightings.slice(0, 5);
+  const publishedSightings = useMemo(
+    () => sightings.filter((s) => s.published_at),
+    [sightings],
+  );
+  const recent = publishedSightings.slice(0, 5);
 
   const badges = useMemo(
     () => [
@@ -89,11 +95,30 @@ export default function ProfileScreen() {
   );
 
   const displayName = profile?.full_name || profile?.username || "Birder";
-  const stats = [
-    { label: "Sightings", value: sightings.length },
-    { label: "Species", value: speciesCount },
-    { label: "Followers", value: followers },
-    { label: "Following", value: following },
+  const stats: {
+    label: string;
+    value: number;
+    onPress: () => void;
+  }[] = [
+    { label: "Sightings", value: sightings.length, onPress: () => router.push("/(tabs)/journal") },
+    {
+      label: "Species",
+      value: speciesCount,
+      onPress: () => {
+        requestFieldGuideView({ sortLoggedFirst: true });
+        router.push("/(tabs)/field-guide");
+      },
+    },
+    {
+      label: "Followers",
+      value: followers,
+      onPress: () => router.push({ pathname: "/follows", params: { tab: "followers" } }),
+    },
+    {
+      label: "Following",
+      value: following,
+      onPress: () => router.push({ pathname: "/follows", params: { tab: "following" } }),
+    },
   ];
 
   async function pickProfilePhoto() {
@@ -148,13 +173,7 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor="#5f9470" />
         }
       >
-        <View className="h-28 bg-muted">
-          <Image source={{ uri: COVER }} className="h-full w-full" resizeMode="cover" />
-          <LinearGradient
-            colors={["transparent", "rgba(24,30,22,0.8)"]}
-            className="absolute inset-0"
-          />
-        </View>
+        <ProfileCoverBanner />
 
         <View className="-mt-9 px-4">
           <Pressable
@@ -206,21 +225,7 @@ export default function ProfileScreen() {
             </Text>
           ) : null}
 
-          <View className="mt-4 flex-row gap-2">
-            {stats.map((s) => (
-              <View
-                key={s.label}
-                className="flex-1 items-center rounded-xl border border-border bg-card p-2.5"
-              >
-                <Text className="font-serif-semibold text-lg leading-none text-foreground">
-                  {s.value}
-                </Text>
-                <Text className="mt-1 text-[9px] uppercase tracking-wider text-muted-foreground">
-                  {s.label}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <ProfileStatsRow stats={stats} />
 
           {error ? (
             <Text className="mt-3 font-sans text-xs text-destructive">{error}</Text>
@@ -277,6 +282,44 @@ export default function ProfileScreen() {
             <ChevronRight size={16} color="#8a9e82" />
           </Pressable>
 
+          {isAdmin ? (
+            <Pressable
+              onPress={() => router.push("/admin/index" as never)}
+              className="mt-3 flex-row items-center justify-between rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 active:opacity-90"
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-9 w-9 items-center justify-center rounded-full bg-accent/20">
+                  <ShieldAlert size={16} color="#c8893a" />
+                </View>
+                <View>
+                  <Text className="font-sans-medium text-sm text-foreground">Admin</Text>
+                  <Text className="font-sans text-[11px] text-muted-foreground">
+                    Reports, moderation log, and admin access
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={16} color="#8a9e82" />
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={() => router.push("/data-sources" as never)}
+            className="mt-3 flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-3 active:opacity-90"
+          >
+            <View className="flex-row items-center gap-3">
+              <View className="h-9 w-9 items-center justify-center rounded-full bg-muted">
+                <Feather size={16} color="#8a9e82" />
+              </View>
+              <View>
+                <Text className="font-sans-medium text-sm text-foreground">Data sources</Text>
+                <Text className="font-sans text-[11px] text-muted-foreground">
+                  Regional frequency and attribution
+                </Text>
+              </View>
+            </View>
+            <ChevronRight size={16} color="#8a9e82" />
+          </Pressable>
+
           <View className="mt-6">
             <Text className="mb-3 font-serif-semibold text-base text-foreground">
               Recent Sightings
@@ -290,7 +333,8 @@ export default function ProfileScreen() {
                 {recent.map((e) => (
                   <Pressable
                     key={e.id}
-                    className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
+                    onPress={() => router.push(`/post/${e.id}`)}
+                    className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3 active:opacity-90"
                   >
                     <View className="h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted">
                       {e.photo_url ? (

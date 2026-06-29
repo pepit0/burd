@@ -1,0 +1,29 @@
+{
+  "name": "Burd - Birding, together",
+  "short_name": "Burd",
+  "description": "Burd is the social birding app to log sightings, identify bird calls, explore a field guide, and connect with birders near you.",
+  "start_url": "/app/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#181e16",
+  "theme_color": "#181e16",
+  "lang": "en-US",
+  "icons": [
+    {
+      "src": "/assets/favicon-48.png",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["lifestyle", "social", "education"]
+}

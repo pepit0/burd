@@ -33,6 +33,8 @@ import {
   ZapOff,
 } from "lucide-react-native";
 import { identifySession } from "@/lib/identifySession";
+import { identifyAudio } from "@/lib/identify";
+import { fusePredictions } from "@/lib/fusePredictions";
 import { validatePhotoAuthenticity } from "@/lib/photoAuthenticity";
 import {
   isPhotoValidationError,
@@ -42,8 +44,11 @@ import {
   setPendingCapture,
   type SessionAudio,
   type SessionPhoto,
+  type PendingCapture,
 } from "@/lib/pendingCapture";
 import { getErrorMessage } from "@/lib/errors";
+import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
+import { useIdentificationLocation } from "@/hooks/useIdentificationLocation";
 
 const ZOOM_LEVELS = [0, 0.25, 0.5] as const;
 const ZOOM_LABELS = ["1x", "2x", "3x"];
@@ -70,6 +75,14 @@ export default function CameraScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [audioClip, setAudioClip] = useState<SessionAudio | null>(null);
+
+  const {
+    permission: locationPermission,
+    refresh: refreshLocation,
+    openSettings: openLocationSettings,
+  } = useIdentificationLocation({
+    enabled: Boolean(permission?.granted),
+  });
 
   const flashAnim = useRef(new Animated.Value(0)).current;
   const recordingRef = useRef<Audio.Recording | null>(null);
@@ -258,14 +271,22 @@ export default function CameraScreen() {
     });
   }
 
+  const hasSessionAudio = Boolean(audioClip || isRecording);
+  const canFinish = session.length > 0 || hasSessionAudio;
+
   function confirmClose() {
-    if (session.length === 0) {
+    if (!canFinish) {
       router.back();
       return;
     }
+    const hasPhotos = session.length > 0;
     Alert.alert(
-      "Discard photos?",
-      "Your session photos will be lost if you leave now.",
+      "Discard session?",
+      hasPhotos && hasSessionAudio
+        ? "Your photos and recording will be lost if you leave now."
+        : hasSessionAudio
+          ? "Your recording will be lost if you leave now."
+          : "Your session photos will be lost if you leave now.",
       [
         { text: "Keep shooting", style: "cancel" },
         { text: "Discard", style: "destructive", onPress: () => router.back() },
@@ -275,36 +296,55 @@ export default function CameraScreen() {
 
   async function finishSession() {
     if (finishing) return;
-    if (session.length === 0) {
-      router.back();
+
+    const clip = isRecording ? await stopRecording() : audioClip;
+    const hasPhotos = session.length > 0;
+
+    if (!hasPhotos && !clip) {
+      Alert.alert(
+        "Nothing to save",
+        "Record a bird call or take a photo before finishing.",
+      );
       return;
     }
 
     setFinishing(true);
     try {
-      const idx = primaryIndex();
-      const primary = session[idx];
-      const clip = isRecording ? await stopRecording() : audioClip;
+      const idx = hasPhotos ? primaryIndex() : 0;
+      const primary = hasPhotos ? session[idx] : null;
 
-      try {
-        await validatePhotoAuthenticity(primary.uri, primary.base64);
-      } catch (e) {
-        Alert.alert(
-          "Photo not accepted",
-          isPhotoValidationError(e)
-            ? validationFailureMessage(e.validation) || e.message
-            : getErrorMessage(e),
-        );
-        return;
+      if (primary) {
+        try {
+          await validatePhotoAuthenticity(primary.uri, primary.base64);
+        } catch (e) {
+          Alert.alert(
+            "Photo not accepted",
+            isPhotoValidationError(e)
+              ? validationFailureMessage(e.validation) || e.message
+              : getErrorMessage(e),
+          );
+          return;
+        }
       }
 
       let result: Awaited<ReturnType<typeof identifySession>> | null = null;
+      const observedAt = new Date().toISOString();
+      const coords = await refreshLocation();
+      const geo = coords
+        ? {
+            lat: coords.latitude,
+            lng: coords.longitude,
+            observedAt,
+          }
+        : undefined;
+
       try {
         result = await identifySession({
-          photoUri: primary.uri,
+          photoUri: primary?.uri ?? null,
           audioUri: clip?.uri,
           skipPhotoAuthenticity: true,
-          photoBase64: primary.base64,
+          photoBase64: primary?.base64,
+          geo,
         });
       } catch (e) {
         if (isPhotoValidationError(e)) {
@@ -314,16 +354,47 @@ export default function CameraScreen() {
           );
           return;
         }
-        // Species ID failed — user can still log manually.
+        if (clip?.uri) {
+          try {
+            const audioResult = await identifyAudio(clip.uri, geo);
+            const fused = fusePredictions([], audioResult.predictions);
+            result = {
+              ...fused,
+              count: 1,
+              imagePredictions: [],
+              audioPredictions: audioResult.predictions,
+              heardSpecies: audioResult.heardSpecies,
+            };
+          } catch {
+            // Species ID failed — user can still log manually.
+          }
+        }
       }
 
       const top = result?.top;
-      setPendingCapture({
+      const pending: PendingCapture = {
         photos: session,
         primaryIndex: idx,
         count: result?.count ?? 1,
         audio: clip,
-      });
+        analysis: result
+          ? {
+              detectedBy: result.detectedBy,
+              top: result.top,
+              agreed: result.agreed,
+              imagePredictions: result.imagePredictions,
+              audioPredictions: result.audioPredictions,
+              heardSpecies: result.heardSpecies,
+              count: result.count,
+            }
+          : undefined,
+      };
+      setPendingCapture(pending);
+
+      if (clip) {
+        router.replace("/sound-review");
+        return;
+      }
 
       router.replace({
         pathname: "/new-sighting",
@@ -379,7 +450,9 @@ export default function CameraScreen() {
         <View className="absolute inset-0 z-20 items-center justify-center bg-black/60">
           <ActivityIndicator size="large" color="#5f9470" />
           <Text className="mt-3 font-sans text-sm text-foreground/80">
-            Identifying from photo{audioClip || isRecording ? " and sound" : ""}...
+            {session.length > 0
+              ? `Identifying from photo${hasSessionAudio ? " and sound" : ""}...`
+              : "Identifying from sound..."}
           </Text>
         </View>
       )}
@@ -397,7 +470,7 @@ export default function CameraScreen() {
         </Pressable>
 
         <View className="flex-row items-center gap-2">
-          {session.length > 0 ? (
+          {canFinish ? (
             <Pressable
               onPress={finishSession}
               disabled={finishing}
@@ -437,6 +510,23 @@ export default function CameraScreen() {
             <Grid3x3 size={18} color={grid ? "#181e16" : "#eee8d4"} />
           </Pressable>
         </View>
+      </View>
+
+      <View
+        className="absolute inset-x-4"
+        style={{ top: topPad + 56 }}
+        pointerEvents="box-none"
+      >
+        <LocationAccuracyBanner
+          permission={locationPermission}
+          onEnablePress={() => {
+            if (locationPermission === "denied") {
+              openLocationSettings();
+              return;
+            }
+            void refreshLocation();
+          }}
+        />
       </View>
 
       {/* Bottom controls */}
@@ -560,12 +650,12 @@ export default function CameraScreen() {
                 setLibraryOpen(false);
                 finishSession();
               }}
-              disabled={session.length === 0 || finishing}
+              disabled={!canFinish || finishing}
               className="rounded-full px-3 py-1.5 active:opacity-80"
             >
               <Text
                 className={`font-sans-medium text-sm ${
-                  session.length > 0 ? "text-primary" : "text-muted-foreground/40"
+                  canFinish ? "text-primary" : "text-muted-foreground/40"
                 }`}
               >
                 Log

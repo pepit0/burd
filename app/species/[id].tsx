@@ -19,6 +19,7 @@ import { useMySightings } from "@/hooks/useMySightings";
 import { useSpeciesProfile } from "@/hooks/useSpeciesProfile";
 import { getSightingsForSpecies } from "@/lib/fieldGuide";
 import { getCatalogSpeciesById } from "@/lib/speciesCatalog";
+import { hasDetailedFieldGuide } from "@/lib/speciesProfileLoad";
 import { formatDetailDate, observedDate } from "@/lib/sightingFormat";
 
 function InfoBlock({ label, value }: { label: string; value: string }) {
@@ -127,6 +128,9 @@ export default function SpeciesDetailScreen() {
                   <FieldGuideAttribution
                     author={author}
                     fieldGuideLocked={fieldGuideLocked}
+                    fieldGuidePublished={
+                      Boolean(profile && hasDetailedFieldGuide(profile))
+                    }
                     loading={authorLoading}
                   />
                 </View>

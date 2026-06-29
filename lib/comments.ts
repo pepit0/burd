@@ -15,6 +15,11 @@ interface CommentRow {
   };
 }
 
+interface CommentLikeRow {
+  comment_id: string;
+  user_id: string;
+}
+
 function mapRow(row: CommentRow): Comment & { parent_id: string | null } {
   return {
     id: row.id,
@@ -24,6 +29,8 @@ function mapRow(row: CommentRow): Comment & { parent_id: string | null } {
     avatar_url: row.profiles.avatar_url,
     body: row.body,
     created_at: row.created_at,
+    like_count: 0,
+    liked: false,
     parent_id: row.parent_id,
   };
 }
@@ -39,6 +46,8 @@ function buildCommentTree(flat: (Comment & { parent_id: string | null })[]): Com
       avatar_url: row.avatar_url,
       body: row.body,
       created_at: row.created_at,
+      like_count: row.like_count,
+      liked: row.liked,
       replies: [],
     });
   }
@@ -63,7 +72,62 @@ function countComments(comments: Comment[]): number {
   );
 }
 
-export async function getCommentsForSighting(sightingId: string): Promise<Comment[]> {
+function collectCommentIds(comments: Comment[]): string[] {
+  const ids: string[] = [];
+  for (const comment of comments) {
+    ids.push(comment.id);
+    if (comment.replies?.length) {
+      ids.push(...collectCommentIds(comment.replies));
+    }
+  }
+  return ids;
+}
+
+function applyLikeMeta(
+  comments: Comment[],
+  meta: Map<string, { like_count: number; liked: boolean }>,
+): Comment[] {
+  return comments.map((comment) => ({
+    ...comment,
+    like_count: meta.get(comment.id)?.like_count ?? 0,
+    liked: meta.get(comment.id)?.liked ?? false,
+    replies: comment.replies?.length
+      ? applyLikeMeta(comment.replies, meta)
+      : comment.replies,
+  }));
+}
+
+async function getCommentLikeMeta(
+  commentIds: string[],
+  userId: string | null,
+): Promise<Map<string, { like_count: number; liked: boolean }>> {
+  const meta = new Map<string, { like_count: number; liked: boolean }>();
+  for (const id of commentIds) {
+    meta.set(id, { like_count: 0, liked: false });
+  }
+  if (commentIds.length === 0) return meta;
+
+  const { data, error } = await supabase
+    .from("comment_likes")
+    .select("comment_id, user_id")
+    .in("comment_id", commentIds);
+
+  if (error) throw error;
+
+  for (const row of (data ?? []) as CommentLikeRow[]) {
+    const entry = meta.get(row.comment_id);
+    if (!entry) continue;
+    entry.like_count += 1;
+    if (userId && row.user_id === userId) entry.liked = true;
+  }
+
+  return meta;
+}
+
+export async function getCommentsForSighting(
+  sightingId: string,
+  userId: string | null = null,
+): Promise<Comment[]> {
   const { data, error } = await supabase
     .from("comments")
     .select(
@@ -75,7 +139,9 @@ export async function getCommentsForSighting(sightingId: string): Promise<Commen
   if (error) throw error;
 
   const flat = ((data ?? []) as CommentRow[]).map(mapRow);
-  return buildCommentTree(flat);
+  const tree = buildCommentTree(flat);
+  const meta = await getCommentLikeMeta(collectCommentIds(tree), userId);
+  return applyLikeMeta(tree, meta);
 }
 
 export async function getCommentCountForSighting(sightingId: string): Promise<number> {
@@ -115,6 +181,26 @@ export async function createComment(
   const mapped = mapRow(data as CommentRow);
   const { parent_id: _parentId, ...comment } = mapped;
   return comment;
+}
+
+export async function setCommentLike(
+  userId: string,
+  commentId: string,
+  liked: boolean,
+): Promise<void> {
+  if (liked) {
+    const { error } = await supabase
+      .from("comment_likes")
+      .insert({ user_id: userId, comment_id: commentId });
+    if (error && error.code !== "23505") throw error;
+  } else {
+    const { error } = await supabase
+      .from("comment_likes")
+      .delete()
+      .eq("user_id", userId)
+      .eq("comment_id", commentId);
+    if (error) throw error;
+  }
 }
 
 export { countComments };

@@ -219,3 +219,68 @@ export async function unfollowUser(
     .eq("following_id", followingId);
   if (error) throw error;
 }
+
+async function profilesForFollowIds(
+  ids: string[],
+  currentUserId: string,
+): Promise<UserListItem[]> {
+  if (ids.length === 0) return [];
+
+  const [profilesRes, followingIds] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, username, full_name, avatar_color, location_name")
+      .in("id", ids),
+    getMyFollowingIds(currentUserId),
+  ]);
+
+  if (profilesRes.error) throw profilesRes.error;
+
+  const byId = new Map(
+    (profilesRes.data ?? []).map((p) => [p.id as string, p]),
+  );
+
+  return ids
+    .map((id) => byId.get(id))
+    .filter((p): p is NonNullable<typeof p> => !!p)
+    .map((p) => ({
+      id: p.id as string,
+      username: p.username as string,
+      full_name: (p.full_name as string | null) ?? null,
+      avatar_color: p.avatar_color as string,
+      subtitle: (p.location_name as string | null) ?? null,
+      isFollowing: followingIds.has(p.id as string),
+    }));
+}
+
+export async function getFollowersList(
+  userId: string,
+  currentUserId: string,
+): Promise<UserListItem[]> {
+  const { data, error } = await supabase
+    .from("follows")
+    .select("follower_id, created_at")
+    .eq("following_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const ids = (data ?? []).map((row) => row.follower_id as string);
+  return profilesForFollowIds(ids, currentUserId);
+}
+
+export async function getFollowingList(
+  userId: string,
+  currentUserId: string,
+): Promise<UserListItem[]> {
+  const { data, error } = await supabase
+    .from("follows")
+    .select("following_id, created_at")
+    .eq("follower_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const ids = (data ?? []).map((row) => row.following_id as string);
+  return profilesForFollowIds(ids, currentUserId);
+}

@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getFollowingFeed,
+  getForYouFeed,
+  getGlobalFeed,
   getMyLikedIds,
-  getNearbyFeed,
-  getRareFeed,
   setLike,
 } from "@/lib/sightings";
 import { getErrorMessage } from "@/lib/errors";
 import type { FeedSighting } from "@/types";
 import type { Coords } from "@/hooks/useCurrentLocation";
 
-export type FeedFilter = "nearby" | "following" | "rare";
+export type FeedFilter = "for_you" | "following" | "new";
 
 interface UseFeedArgs {
   filter: FeedFilter;
@@ -28,7 +28,6 @@ interface UseFeed {
   /** User-initiated pull-to-refresh only. */
   refreshing: boolean;
   error: string | null;
-  needsLocation: boolean;
   refresh: () => Promise<void>;
   /** Reload in the background (e.g. when tab refocuses). */
   silentRefresh: () => Promise<void>;
@@ -49,18 +48,9 @@ export function useFeed({
   const [error, setError] = useState<string | null>(null);
   const hasLoaded = useRef(false);
 
-  const needsLocation = filter === "nearby" && !coords;
-
   const load = useCallback(
     async (mode: "initial" | "refresh" | "silent") => {
       if (!userId || !enabled) return;
-
-      if (needsLocation) {
-        setSightings([]);
-        setLoading(false);
-        setRefreshing(false);
-        return;
-      }
 
       if (mode === "refresh") {
         setRefreshing(true);
@@ -71,12 +61,17 @@ export function useFeed({
       setError(null);
       try {
         let rows: FeedSighting[] = [];
-        if (filter === "nearby" && coords) {
-          rows = await getNearbyFeed(coords.latitude, coords.longitude, radiusKm);
+        if (filter === "for_you") {
+          rows = await getForYouFeed(
+            userId,
+            coords?.latitude ?? null,
+            coords?.longitude ?? null,
+            radiusKm,
+          );
         } else if (filter === "following") {
           rows = await getFollowingFeed();
-        } else if (filter === "rare") {
-          rows = await getRareFeed();
+        } else if (filter === "new") {
+          rows = await getGlobalFeed(userId);
         }
         const liked = await getMyLikedIds(userId);
         setSightings(rows);
@@ -89,7 +84,7 @@ export function useFeed({
         setRefreshing(false);
       }
     },
-    [filter, userId, coords, radiusKm, needsLocation, enabled],
+    [filter, userId, coords, radiusKm, enabled],
   );
 
   useEffect(() => {
@@ -145,7 +140,6 @@ export function useFeed({
     loading,
     refreshing,
     error,
-    needsLocation,
     refresh,
     silentRefresh,
     toggleLike,

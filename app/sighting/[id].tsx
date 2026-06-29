@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -14,13 +15,21 @@ import {
   Clock,
   Feather,
   MapPin,
+  Mic,
+  Share2,
   Sparkles,
   X,
 } from "lucide-react-native";
 import { RarityBadge } from "@/components/RarityBadge";
-import { getSightingById } from "@/lib/sightings";
+import { AudioPlayer } from "@/components/AudioPlayer";
+import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errors";
+import { getSightingById, publishSighting } from "@/lib/sightings";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
+import {
+  displayScientificName,
+  displaySpeciesName,
+} from "@/lib/predictionLabels";
 import {
   formatDetailDate,
   formatDetailTime,
@@ -60,10 +69,13 @@ function DetailRow({
 
 export default function SightingDetailScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const { id } = useLocalSearchParams<{ id: string }>();
   const [sighting, setSighting] = useState<Sighting | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
   const [resolvedCity, setResolvedCity] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
 
@@ -121,6 +133,31 @@ export default function SightingDetailScreen() {
   const displayAddress =
     resolvedAddress ?? (sighting ? sightingAddress(sighting) : null);
 
+  const isOwner = Boolean(userId && sighting && sighting.user_id === userId);
+  const isJournalOnly = Boolean(sighting && !sighting.published_at);
+
+  async function handlePublish() {
+    if (!userId || !sighting || sighting.published_at) return;
+
+    setPublishing(true);
+    try {
+      await publishSighting(userId, sighting.id);
+      setSighting({ ...sighting, published_at: new Date().toISOString() });
+      Alert.alert(
+        "Posted to profile",
+        "This sighting is now visible on your profile and in the feed.",
+        [
+          { text: "View post", onPress: () => router.push(`/post/${sighting.id}`) },
+          { text: "OK", style: "cancel" },
+        ],
+      );
+    } catch (e) {
+      Alert.alert("Could not post", getErrorMessage(e));
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-row items-center justify-between border-b border-border px-4 pb-3 pt-2">
@@ -149,6 +186,13 @@ export default function SightingDetailScreen() {
                 className="h-full w-full"
                 resizeMode="cover"
               />
+            ) : sighting.audio_url ? (
+              <View className="h-full w-full items-center justify-center gap-2 bg-primary/10">
+                <Mic size={34} color="#5f9470" />
+                <Text className="font-mono text-[10px] uppercase tracking-widest text-primary/80">
+                  Bird call
+                </Text>
+              </View>
             ) : (
               <View className="h-full w-full items-center justify-center">
                 <Feather size={36} color="#3a4e35" />
@@ -156,10 +200,69 @@ export default function SightingDetailScreen() {
             )}
           </View>
 
+          {sighting.audio_url ? (
+            <View className="border-b border-border px-4 py-3">
+              <AudioPlayer uri={sighting.audio_url} />
+            </View>
+          ) : null}
+
+          {(() => {
+            const heard = sighting.audio_predictions ?? [];
+            const loggedKey = (
+              sighting.scientific_name?.trim().toLowerCase() ||
+              sighting.species.trim().toLowerCase()
+            );
+            const displayList =
+              heard.length > 1
+                ? heard
+                : heard.filter((prediction) => {
+                    const key =
+                      prediction.scientific_name?.trim().toLowerCase() ||
+                      prediction.species.trim().toLowerCase();
+                    return key !== loggedKey;
+                  });
+            if (displayList.length === 0) return null;
+
+            return (
+              <View className="gap-2 border-b border-border px-4 py-3">
+                <Text className="font-sans-medium text-sm text-foreground">
+                  {displayList.length > 1
+                    ? "Species heard in this clip"
+                    : "Also heard in this clip"}
+                </Text>
+                {displayList.map((prediction, index) => (
+                  <View
+                    key={`${prediction.species}-${index}`}
+                    className="flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5"
+                  >
+                    <Mic size={14} color="#5f9470" />
+                    <View className="min-w-0 flex-1">
+                      <Text className="font-serif text-sm text-foreground">
+                        {displaySpeciesName(prediction)}
+                      </Text>
+                      {displayScientificName(prediction) ? (
+                        <Text className="font-serif-italic text-xs text-muted-foreground">
+                          {displayScientificName(prediction)}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text className="font-mono text-[10px] text-muted-foreground">
+                      {Math.round(prediction.confidence * 100)}%
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })()}
+
           <View className="gap-5 px-4 pt-5">
             <View>
               <Text className="font-serif-semibold text-2xl text-foreground">
-                {sighting.species}
+                {displaySpeciesName({
+                  species: sighting.species,
+                  scientific_name: sighting.scientific_name,
+                  confidence: sighting.confidence ?? 0,
+                })}
               </Text>
               {sighting.scientific_name ? (
                 <Text className="mt-1 font-serif-italic text-sm text-foreground/60">
@@ -179,6 +282,32 @@ export default function SightingDetailScreen() {
                   Identified by {detectionSourceLabel(sighting.detected_by)} ·{" "}
                   {Math.round(sighting.confidence * 100)}% match
                 </Text>
+              </View>
+            ) : null}
+
+            {isJournalOnly && isOwner ? (
+              <View className="gap-3 rounded-xl border border-border bg-card p-4">
+                <Text className="font-sans-medium text-sm text-foreground">
+                  Journal only
+                </Text>
+                <Text className="font-sans text-xs leading-relaxed text-muted-foreground">
+                  This sighting is private in your journal. Share it when you are
+                  ready for it to appear on your profile.
+                </Text>
+                <Pressable
+                  onPress={() => void handlePublish()}
+                  disabled={publishing}
+                  className="flex-row items-center justify-center gap-2 rounded-xl bg-primary py-3 active:opacity-90 disabled:opacity-60"
+                >
+                  {publishing ? (
+                    <ActivityIndicator color="#f0ead6" size="small" />
+                  ) : (
+                    <Share2 size={16} color="#f0ead6" />
+                  )}
+                  <Text className="font-sans-medium text-sm text-primary-foreground">
+                    Post to profile
+                  </Text>
+                </Pressable>
               </View>
             ) : null}
 

@@ -1,4 +1,5 @@
 import { decode } from "base64-arraybuffer";
+import { getMyFollowingIds } from "@/lib/social";
 import { supabase } from "@/lib/supabase";
 import { observedDate } from "@/lib/sightingFormat";
 import type {
@@ -7,8 +8,6 @@ import type {
   Profile,
   Sighting,
 } from "@/types";
-
-const RARE_WINDOW_DAYS = 30;
 
 export async function getNearbyFeed(
   lat: number,
@@ -21,37 +20,72 @@ export async function getNearbyFeed(
     in_radius_km: radiusKm,
   });
   if (error) throw error;
-  return (data ?? []) as FeedSighting[];
+  return ((data ?? []) as FeedSighting[]).filter((row) => row.published_at);
 }
 
 export async function getFollowingFeed(): Promise<FeedSighting[]> {
   const { data, error } = await supabase.rpc("following_feed");
   if (error) throw error;
-  return (data ?? []) as FeedSighting[];
+  return ((data ?? []) as FeedSighting[]).filter((row) => row.published_at);
 }
 
-export async function getRareFeed(): Promise<FeedSighting[]> {
-  const since = new Date(
-    Date.now() - RARE_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-  ).toISOString();
+/** Newest sightings worldwide (excluding the current user). */
+export async function getGlobalFeed(userId: string): Promise<FeedSighting[]> {
   const { data, error } = await supabase
     .from("sighting_feed")
     .select("*")
-    .eq("rarity", "rare")
-    .gte("created_at", since)
+    .neq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
   return (data ?? []) as FeedSighting[];
 }
 
-export async function getMySightings(userId: string): Promise<Sighting[]> {
-  const { data, error } = await supabase
+function forYouScore(row: FeedSighting): number {
+  const ageHours =
+    (Date.now() - new Date(row.created_at).getTime()) / (1000 * 60 * 60);
+  const recency = Math.max(0, 72 - ageHours) / 72;
+  return row.like_count * 3 + recency * 2 + (row.photo_url ? 0.5 : 0);
+}
+
+/** Suggested posts from birders you do not follow yet. */
+export async function getForYouFeed(
+  userId: string,
+  lat: number | null,
+  lng: number | null,
+  radiusKm: number,
+): Promise<FeedSighting[]> {
+  const followingIds = await getMyFollowingIds(userId);
+
+  const candidates =
+    lat != null && lng != null
+      ? await getNearbyFeed(lat, lng, radiusKm * 1.5)
+      : await getGlobalFeed(userId);
+
+  return candidates
+    .filter(
+      (row) => row.user_id !== userId && !followingIds.has(row.user_id),
+    )
+    .sort((a, b) => forYouScore(b) - forYouScore(a))
+    .slice(0, 100);
+}
+
+export async function getMySightings(
+  userId: string,
+  options?: { publishedOnly?: boolean },
+): Promise<Sighting[]> {
+  let query = supabase
     .from("sightings")
     .select("*")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(200);
+
+  if (options?.publishedOnly) {
+    query = query.not("published_at", "is", null);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   const rows = (data ?? []) as Sighting[];
   return rows.sort(
@@ -59,14 +93,48 @@ export async function getMySightings(userId: string): Promise<Sighting[]> {
   );
 }
 
-export async function getFeedPostById(id: string): Promise<FeedSighting | null> {
-  const { data, error } = await supabase
-    .from("sighting_feed")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+export async function publishSighting(
+  userId: string,
+  sightingId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("sightings")
+    .update({ published_at: new Date().toISOString() })
+    .eq("id", sightingId)
+    .eq("user_id", userId)
+    .is("published_at", null);
   if (error) throw error;
-  return data as FeedSighting | null;
+}
+
+export async function getFeedPostById(id: string): Promise<FeedSighting | null> {
+  const sighting = await getSightingById(id);
+  if (!sighting) return null;
+
+  const [profileRes, likesRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("username, avatar_color, full_name")
+      .eq("id", sighting.user_id)
+      .maybeSingle(),
+    supabase
+      .from("likes")
+      .select("*", { count: "exact", head: true })
+      .eq("sighting_id", id),
+  ]);
+
+  if (profileRes.error) throw profileRes.error;
+  if (likesRes.error) throw likesRes.error;
+  if (!profileRes.data) return null;
+
+  const profile = profileRes.data;
+
+  return {
+    ...sighting,
+    username: profile.username as string,
+    avatar_color: profile.avatar_color as string,
+    full_name: (profile.full_name as string | null) ?? null,
+    like_count: likesRes.count ?? 0,
+  };
 }
 
 export async function getSightingById(id: string): Promise<Sighting | null> {
@@ -194,23 +262,31 @@ export async function uploadSightingPhoto(
 export async function createSighting(
   userId: string,
   input: NewSightingInput,
-): Promise<void> {
-  const { error } = await supabase.from("sightings").insert({
-    user_id: userId,
-    species: input.species,
-    scientific_name: input.scientific_name ?? null,
-    location_name: input.location_name ?? null,
-    location_city: input.location_city ?? null,
-    location_address: input.location_address ?? null,
-    latitude: input.latitude ?? null,
-    longitude: input.longitude ?? null,
-    observed_at: input.observed_at ?? new Date().toISOString(),
-    rarity: input.rarity,
-    count: input.count,
-    notes: input.notes ?? null,
-    photo_url: input.photo_url ?? null,
-    confidence: input.confidence ?? null,
-    detected_by: input.detected_by ?? "manual",
-  });
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("sightings")
+    .insert({
+      user_id: userId,
+      species: input.species,
+      scientific_name: input.scientific_name ?? null,
+      location_name: input.location_name ?? null,
+      location_city: input.location_city ?? null,
+      location_address: input.location_address ?? null,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      observed_at: input.observed_at ?? new Date().toISOString(),
+      rarity: input.rarity,
+      count: input.count,
+      notes: input.notes ?? null,
+      photo_url: input.photo_url ?? null,
+      audio_url: input.audio_url ?? null,
+      audio_predictions: input.audio_predictions ?? null,
+      confidence: input.confidence ?? null,
+      detected_by: input.detected_by ?? "manual",
+      published_at: input.publish ? new Date().toISOString() : null,
+    })
+    .select("id")
+    .single();
   if (error) throw error;
+  return data.id as string;
 }

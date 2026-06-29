@@ -9,6 +9,8 @@ server/.venv/
 supabase/.temp/
 dist/
 web-build/
+website/app/*
+!website/app/.gitkeep
 .env
 *.jks
 *.p8

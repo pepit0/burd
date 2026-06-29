@@ -1,4 +1,5 @@
 import type { CatalogSpecies } from "@/lib/speciesCatalog";
+import type { FieldGuideFilters } from "@/lib/filters";
 import { SPECIES_PROFILES } from "@/lib/speciesProfiles";
 import { observedDate } from "@/lib/sightingFormat";
 import type { Rarity, Sighting } from "@/types";
@@ -118,6 +119,35 @@ export function filterCatalog(
       item.scientific_name.toLowerCase().includes(q) ||
       item.family.toLowerCase().includes(q),
   );
+}
+
+export function filterCatalogByOptions(
+  catalog: CatalogSpecies[],
+  filters: FieldGuideFilters,
+  index: Map<string, SightingHit>,
+): CatalogSpecies[] {
+  return catalog.filter((item) => {
+    if (filters.rarity !== "all" && item.rarity !== filters.rarity) {
+      return false;
+    }
+    const logged = isLogged(item, index);
+    if (filters.logged === "logged" && !logged) return false;
+    if (filters.logged === "unlogged" && logged) return false;
+    return true;
+  });
+}
+
+/** Logged species first, then alphabetical by common name. */
+export function sortCatalogLoggedFirst(
+  catalog: CatalogSpecies[],
+  index: Map<string, SightingHit>,
+): CatalogSpecies[] {
+  return [...catalog].sort((a, b) => {
+    const aLogged = isLogged(a, index);
+    const bLogged = isLogged(b, index);
+    if (aLogged !== bLogged) return aLogged ? -1 : 1;
+    return a.species.localeCompare(b.species);
+  });
 }
 
 /** @deprecated Use filterCatalog + toFieldGuideEntry for paginated lists. */

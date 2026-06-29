@@ -261,7 +261,39 @@ img {
   white-space: nowrap;
 }
 
+.web-btn-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 36rem;
+}
+
+.web-btn__beta-tag {
+  position: absolute;
+  top: -0.65rem;
+  left: 0.75rem;
+  z-index: 1;
+  padding: 0.22rem 0.62rem;
+  border: 1px solid rgba(200, 137, 58, 0.5);
+  border-radius: 0.4rem;
+  background: var(--card);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(238, 232, 212, 0.06);
+  font-family: var(--font-serif);
+  font-size: 0.84rem;
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+  transform: rotate(-5deg);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
 .web-btn {
+  width: 100%;
+  max-width: none;
   justify-content: center;
   border: 1px solid rgba(95, 148, 112, 0.55);
   background: var(--primary);
@@ -895,22 +927,222 @@ img {
   height: 28px;
 }
 
+.coming-soon-section {
+  display: grid;
+  gap: 2rem;
+  padding: clamp(2.75rem, 6vw, 3.75rem) 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.coming-soon-header {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 42rem;
+}
+
+.coming-soon-header h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(1.5rem, 3vw, 1.85rem);
+  letter-spacing: -0.02em;
+}
+
+.coming-soon-header p:last-child {
+  margin: 0;
+  font-size: 1.02rem;
+  color: var(--muted-foreground);
+}
+
+.coming-soon-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.coming-soon-card {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1.1rem;
+  background: var(--card);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+.coming-soon-card__visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 11.5rem;
+  aspect-ratio: 2 / 1;
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.coming-soon-card__visual--animal {
+  background:
+    radial-gradient(ellipse 70% 80% at 50% 40%, rgba(95, 148, 112, 0.2), transparent),
+    linear-gradient(180deg, #243528 0%, #171d15 100%);
+}
+
+.coming-soon-card__visual--habitat {
+  background:
+    radial-gradient(ellipse 65% 75% at 50% 40%, rgba(200, 137, 58, 0.16), transparent),
+    linear-gradient(180deg, #243528 0%, #171d15 100%);
+}
+
+.coming-soon-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: min(100%, 22rem);
+}
+
+.coming-soon-flow__group {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.65rem 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: rgba(24, 30, 22, 0.78);
+}
+
+.coming-soon-flow__group--highlight {
+  color: var(--foreground);
+  background: rgba(95, 148, 112, 0.16);
+  border-color: rgba(95, 148, 112, 0.42);
+}
+
+.coming-soon-flow__group--habitat {
+  background: rgba(200, 137, 58, 0.12);
+  border-color: rgba(200, 137, 58, 0.35);
+}
+
+.coming-soon-flow__group--destination {
+  color: var(--primary-foreground);
+  background: rgba(95, 148, 112, 0.32);
+  border-color: rgba(95, 148, 112, 0.55);
+  box-shadow: 0 10px 24px rgba(95, 148, 112, 0.18);
+}
+
+.coming-soon-flow__label {
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.25;
+  color: var(--muted-foreground);
+}
+
+.coming-soon-flow__group--destination .coming-soon-flow__label,
+.coming-soon-flow__group--destination .coming-soon-flow__note {
+  color: rgba(240, 234, 214, 0.82);
+}
+
+.coming-soon-flow__note {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--accent);
+}
+
+.coming-soon-flow__icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 1.85rem;
+}
+
+.coming-soon-flow__icons svg {
+  width: 1.45rem;
+  height: 1.45rem;
+  flex-shrink: 0;
+}
+
+.coming-soon-flow__icons--single svg {
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+.coming-soon-flow__arrow {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.coming-soon-flow__arrow svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.coming-soon-card__badge {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  z-index: 1;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(24, 30, 22, 0.82);
+  border: 1px solid rgba(200, 137, 58, 0.35);
+  backdrop-filter: blur(6px);
+}
+
+.coming-soon-card__body {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1.35rem 1.4rem 1.5rem;
+}
+
+.coming-soon-card h3 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.coming-soon-card p {
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
 .about {
   display: grid;
   gap: 1rem;
-  padding: 2rem 0 0;
+  justify-items: center;
+  padding: clamp(2.75rem, 6vw, 3.75rem) 0;
   border-top: 1px solid var(--border);
+  text-align: center;
 }
 
 .about h2 {
   margin: 0;
   font-family: var(--font-serif);
-  font-size: 1.5rem;
+  font-size: clamp(1.45rem, 3vw, 1.75rem);
+  letter-spacing: -0.02em;
 }
 
 .about p {
   margin: 0;
-  max-width: 42rem;
+  max-width: 40rem;
+  font-size: 1.02rem;
+  line-height: 1.65;
   color: var(--muted-foreground);
 }
 
@@ -1000,8 +1232,54 @@ img {
     max-width: none;
   }
 
+  .web-btn-wrap {
+    max-width: none;
+  }
+
   .store-btn,
   .web-btn {
     width: 100%;
+    max-width: none;
+  }
+
+  .coming-soon-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coming-soon-card__visual {
+    min-height: 10.5rem;
+    padding: 1rem 0.65rem;
+  }
+
+  .coming-soon-flow {
+    gap: 0.3rem;
+    width: 100%;
+  }
+
+  .coming-soon-flow__group {
+    padding: 0.55rem 0.3rem 0.45rem;
+  }
+
+  .coming-soon-flow__label {
+    font-size: 0.48rem;
+  }
+
+  .coming-soon-flow__note {
+    font-size: 0.44rem;
+  }
+
+  .coming-soon-flow__icons svg {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .coming-soon-flow__icons--single svg {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+
+  .coming-soon-flow__arrow svg {
+    width: 0.85rem;
+    height: 0.85rem;
   }
 }

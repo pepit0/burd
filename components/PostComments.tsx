@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   Text,
   View,
@@ -14,6 +15,7 @@ import {
   countComments,
   createComment,
   getCommentsForSighting,
+  setCommentLike,
 } from "@/lib/comments";
 import { getErrorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
@@ -25,16 +27,37 @@ interface PostCommentsProps {
   onCommentCountChange?: (count: number) => void;
 }
 
+function updateCommentTree(
+  comments: Comment[],
+  commentId: string,
+  updater: (comment: Comment) => Comment,
+): Comment[] {
+  return comments.map((comment) => {
+    if (comment.id === commentId) return updater(comment);
+    if (comment.replies?.length) {
+      return {
+        ...comment,
+        replies: updateCommentTree(comment.replies, commentId, updater),
+      };
+    }
+    return comment;
+  });
+}
+
 function CommentRow({
   comment,
   nested = false,
+  userId,
   onReply,
-  canReply,
+  onToggleLike,
+  canInteract,
 }: {
   comment: Comment;
   nested?: boolean;
+  userId: string | null;
   onReply: (comment: Comment) => void;
-  canReply: boolean;
+  onToggleLike: (commentId: string) => void;
+  canInteract: boolean;
 }) {
   return (
     <View className={nested ? "ml-10 mt-3" : "mt-4"}>
@@ -49,10 +72,22 @@ function CommentRow({
             <Text className="font-mono text-[10px] text-muted-foreground/50">
               {timeAgo(comment.created_at)}
             </Text>
-            <Pressable disabled className="flex-row items-center gap-1 opacity-50">
-              <Heart size={12} color="#8a9e82" />
+            <Pressable
+              onPress={() => onToggleLike(comment.id)}
+              className="flex-row items-center gap-1 active:opacity-70"
+            >
+              <Heart
+                size={12}
+                color={comment.liked ? "#f87171" : "#8a9e82"}
+                fill={comment.liked ? "#f87171" : "transparent"}
+              />
+              {comment.like_count > 0 ? (
+                <Text className="font-mono text-[10px] text-muted-foreground">
+                  {comment.like_count}
+                </Text>
+              ) : null}
             </Pressable>
-            {canReply ? (
+            {canInteract ? (
               <Pressable onPress={() => onReply(comment)} className="active:opacity-70">
                 <Text className="font-sans-medium text-[11px] text-muted-foreground">
                   Reply
@@ -74,8 +109,10 @@ function CommentRow({
           key={reply.id}
           comment={reply}
           nested
+          userId={userId}
           onReply={onReply}
-          canReply={canReply}
+          onToggleLike={onToggleLike}
+          canInteract={canInteract}
         />
       ))}
     </View>
@@ -99,7 +136,7 @@ export function PostComments({
     setLoading(true);
     setError(null);
     try {
-      const rows = await getCommentsForSighting(sightingId);
+      const rows = await getCommentsForSighting(sightingId, userId);
       setComments(rows);
       onCommentCountChange?.(countComments(rows));
     } catch (e) {
@@ -107,7 +144,7 @@ export function PostComments({
     } finally {
       setLoading(false);
     }
-  }, [sightingId, onCommentCountChange]);
+  }, [sightingId, userId, onCommentCountChange]);
 
   useEffect(() => {
     loadComments();
@@ -132,6 +169,49 @@ export function PostComments({
     }
   }
 
+  const toggleCommentLike = useCallback(
+    (commentId: string) => {
+      if (!userId) {
+        router.push("/(auth)/login");
+        return;
+      }
+
+      let wasLiked = false;
+      setComments((prev) => {
+        const findLiked = (items: Comment[]): boolean | null => {
+          for (const item of items) {
+            if (item.id === commentId) return item.liked;
+            if (item.replies?.length) {
+              const nested = findLiked(item.replies);
+              if (nested !== null) return nested;
+            }
+          }
+          return null;
+        };
+        wasLiked = findLiked(prev) ?? false;
+
+        return updateCommentTree(prev, commentId, (comment) => ({
+          ...comment,
+          liked: !comment.liked,
+          like_count: Math.max(0, comment.like_count + (comment.liked ? -1 : 1)),
+        }));
+      });
+
+      const willLike = !wasLiked;
+      setCommentLike(userId, commentId, willLike).catch((e) => {
+        setComments((prev) =>
+          updateCommentTree(prev, commentId, (comment) => ({
+            ...comment,
+            liked: wasLiked,
+            like_count: Math.max(0, comment.like_count + (willLike ? -1 : 1)),
+          })),
+        );
+        Alert.alert("Could not update like", getErrorMessage(e));
+      });
+    },
+    [router, userId],
+  );
+
   const total = countComments(comments);
 
   return (
@@ -153,8 +233,10 @@ export function PostComments({
           <CommentRow
             key={comment.id}
             comment={comment}
+            userId={userId}
             onReply={setReplyTo}
-            canReply={!!userId}
+            onToggleLike={toggleCommentLike}
+            canInteract={!!userId}
           />
         ))
       )}

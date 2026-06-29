@@ -17,8 +17,10 @@ import {
   Clock,
   Feather,
   MapPin,
+  Mic,
   Plus,
   Search,
+  Volume2,
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
@@ -157,6 +159,24 @@ export default function JournalScreen() {
             );
           })}
         </View>
+
+        <Pressable
+          onPress={() => router.push("/sounds")}
+          className="flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 active:opacity-90"
+        >
+          <View className="h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+            <Volume2 size={18} color="#5f9470" />
+          </View>
+          <View className="min-w-0 flex-1">
+            <Text className="font-sans-medium text-sm text-foreground">
+              Sound library
+            </Text>
+            <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
+              Saved recordings from Sound ID and the camera
+            </Text>
+          </View>
+          <ChevronRight size={16} color="#8a9e82" />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -213,6 +233,8 @@ export default function JournalScreen() {
                                 className="h-full w-full"
                                 resizeMode="cover"
                               />
+                            ) : e.audio_url ? (
+                              <Mic size={16} color="#5f9470" />
                             ) : (
                               <Feather size={16} color="#3a4e35" />
                             )}
@@ -224,6 +246,11 @@ export default function JournalScreen() {
                             >
                               {e.species}
                             </Text>
+                            {!e.published_at ? (
+                              <Text className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
+                                Journal only
+                              </Text>
+                            ) : null}
                             <View className="mt-0.5 flex-row items-center gap-1">
                               <MapPin size={9} color="#8a9e82" />
                               <Text

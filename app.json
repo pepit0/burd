@@ -28,7 +28,10 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static"
+      "output": "static",
+      "name": "Burd",
+      "shortName": "Burd",
+      "description": "Burd is the social birding app to log sightings, identify bird calls, explore a field guide, and connect with birders near you."
     },
     "plugins": [
       "expo-router",
@@ -77,7 +80,8 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/app"
     },
     "extra": {
       "router": {

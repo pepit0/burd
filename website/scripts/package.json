@@ -1,0 +1,13 @@
+{
+  "name": "burd-website-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:favicons": "node generate-favicons.mjs",
+    "generate:og-image": "node generate-og-image.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "sharp": "^0.34.3"
+  }
+}

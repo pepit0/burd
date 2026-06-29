@@ -22,6 +22,39 @@ export function getErrorMessage(e: unknown): string {
   return String(e);
 }
 
+const TECHNICAL_MESSAGE_PATTERNS = [
+  /\barraybuffer\b/i,
+  /\barraybufferview\b/i,
+  /\bblob\b/i,
+  /\bformdata\b/i,
+  /network request failed/i,
+  /failed to fetch/i,
+  /networkerror/i,
+  /expo_public_/i,
+  /\.(ts|tsx|js|jsx):/i,
+  /identification failed \(\d+\)/i,
+  /undefined is not/i,
+  /cannot read propert/i,
+  /^\s*\{.*"detail"/,
+  /^\s*\[/,
+];
+
+function looksTechnical(message: string): boolean {
+  const trimmed = message.trim();
+  if (!trimmed) return true;
+  return TECHNICAL_MESSAGE_PATTERNS.some((pattern) => pattern.test(trimmed));
+}
+
+/** Strip dev-only details before showing an error in the UI. */
+export function getUserFacingMessage(
+  error: unknown,
+  fallback = "Something went wrong. Please try again.",
+): string {
+  const raw = getErrorMessage(error);
+  if (looksTechnical(raw)) return fallback;
+  return raw;
+}
+
 /** Read the JSON error body from a Supabase Edge Function invoke failure. */
 export async function getFunctionErrorMessage(error: unknown): Promise<string> {
   if (

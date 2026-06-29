@@ -1,4 +1,16 @@
+import { Platform } from "react-native";
 import type { Prediction } from "@/types";
+import { audioUploadMeta } from "@/lib/audioUpload";
+import { resolveHeardSpecies } from "@/lib/heardSpecies";
+import { readLocalFileBytes } from "@/lib/localFileBytes";
+import { enrichPredictions } from "@/lib/predictionLabels";
+import {
+  getRegionalContext,
+  rankLiveSoundPredictions,
+  rankPredictions,
+} from "@/lib/regionalFrequency";
+import { applyNativeDisplayScoring, type NativeLogit } from "@/lib/soundDisplayScoring";
+import { logSoundDebug, SOUND_DEBUG } from "@/lib/soundDebug";
 import { validatePhotoAuthenticity } from "@/lib/photoAuthenticity";
 import {
   PhotoValidationError,
@@ -7,15 +19,27 @@ import {
 
 const BASE_URL = process.env.EXPO_PUBLIC_INFERENCE_URL ?? "";
 
+export interface IdentifyGeoOptions {
+  lat?: number | null;
+  lng?: number | null;
+  observedAt?: string | null;
+}
+
 export interface IdentifyResult {
   predictions: Prediction[];
+  heardSpecies: Prediction[];
   count: number;
   validation: ValidationResult | null;
+  regionalContextApplied?: boolean;
+  nativeLogits?: NativeLogit[];
 }
 
 interface IdentifyResponse extends IdentifyResult {
   model: string;
   mock: boolean;
+  heard_species?: Prediction[];
+  regional_context_applied?: boolean;
+  native_logits?: NativeLogit[];
 }
 
 function ensureConfigured() {
@@ -26,6 +50,27 @@ function ensureConfigured() {
   }
 }
 
+function inferenceReachabilityHint(): string {
+  if (Platform.OS === "web") {
+    return "On the web app, the inference server must be a public HTTPS URL — a local IP won't work in the browser.";
+  }
+  return "Make sure the inference server is running and EXPO_PUBLIC_INFERENCE_URL uses your computer's LAN IP on the same Wi‑Fi as this device.";
+}
+
+function wrapInferenceNetworkError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    message === "Network request failed" ||
+    message.includes("Failed to fetch") ||
+    message.includes("NetworkError")
+  ) {
+    return new Error(
+      `Could not reach the identification server. ${inferenceReachabilityHint()}`,
+    );
+  }
+  return error instanceof Error ? error : new Error(message);
+}
+
 function parseValidationDetail(detail: unknown): ValidationResult | null {
   if (!detail || typeof detail !== "object") return null;
   const record = detail as Record<string, unknown>;
@@ -34,22 +79,171 @@ function parseValidationDetail(detail: unknown): ValidationResult | null {
   return validation as ValidationResult;
 }
 
+async function appendFormFile(
+  form: FormData,
+  field: string,
+  uri: string,
+  fileName: string,
+  mimeType: string,
+): Promise<void> {
+  if (Platform.OS === "web") {
+    const bytes = await readLocalFileBytes(uri);
+    form.append(field, new Blob([bytes], { type: mimeType }), fileName);
+    return;
+  }
+
+  form.append(field, { uri, name: fileName, type: mimeType } as unknown as Blob);
+}
+
+function appendGeoFields(form: FormData, geo?: IdentifyGeoOptions): void {
+  if (!geo) return;
+  if (geo.lat != null && geo.lng != null) {
+    form.append("latitude", String(geo.lat));
+    form.append("longitude", String(geo.lng));
+  }
+  if (geo.observedAt) {
+    form.append("observed_at", geo.observedAt);
+  }
+}
+
+function appendLiveSoundField(form: FormData, liveSound?: boolean): void {
+  if (liveSound) {
+    form.append("live_sound", "true");
+  }
+}
+
+function applyClientRegionalRank(
+  predictions: Prediction[],
+  heardSpecies: Prediction[],
+  geo?: IdentifyGeoOptions,
+  serverApplied?: boolean,
+  options?: { liveSound?: boolean; nativeLogits?: NativeLogit[] },
+): { predictions: Prediction[]; heardSpecies: Prediction[] } {
+  if (geo?.lat == null || geo?.lng == null) {
+    return { predictions, heardSpecies };
+  }
+
+  const ctx = getRegionalContext(
+    geo.lat,
+    geo.lng,
+    geo.observedAt ? new Date(geo.observedAt) : new Date(),
+  );
+
+  if (options?.liveSound) {
+    const combined = [...predictions, ...heardSpecies];
+    const rankList = (list: Prediction[]) =>
+      rankLiveSoundPredictions(ctx, list, combined, options?.nativeLogits);
+    return {
+      predictions: rankList(predictions),
+      heardSpecies: rankList(heardSpecies),
+    };
+  }
+
+  if (serverApplied) {
+    return { predictions, heardSpecies };
+  }
+
+  return {
+    predictions: rankPredictions(ctx, predictions),
+    heardSpecies: rankPredictions(ctx, heardSpecies),
+  };
+}
+
+function parseIdentifyResponse(
+  data: IdentifyResponse,
+  geo?: IdentifyGeoOptions,
+  options?: { liveSound?: boolean },
+): IdentifyResult {
+  let predictions = enrichPredictions(data.predictions ?? []);
+  let heardSpecies = enrichPredictions(
+    resolveHeardSpecies(predictions, data.heard_species),
+  );
+
+  if (options?.liveSound) {
+    const displayScored = applyNativeDisplayScoring(
+      predictions,
+      heardSpecies,
+      data.native_logits,
+      geo,
+    );
+    predictions = displayScored.predictions;
+    heardSpecies = displayScored.heardSpecies;
+  }
+
+  const ranked = applyClientRegionalRank(
+    predictions,
+    heardSpecies,
+    geo,
+    data.regional_context_applied,
+    { ...options, nativeLogits: data.native_logits },
+  );
+  predictions = ranked.predictions;
+  heardSpecies = ranked.heardSpecies;
+
+  if (SOUND_DEBUG && options?.liveSound) {
+    const serverSpecies = new Set(
+      [...(data.predictions ?? []), ...(data.heard_species ?? [])].map(
+        (p) => p.scientific_name ?? p.species,
+      ),
+    );
+    const clientSpecies = new Set(
+      [...predictions, ...heardSpecies].map((p) => p.scientific_name ?? p.species),
+    );
+    logSoundDebug(
+      "chunk",
+      `server ${serverSpecies.size} species → client ${clientSpecies.size} after rank`,
+      {
+        serverTop: (data.predictions ?? []).slice(0, 8).map((p) => ({
+          name: p.scientific_name ?? p.species,
+          conf: p.confidence,
+        })),
+        heardTop: (data.heard_species ?? []).slice(0, 8).map((p) => ({
+          name: p.scientific_name ?? p.species,
+          conf: p.confidence,
+        })),
+        clientTop: [...predictions, ...heardSpecies].slice(0, 8).map((p) => ({
+          name: p.scientific_name ?? p.species,
+          conf: p.confidence,
+        })),
+      },
+    );
+  }
+
+  return {
+    predictions,
+    heardSpecies,
+    count: data.count ?? 1,
+    validation: data.validation ?? null,
+    regionalContextApplied: Boolean(data.regional_context_applied),
+    nativeLogits: data.native_logits,
+  };
+}
+
 async function postFile(
   path: string,
   field: string,
   uri: string,
   fileName: string,
   mimeType: string,
+  geo?: IdentifyGeoOptions,
+  parseOptions?: { liveSound?: boolean },
 ): Promise<IdentifyResult> {
   ensureConfigured();
   const form = new FormData();
-  // React Native FormData accepts a { uri, name, type } file object.
-  form.append(field, { uri, name: fileName, type: mimeType } as unknown as Blob);
+  await appendFormFile(form, field, uri, fileName, mimeType);
+  appendGeoFields(form, geo);
+  appendLiveSoundField(form, parseOptions?.liveSound);
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    body: form,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method: "POST",
+      body: form,
+    });
+  } catch (error) {
+    throw wrapInferenceNetworkError(error);
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     if (res.status === 422) {
@@ -72,25 +266,104 @@ async function postFile(
     throw new Error(`Identification failed (${res.status}). ${text}`.trim());
   }
   const data = (await res.json()) as IdentifyResponse;
-  return {
-    predictions: data.predictions ?? [],
-    count: data.count ?? 1,
-    validation: data.validation ?? null,
-  };
+  return parseIdentifyResponse(data, geo, parseOptions);
 }
 
 export async function identifyImage(
   uri: string,
-  options?: { skipAuthenticity?: boolean; base64?: string | null },
+  options?: {
+    skipAuthenticity?: boolean;
+    base64?: string | null;
+    geo?: IdentifyGeoOptions;
+  },
 ): Promise<IdentifyResult> {
   if (!options?.skipAuthenticity) {
     await validatePhotoAuthenticity(uri, options?.base64);
   }
-  return postFile("/identify/image", "image", uri, "photo.jpg", "image/jpeg");
+  return postFile(
+    "/identify/image",
+    "image",
+    uri,
+    "photo.jpg",
+    "image/jpeg",
+    options?.geo,
+  );
 }
 
-export function identifyAudio(uri: string): Promise<IdentifyResult> {
-  return postFile("/identify/audio", "audio", uri, "clip.m4a", "audio/m4a");
+export function identifyAudio(
+  uri: string,
+  geo?: IdentifyGeoOptions,
+): Promise<IdentifyResult> {
+  const { ext, contentType } = audioUploadMeta(uri);
+  return postFile(
+    "/identify/audio",
+    "audio",
+    uri,
+    `clip.${ext}`,
+    contentType,
+    geo,
+    { liveSound: true },
+  );
+}
+
+export type IdentifyChunkOutcome =
+  | { ok: true; result: IdentifyResult }
+  | { ok: false; reason: string };
+
+/** Live chunk identify — never throws; times out so stop doesn't hang. */
+export async function identifyAudioChunkSafe(
+  uri: string,
+  geo?: IdentifyGeoOptions,
+  timeoutMs = 15_000,
+): Promise<IdentifyChunkOutcome> {
+  if (!BASE_URL) {
+    return { ok: false, reason: "Inference URL not configured" };
+  }
+
+  try {
+    const { ext, contentType } = audioUploadMeta(uri);
+    const form = new FormData();
+    await appendFormFile(form, "audio", uri, `clip.${ext}`, contentType);
+    appendGeoFields(form, geo);
+    appendLiveSoundField(form, true);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(`${BASE_URL}/identify/audio`, {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        const reason = `Server error (${res.status})${text ? `: ${text.slice(0, 120)}` : ""}`;
+        if (__DEV__) {
+          console.warn("[LiveSoundId] identifyAudioChunkSafe:", reason);
+        }
+        return { ok: false, reason };
+      }
+
+      const data = (await res.json()) as IdentifyResponse;
+      return {
+        ok: true,
+        result: parseIdentifyResponse(data, geo, { liveSound: true }),
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Request failed";
+    const reason = message.includes("abort")
+      ? "Identification timed out"
+      : message;
+    if (__DEV__) {
+      console.warn("[LiveSoundId] identifyAudioChunkSafe:", reason);
+    }
+    return { ok: false, reason };
+  }
 }
 
 export { PhotoValidationError, isPhotoValidationError, validationFailureMessage } from "@/lib/photoValidation";

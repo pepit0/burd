@@ -1,0 +1,2 @@
+# Expo Router client routes and dynamic segments under /app
+/app/*  /app/index.html  200

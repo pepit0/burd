@@ -58,7 +58,7 @@ export function SpeciesImage({
   useEffect(() => {
     if (!gridLoader) return;
     scheduleFieldGuideImage(catalogId);
-  }, [gridLoader, catalogId, canFetch]);
+  }, [gridLoader, catalogId]);
 
   useEffect(() => {
     const baked = speciesImageUrl(catalogId, size);

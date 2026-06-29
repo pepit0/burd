@@ -5,6 +5,7 @@ import {
   Heart,
   MessageCircle,
   MoreHorizontal,
+  ShieldAlert,
   Star,
   User,
   X,
@@ -19,6 +20,7 @@ function ActivityIcon({ type }: { type: ActivityType }) {
   if (type === "comment") return <MessageCircle size={12} color="#8a9e82" />;
   if (type === "log") return <Feather size={12} color="#c8893a" />;
   if (type === "milestone") return <Star size={12} color="#c8893a" fill="rgba(200,137,58,0.4)" />;
+  if (type === "moderation") return <ShieldAlert size={12} color="#f87171" />;
   return <MoreHorizontal size={12} color="#8a9e82" />;
 }
 
@@ -78,8 +80,14 @@ export function ActivityRow({
             unread ? "font-sans-medium" : ""
           }`}
         >
-          <Text className="font-sans-medium text-foreground">@{handle}</Text>{" "}
-          <Text className="text-foreground/70">{event.detail}</Text>
+          {event.type === "moderation" ? (
+            <Text className="text-foreground/85">{event.detail}</Text>
+          ) : (
+            <>
+              <Text className="font-sans-medium text-foreground">@{handle}</Text>{" "}
+              <Text className="text-foreground/70">{event.detail}</Text>
+            </>
+          )}
         </Text>
         <Text className="mt-0.5 font-mono text-[10px] text-muted-foreground/50">
           {timeAgo(event.created_at)}

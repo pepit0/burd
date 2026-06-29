@@ -96,3 +96,19 @@ export function detectionSourceLabel(source: DetectedBy): string {
       return "manual entry";
   }
 }
+
+/** Photo ID confidence for display on posts and sighting records. */
+export function formatPhotoAccuracy(sighting: {
+  confidence: number | null;
+  detected_by?: DetectedBy | null;
+  photo_url: string | null;
+}): string | null {
+  if (sighting.confidence == null || !sighting.photo_url) return null;
+
+  const source = sighting.detected_by ?? "manual";
+  if (source === "audio") return null;
+
+  const pct = `${Math.round(sighting.confidence * 100)}%`;
+  if (source === "both") return `${pct} · sound confirmed`;
+  return pct;
+}

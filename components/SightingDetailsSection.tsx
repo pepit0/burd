@@ -9,7 +9,7 @@ import {
   Sparkles,
 } from "lucide-react-native";
 import { RarityBadge } from "@/components/RarityBadge";
-import { detectionSourceLabel } from "@/lib/fusePredictions";
+import { detectionSourceLabel, formatPhotoAccuracy } from "@/lib/fusePredictions";
 import {
   formatDetailDate,
   formatDetailTime,
@@ -60,6 +60,9 @@ export function SightingDetailsSection({ sighting }: { sighting: Sighting }) {
   const when = observedDate(sighting);
   const displayCity = resolvedCity ?? sightingCity(sighting);
   const displayAddress = resolvedAddress ?? sightingAddress(sighting);
+  const photoAccuracy = formatPhotoAccuracy(sighting);
+  const showSoundBanner =
+    sighting.detected_by === "audio" && sighting.confidence != null;
 
   return (
     <View className="border-t border-border">
@@ -92,12 +95,12 @@ export function SightingDetailsSection({ sighting }: { sighting: Sighting }) {
             ) : null}
           </View>
 
-          {sighting.detected_by !== "manual" && sighting.confidence != null ? (
+          {showSoundBanner ? (
             <View className="flex-row items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2">
               <Sparkles size={14} color="#5f9470" />
               <Text className="flex-1 font-sans text-xs text-foreground/80">
-                {detectionSourceLabel(sighting.detected_by)} ·{" "}
-                {Math.round(sighting.confidence * 100)}% match
+                Identified by {detectionSourceLabel(sighting.detected_by)} ·{" "}
+                {Math.round(sighting.confidence! * 100)}% match
               </Text>
             </View>
           ) : null}
@@ -105,6 +108,9 @@ export function SightingDetailsSection({ sighting }: { sighting: Sighting }) {
           <View className="rounded-xl border border-border bg-card px-3 py-2">
             <DetailLine label="Date" value={formatDetailDate(when)} />
             <DetailLine label="Time" value={formatDetailTime(when)} />
+            {photoAccuracy ? (
+              <DetailLine label="Photo accuracy" value={photoAccuracy} />
+            ) : null}
             {displayCity ? <DetailLine label="City" value={displayCity} /> : null}
             {displayAddress ? (
               <DetailLine label="Address" value={displayAddress} />

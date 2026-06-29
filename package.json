@@ -8,9 +8,17 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "preview:website": "npx --yes serve website -l 4321",
-    "deploy:website": "wrangler pages deploy website --project-name=burd",
+    "generate:website-favicons": "npm run generate:favicons --prefix website/scripts",
+    "build:web-app": "node scripts/sync-web-app.mjs",
+    "deploy:website": "npm run build:web-app && npx --yes wrangler pages deploy website --project-name=burd --branch=main --commit-dirty=true",
     "fetch-species-images": "node scripts/fetch-species-images.mjs",
-    "generate-bird-catalog": "server/.venv/Scripts/python.exe scripts/generate-bird-catalog.py"
+    "generate-bird-catalog": "node scripts/run-python.mjs scripts/generate-bird-catalog.py",
+    "build:regional-priors": "node scripts/run-python.mjs scripts/build-regional-priors.py --all",
+    "build:regional-priors:sample": "node scripts/run-python.mjs scripts/build-regional-priors.py --sample --all",
+    "patch:regional-priors:prairies": "node scripts/run-python.mjs scripts/build-regional-priors.py --region na --merge --month-stratify --max-records 12000 --bbox 49,60,-115,-95",
+    "build:ecozone-checklist": "node scripts/run-python.mjs scripts/build-ecozone-checklist.py",
+    "build:ecozone-checklist:prairies": "node scripts/run-python.mjs scripts/build-ecozone-checklist.py --zones canadian_prairies --max-records 800",
+    "merge:regional-priors": "node scripts/run-python.mjs scripts/merge-community-priors.py"
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
@@ -25,6 +33,7 @@
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",
     "expo-device": "~8.0.10",
+    "expo-file-system": "~19.0.23",
     "expo-font": "~14.0.12",
     "expo-image": "~3.0.11",
     "expo-image-manipulator": "~14.0.8",

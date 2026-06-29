@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "region": "na",
+  "grid_deg": 1,
+  "built_at": "2026-06-27T19:52:12.611277+00:00",
+  "source": "gbif-api-merge",
+  "licenses": [
+    "CC0_1_0",
+    "CC_BY_4_0"
+  ],
+  "attribution": [
+    "Species occurrence frequencies derived from GBIF.org (CC0 and CC BY 4.0 records only).",
+    "GBIF.org (YYYY). GBIF Occurrence Download. https://doi.org/10.15468/dl.placeholder",
+    "Burd community sighting aggregates (when enabled)."
+  ],
+  "cell_count": 836,
+  "record_count": 62000
+}

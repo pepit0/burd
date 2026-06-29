@@ -5,12 +5,14 @@ import type { FieldGuideAuthor } from "@/lib/speciesFieldGuideAuthor";
 interface FieldGuideAttributionProps {
   author: FieldGuideAuthor | null;
   fieldGuideLocked: boolean;
+  fieldGuidePublished?: boolean;
   loading?: boolean;
 }
 
 export function FieldGuideAttribution({
   author,
   fieldGuideLocked,
+  fieldGuidePublished = false,
   loading = false,
 }: FieldGuideAttributionProps) {
   const router = useRouter();
@@ -51,6 +53,15 @@ export function FieldGuideAttribution({
           {" · AI-generated"}
         </Text>
       </Pressable>
+    );
+  }
+
+  if (!fieldGuideLocked && !author && fieldGuidePublished) {
+    return (
+      <Text className="font-sans text-[11px] leading-relaxed text-muted-foreground/80">
+        Field guide author spot is open — the next birder to log a photo of this species
+        can claim credit. Content is AI-generated.
+      </Text>
     );
   }
 

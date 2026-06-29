@@ -1,3 +1,5 @@
+import type { DetectedBy, Prediction } from "@/types";
+
 /**
  * In-memory hand-off for photos captured in a camera session. Route params
  * can't carry large base64 strings, so the camera stashes them here and the
@@ -16,11 +18,23 @@ export interface SessionAudio {
   recordedAt: string;
 }
 
+export interface SessionAnalysis {
+  detectedBy: DetectedBy;
+  top: Prediction | null;
+  agreed: boolean;
+  imagePredictions: Prediction[];
+  audioPredictions: Prediction[];
+  heardSpecies: Prediction[];
+  count: number;
+}
+
 export interface PendingCapture {
   photos: SessionPhoto[];
   primaryIndex: number;
   count?: number;
   audio?: SessionAudio | null;
+  analysis?: SessionAnalysis;
+  soundLibraryId?: string | null;
 }
 
 let pending: PendingCapture | null = null;

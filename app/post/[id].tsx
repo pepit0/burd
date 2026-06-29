@@ -14,6 +14,7 @@ import {
   Feather,
   Heart,
   MessageCircle,
+  Mic,
   MoreHorizontal,
   Repeat2,
   Share2,
@@ -22,8 +23,11 @@ import { Avatar } from "@/components/Avatar";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { PostComments } from "@/components/PostComments";
 import { PostOptionsMenu } from "@/components/PostOptionsMenu";
+import { AudioPlayer } from "@/components/AudioPlayer";
 import { SightingDetailsSection } from "@/components/SightingDetailsSection";
+import { SpeciesNameLink } from "@/components/SpeciesNameLink";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { getCommentCountForSighting } from "@/lib/comments";
 import { getErrorMessage } from "@/lib/errors";
 import {
@@ -76,6 +80,7 @@ export default function PostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const { isAdmin } = useAdmin(userId);
 
   const [post, setPost] = useState<FeedSighting | null>(null);
   const [liked, setLiked] = useState(false);
@@ -147,6 +152,17 @@ export default function PostScreen() {
     scrollRef.current?.scrollTo({ y: commentsYRef.current, animated: true });
   }
 
+  const isRemoved = Boolean(post?.removed_at);
+  const authorDisqualified = Boolean(post?.author_disqualified);
+  const canSeeRemoval =
+    post !== null && isRemoved && (isAdmin || post.user_id === userId);
+  const canSeeAuthorDisqualification =
+    post !== null &&
+    authorDisqualified &&
+    !isRemoved &&
+    (isAdmin || post.user_id === userId);
+  const showPost = Boolean(post) && (!isRemoved || canSeeRemoval);
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-row items-center justify-between border-b border-border px-3 pb-3 pt-1">
@@ -176,22 +192,50 @@ export default function PostScreen() {
 
       {loading ? (
         <ActivityIndicator className="mt-20" color="#5f9470" />
-      ) : error || !post ? (
+      ) : error || !post || !showPost ? (
         <Text className="mt-20 px-8 text-center font-sans text-sm text-muted-foreground">
           {error ?? "Post not found."}
         </Text>
       ) : (
         <KeyboardScreen ref={scrollRef} showsVerticalScrollIndicator={false}>
+          {canSeeRemoval ? (
+            <View className="border-b border-destructive/30 bg-destructive/10 px-4 py-4">
+              <Text className="font-sans-medium text-sm text-foreground">Post removed</Text>
+              <Text className="mt-1 font-sans text-sm text-muted-foreground">
+                {post.removal_reason ?? "This post was removed by a moderator."}
+              </Text>
+            </View>
+          ) : null}
+
+          {canSeeAuthorDisqualification ? (
+            <View className="border-b border-accent/30 bg-accent/10 px-4 py-4">
+              <Text className="font-sans-medium text-sm text-foreground">
+                Field guide author credit removed
+              </Text>
+              <Text className="mt-1 font-sans text-sm text-muted-foreground">
+                {post.author_disqualification_reason ??
+                  "This sighting no longer counts as the first capture for field guide credit."}
+              </Text>
+            </View>
+          ) : null}
+
           <View
             className="bg-muted"
             style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
           >
-            {post.photo_url ? (
+            {post.photo_url && !isRemoved ? (
               <Image
                 source={{ uri: post.photo_url }}
                 style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
                 resizeMode="cover"
               />
+            ) : post.audio_url && !isRemoved ? (
+              <View className="h-full w-full items-center justify-center gap-3 bg-primary/10">
+                <Mic size={44} color="#5f9470" />
+                <Text className="font-mono text-[11px] uppercase tracking-widest text-primary/80">
+                  Bird call sighting
+                </Text>
+              </View>
             ) : (
               <View className="h-full w-full items-center justify-center">
                 <Feather size={40} color="#3a4e35" />
@@ -199,6 +243,14 @@ export default function PostScreen() {
             )}
           </View>
 
+          {!isRemoved && post.audio_url ? (
+            <View className="border-b border-border px-4 py-3">
+              <AudioPlayer uri={post.audio_url} />
+            </View>
+          ) : null}
+
+          {!isRemoved ? (
+            <>
           <View className="flex-row items-center gap-1 px-3 py-2">
             <PostAction onPress={toggleLike} disabled={!userId || liking}>
               <Heart
@@ -228,7 +280,11 @@ export default function PostScreen() {
 
             <Text className="mt-2 font-sans text-sm leading-relaxed text-foreground">
               <Text className="font-sans-medium">@{post.username}</Text>{" "}
-              <Text className="font-serif-semibold">{post.species}</Text>
+              <SpeciesNameLink
+                species={post.species}
+                scientificName={post.scientific_name}
+                className="font-serif-semibold text-primary"
+              />
               {post.notes ? (
                 <Text className="text-foreground/85"> · {post.notes}</Text>
               ) : null}
@@ -260,6 +316,8 @@ export default function PostScreen() {
               onCommentCountChange={setCommentCount}
             />
           </View>
+            </>
+          ) : null}
         </KeyboardScreen>
       )}
 
@@ -267,8 +325,24 @@ export default function PostScreen() {
         <PostOptionsMenu
           sightingId={post.id}
           userId={userId}
+          hasPhoto={Boolean(post.photo_url)}
+          authorDisqualified={authorDisqualified}
+          isAdmin={isAdmin}
           visible={optionsOpen}
           onClose={() => setOptionsOpen(false)}
+          onPostRemoved={() => router.back()}
+          onAuthorRemoved={() => {
+            setPost((current) =>
+              current
+                ? {
+                    ...current,
+                    author_disqualified: true,
+                    author_disqualification_reason:
+                      "Field guide author credit was removed by a moderator.",
+                  }
+                : current,
+            );
+          }}
         />
       ) : null}
     </SafeAreaView>

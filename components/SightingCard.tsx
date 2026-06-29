@@ -7,12 +7,16 @@ import {
   Feather,
   Heart,
   MapPin,
+  Mic,
   MoreHorizontal,
 } from "lucide-react-native";
+import { AudioPlayer } from "@/components/AudioPlayer";
 import { Avatar } from "@/components/Avatar";
 import { PostOptionsMenu } from "@/components/PostOptionsMenu";
 import { RarityBadge } from "@/components/RarityBadge";
+import { SpeciesNameLink } from "@/components/SpeciesNameLink";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { timeAgo } from "@/lib/time";
 import type { FeedSighting } from "@/types";
 
@@ -25,6 +29,7 @@ interface SightingCardProps {
 export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { isAdmin } = useAdmin(userId);
   const userId = user?.id ?? null;
   const [optionsOpen, setOptionsOpen] = useState(false);
   const openPost = () => router.push(`/post/${s.id}`);
@@ -39,6 +44,13 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
               className="h-full w-full"
               resizeMode="cover"
             />
+          ) : s.audio_url ? (
+            <View className="h-full w-full items-center justify-center gap-2 bg-primary/10">
+              <Mic size={32} color="#5f9470" />
+              <Text className="font-mono text-[10px] uppercase tracking-widest text-primary/80">
+                Bird call
+              </Text>
+            </View>
           ) : (
             <View className="h-full w-full items-center justify-center">
               <Feather size={32} color="#3a4e35" />
@@ -50,9 +62,11 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
           />
           <View className="absolute bottom-3 left-3 right-3 flex-row items-end justify-between">
             <View className="flex-1 pr-2">
-              <Text className="font-serif-semibold text-lg leading-tight text-foreground">
-                {s.species}
-              </Text>
+              <SpeciesNameLink
+                species={s.species}
+                scientificName={s.scientific_name}
+                className="font-serif-semibold text-lg leading-tight text-foreground"
+              />
               {s.scientific_name ? (
                 <Text className="font-serif-italic text-[11px] text-foreground/60">
                   {s.scientific_name}
@@ -87,6 +101,11 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
               {s.notes}
             </Text>
           ) : null}
+          {s.audio_url ? (
+            <View className="mt-2">
+              <AudioPlayer uri={s.audio_url} compact />
+            </View>
+          ) : null}
           <Text className="mt-1 font-mono text-[11px] text-muted-foreground/50">
             {timeAgo(s.created_at)}
           </Text>
@@ -114,6 +133,9 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
       <PostOptionsMenu
         sightingId={s.id}
         userId={userId}
+        hasPhoto={Boolean(s.photo_url)}
+        authorDisqualified={Boolean(s.author_disqualified)}
+        isAdmin={isAdmin}
         visible={optionsOpen}
         onClose={() => setOptionsOpen(false)}
       />

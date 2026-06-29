@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Profile } from "@/types";
 import {
   ActivityIndicator,
   FlatList,
@@ -12,7 +13,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Check, Search } from "lucide-react-native";
+import { Check, Filter, Search } from "lucide-react-native";
+import { FilterSheet } from "@/components/FilterSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesImage } from "@/components/SpeciesImage";
@@ -22,10 +24,21 @@ import {
   buildSightingIndex,
   countLoggedInCatalog,
   filterCatalog,
+  filterCatalogByOptions,
+  sortCatalogLoggedFirst,
   toFieldGuideEntry,
   type FieldGuideEntry,
 } from "@/lib/fieldGuide";
-import { resetFieldGuideImageLoader } from "@/lib/fieldGuideImageLoader";
+import {
+  countActiveFieldGuideFilters,
+  DEFAULT_FIELD_GUIDE_FILTERS,
+  type FieldGuideFilters,
+  type FeedRarityFilter,
+  type FieldGuideLoggedFilter,
+} from "@/lib/filters";
+import { resetFieldGuideImageLoader, primeFieldGuideImages } from "@/lib/fieldGuideImageLoader";
+import { getMyProfile } from "@/lib/sightings";
+import { consumeFieldGuideIntent } from "@/lib/navigationIntent";
 import { SPECIES_CATALOG } from "@/lib/speciesCatalog";
 
 /** Species shown on first paint (5 rows × 2 columns). */
@@ -131,10 +144,19 @@ export default function FieldGuideScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const [viewUserId, setViewUserId] = useState<string | null>(null);
+  const [viewProfile, setViewProfile] = useState<Profile | null>(null);
+  const catalogUserId = viewUserId ?? userId;
   const { sightings, loading, refreshing, error, refresh, silentRefresh } =
-    useMySightings(userId);
+    useMySightings(catalogUserId);
   const [search, setSearch] = useState("");
+  const [sortLoggedFirst, setSortLoggedFirst] = useState(false);
+  const [guideFilters, setGuideFilters] = useState<FieldGuideFilters>(
+    DEFAULT_FIELD_GUIDE_FILTERS,
+  );
+  const [filterOpen, setFilterOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
+  const activeFilterCount = countActiveFieldGuideFilters(guideFilters);
 
   const loadingMore = useRef(false);
   const lastLoadAt = useRef(0);
@@ -144,6 +166,20 @@ export default function FieldGuideScreen() {
   const firstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
+      const intent = consumeFieldGuideIntent();
+      if (intent) {
+        setSortLoggedFirst(intent.sortLoggedFirst);
+        setViewUserId(intent.userId);
+        setVisibleCount(INITIAL_COUNT);
+        visibleCountRef.current = INITIAL_COUNT;
+        resetFieldGuideImageLoader();
+        if (intent.userId) {
+          void getMyProfile(intent.userId).then(setViewProfile);
+        } else {
+          setViewProfile(null);
+        }
+      }
+
       if (firstFocus.current) {
         firstFocus.current = false;
         return;
@@ -152,20 +188,36 @@ export default function FieldGuideScreen() {
     }, [silentRefresh]),
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setSortLoggedFirst(false);
+        setViewUserId(null);
+        setViewProfile(null);
+      };
+    }, []),
+  );
+
   const sightingIndex = useMemo(
     () => buildSightingIndex(sightings),
     [sightings],
   );
 
-  const filteredCatalog = useMemo(
-    () => filterCatalog(SPECIES_CATALOG, search),
-    [search],
-  );
+  const filteredCatalog = useMemo(() => {
+    let list = filterCatalog(SPECIES_CATALOG, search);
+    list = filterCatalogByOptions(list, guideFilters, sightingIndex);
+    if (sortLoggedFirst) {
+      list = sortCatalogLoggedFirst(list, sightingIndex);
+    }
+    return list;
+  }, [search, sortLoggedFirst, guideFilters, sightingIndex]);
 
   filteredLengthRef.current = filteredCatalog.length;
   visibleCountRef.current = visibleCount;
 
   const searchResetReady = useRef(false);
+  const sortLoggedFirstReady = useRef(false);
+  const guideFiltersReady = useRef(false);
 
   useEffect(() => {
     if (!searchResetReady.current) {
@@ -180,11 +232,41 @@ export default function FieldGuideScreen() {
     resetFieldGuideImageLoader();
   }, [search]);
 
+  useEffect(() => {
+    if (!sortLoggedFirstReady.current) {
+      sortLoggedFirstReady.current = true;
+      return;
+    }
+
+    setVisibleCount(INITIAL_COUNT);
+    visibleCountRef.current = INITIAL_COUNT;
+    loadingMore.current = false;
+    lastLoadAt.current = 0;
+    resetFieldGuideImageLoader();
+  }, [sortLoggedFirst]);
+
+  useEffect(() => {
+    if (!guideFiltersReady.current) {
+      guideFiltersReady.current = true;
+      return;
+    }
+
+    setVisibleCount(INITIAL_COUNT);
+    visibleCountRef.current = INITIAL_COUNT;
+    loadingMore.current = false;
+    lastLoadAt.current = 0;
+    resetFieldGuideImageLoader();
+  }, [guideFilters]);
+
   const visibleEntries = useMemo(() => {
     return filteredCatalog
       .slice(0, visibleCount)
       .map((item) => toFieldGuideEntry(item, sightingIndex));
   }, [filteredCatalog, visibleCount, sightingIndex]);
+
+  useEffect(() => {
+    primeFieldGuideImages(visibleEntries.map((entry) => entry.id));
+  }, [visibleEntries]);
 
   const rows = useMemo(() => entriesToRows(visibleEntries), [visibleEntries]);
   const hasMore = visibleCount < filteredCatalog.length;
@@ -264,26 +346,51 @@ export default function FieldGuideScreen() {
     </View>
   );
 
+  const headerTitle = viewProfile
+    ? `@${viewProfile.username}'s species`
+    : "Field Guide";
+  const progressLabel = viewProfile
+    ? `@${viewProfile.username}'s progress`
+    : "Lifetime progress";
+  const loggedFilterLabel = viewProfile
+    ? `Logged by @${viewProfile.username}`
+    : "Logged by you";
+
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <ScreenHeader title="Field Guide" />
+      <ScreenHeader title={headerTitle} />
 
       <View className="gap-3 px-4 pb-3 pt-3">
-        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-          <Search size={14} color="#8a9e82" />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Find a species..."
-            placeholderTextColor="#8a9e82"
-            className="flex-1 font-sans text-sm text-foreground"
-          />
+        <View className="flex-row items-center gap-2">
+          <View className="flex-1 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
+            <Search size={14} color="#8a9e82" />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Find a species..."
+              placeholderTextColor="#8a9e82"
+              className="flex-1 font-sans text-sm text-foreground"
+            />
+          </View>
+          <Pressable
+            onPress={() => setFilterOpen(true)}
+            className={`rounded-xl border p-2.5 active:opacity-80 ${
+              activeFilterCount > 0
+                ? "border-primary bg-primary/15"
+                : "border-border bg-card"
+            }`}
+          >
+            <Filter
+              size={16}
+              color={activeFilterCount > 0 ? "#5f9470" : "#8a9e82"}
+            />
+          </Pressable>
         </View>
 
         <View className="rounded-xl border border-border bg-card p-3.5">
           <View className="mb-2.5 flex-row items-center justify-between">
             <Text className="font-sans text-xs text-muted-foreground">
-              Lifetime progress
+              {progressLabel}
             </Text>
             <Text className="font-mono text-xs text-accent">
               {loggedCount}/{SPECIES_CATALOG.length} species logged
@@ -328,11 +435,51 @@ export default function FieldGuideScreen() {
           }
           ListEmptyComponent={
             <Text className="mt-16 px-8 text-center font-sans text-sm leading-relaxed text-muted-foreground">
-              No species match your search.
+              {activeFilterCount > 0 || search.trim()
+                ? "No species match your search or filters."
+                : "No species to show."}
             </Text>
           }
         />
       )}
+
+      <FilterSheet
+        visible={filterOpen}
+        title="Filter field guide"
+        onClose={() => setFilterOpen(false)}
+        onReset={() => setGuideFilters(DEFAULT_FIELD_GUIDE_FILTERS)}
+        sections={[
+          {
+            title: "Rarity",
+            value: guideFilters.rarity,
+            onSelect: (value) =>
+              setGuideFilters((prev) => ({
+                ...prev,
+                rarity: value as FeedRarityFilter,
+              })),
+            options: [
+              { value: "all", label: "All" },
+              { value: "common", label: "Common" },
+              { value: "uncommon", label: "Uncommon" },
+              { value: "rare", label: "Rare" },
+            ],
+          },
+          {
+            title: "Logged",
+            value: guideFilters.logged,
+            onSelect: (value) =>
+              setGuideFilters((prev) => ({
+                ...prev,
+                logged: value as FieldGuideLoggedFilter,
+              })),
+            options: [
+              { value: "all", label: "All species" },
+              { value: "logged", label: loggedFilterLabel },
+              { value: "unlogged", label: "Not logged yet" },
+            ],
+          },
+        ]}
+      />
     </SafeAreaView>
   );
 }

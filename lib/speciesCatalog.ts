@@ -1,4 +1,5 @@
 import birdCatalog from "@/data/bird-catalog.json";
+import scientificCommon from "@/data/scientific-common.json";
 import { lookupBaselineRarity } from "@/lib/speciesBaselines";
 import type { Rarity } from "@/types";
 
@@ -32,15 +33,57 @@ const catalogByScientific = new Map(
     species,
   ]),
 );
+const commonByScientific = new Map(
+  Object.entries(scientificCommon as Record<string, string>).map(([key, value]) => [
+    key.trim().toLowerCase(),
+    value,
+  ]),
+);
 
 export function getCatalogSpeciesById(id: string): CatalogSpecies | undefined {
   return catalogById.get(id);
 }
 
+function normalizeScientificKey(scientificName: string): string {
+  return scientificName.trim().toLowerCase().replace(/_/g, " ");
+}
+
+function binomialKey(scientificName: string): string | null {
+  const parts = normalizeScientificKey(scientificName).split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return null;
+  return `${parts[0]} ${parts[1]}`;
+}
+
 export function getCatalogSpeciesByScientificName(
   scientificName: string,
 ): CatalogSpecies | undefined {
-  return catalogByScientific.get(scientificName.trim().toLowerCase());
+  const normalized = normalizeScientificKey(scientificName);
+  const direct = catalogByScientific.get(normalized);
+  if (direct) return direct;
+
+  const binomial = binomialKey(normalized);
+  if (binomial) {
+    return catalogByScientific.get(binomial);
+  }
+
+  return undefined;
+}
+
+/** English common name for a scientific name, when known in the catalog. */
+export function getCommonNameByScientific(scientificName: string): string | undefined {
+  const fromCatalog = getCatalogSpeciesByScientificName(scientificName)?.species;
+  if (fromCatalog) return fromCatalog;
+
+  const normalized = normalizeScientificKey(scientificName);
+  const direct = commonByScientific.get(normalized);
+  if (direct) return direct;
+
+  const binomial = binomialKey(normalized);
+  if (binomial) {
+    return commonByScientific.get(binomial);
+  }
+
+  return undefined;
 }
 
 /** Match a logged sighting to a catalog entry (scientific name preferred). */

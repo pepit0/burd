@@ -43,7 +43,7 @@ export function useUserProfile(
       const [p, counts, s, follows] = await Promise.all([
         getMyProfile(targetId),
         getFollowCounts(targetId),
-        getMySightings(targetId),
+        getMySightings(targetId, { publishedOnly: true }),
         !isSelf && currentUserId
           ? isFollowing(currentUserId, targetId)
           : Promise.resolve(false),
@@ -51,7 +51,7 @@ export function useUserProfile(
       setProfile(p);
       setFollowers(counts.followers);
       setFollowing(counts.following);
-      setSightings(s);
+      setSightings(s.filter((row) => !row.removed_at));
       setFollowingThem(follows);
     } catch (e) {
       setError(getErrorMessage(e));

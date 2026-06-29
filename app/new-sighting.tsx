@@ -5,6 +5,7 @@ import {
   Image,
   Pressable,
   ScrollView,
+  Switch,
   Text,
   TextInput,
   View,
@@ -13,7 +14,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { Camera, Minus, Plus, Sparkles, X } from "lucide-react-native";
+import { Camera, Mic, Minus, Plus, Sparkles, Volume2, X } from "lucide-react-native";
+import { AudioPlayer } from "@/components/AudioPlayer";
+import { SoundLibraryPicker } from "@/components/SoundLibraryPicker";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,19 +28,53 @@ import {
 } from "@/lib/photoAuthenticity";
 import { validationFailureMessage } from "@/lib/photoValidation";
 import { createSighting, getMyProfile, uploadSightingPhoto } from "@/lib/sightings";
+import { linkSoundToSighting, getSoundLibraryEntry, uploadSoundClip } from "@/lib/soundLibrary";
+import {
+  displayScientificName,
+  displaySpeciesName,
+  enrichPrediction,
+} from "@/lib/predictionLabels";
 import { maybeGenerateSpeciesProfileAfterSighting } from "@/lib/speciesProfileLoad";
 import { inferRegionalRarity } from "@/lib/rarity";
 import { applyGeocodeFields } from "@/lib/geocode";
 import { photoTakenAt } from "@/lib/photoMetadata";
 import { getErrorMessage } from "@/lib/errors";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
+import { soundReportSpecies } from "@/lib/heardSpecies";
 import { takePendingCapture, type PendingCapture, type SessionPhoto } from "@/lib/pendingCapture";
-import type { DetectedBy, Rarity } from "@/types";
+import type { DetectedBy, Prediction, Rarity, SoundLibraryEntry } from "@/types";
 
 function parseCount(value: string | undefined): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 1) return 1;
   return Math.min(Math.round(n), 99);
+}
+
+function speciesFromParams(
+  species: string | undefined,
+  scientificName: string | undefined,
+): string {
+  if (!species?.trim()) return "";
+  return displaySpeciesName({
+    species,
+    scientific_name: scientificName?.trim() || null,
+    confidence: 0,
+  });
+}
+
+function scientificFromParams(
+  species: string | undefined,
+  scientificName: string | undefined,
+): string {
+  return (
+    displayScientificName({
+      species: species ?? "",
+      scientific_name: scientificName?.trim() || null,
+      confidence: 0,
+    }) ??
+    scientificName?.trim() ??
+    ""
+  );
 }
 
 export default function NewSightingScreen() {
@@ -52,10 +89,16 @@ export default function NewSightingScreen() {
     confidence?: string;
     count?: string;
     audio_agreed?: string;
+    sound_library_id?: string;
+    audio_only?: string;
   }>();
 
-  const [species, setSpecies] = useState(params.species ?? "");
-  const [scientific, setScientific] = useState(params.scientific_name ?? "");
+  const [species, setSpecies] = useState(() =>
+    speciesFromParams(params.species, params.scientific_name),
+  );
+  const [scientific, setScientific] = useState(() =>
+    scientificFromParams(params.species, params.scientific_name),
+  );
   const [rarity, setRarity] = useState<Rarity>("common");
   const [rarityLoading, setRarityLoading] = useState(false);
   const [count, setCount] = useState(parseCount(params.count));
@@ -72,6 +115,15 @@ export default function NewSightingScreen() {
   const [sessionPhotos, setSessionPhotos] = useState<SessionPhoto[]>([]);
   const [primaryPhotoId, setPrimaryPhotoId] = useState<string | null>(null);
   const [sessionAudio, setSessionAudio] = useState<PendingCapture["audio"]>(null);
+  const [heardSpecies, setHeardSpecies] = useState<Prediction[]>([]);
+  const [soundLibraryId, setSoundLibraryId] = useState<string | null>(
+    params.sound_library_id?.trim() || null,
+  );
+  const [libraryEntry, setLibraryEntry] = useState<SoundLibraryEntry | null>(null);
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+  const [publishToProfile, setPublishToProfile] = useState(false);
+
+  const audioOnly = params.audio_only === "1";
 
   const [submitting, setSubmitting] = useState(false);
   const [photoAuthStatus, setPhotoAuthStatus] = useState<PhotoAuthStatus>("idle");
@@ -105,7 +157,36 @@ export default function NewSightingScreen() {
       setCountFromPhoto(true);
     }
     setSessionAudio(capture.audio ?? null);
+    setHeardSpecies(soundReportSpecies(capture.analysis));
+    if (capture.soundLibraryId) {
+      setSoundLibraryId(capture.soundLibraryId);
+    }
   }, []);
+
+  useEffect(() => {
+    const id = soundLibraryId ?? params.sound_library_id?.trim();
+    if (!id) return;
+
+    let cancelled = false;
+    (async () => {
+      const entry = await getSoundLibraryEntry(id);
+      if (cancelled || !entry) return;
+      setLibraryEntry(entry);
+      setSoundLibraryId(entry.id);
+      if (!params.species && entry.predictions[0]) {
+        const top = enrichPrediction(entry.predictions[0]);
+        setSpecies(top.species);
+        setScientific(top.scientific_name ?? "");
+      }
+      if (entry.predictions.length > 0) {
+        setHeardSpecies(entry.predictions);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [soundLibraryId, params.sound_library_id, params.species]);
 
   useEffect(() => {
     if (!photoUri) {
@@ -145,9 +226,13 @@ export default function NewSightingScreen() {
     };
   }, [photoUri, photoBase64, router]);
 
+  const hasAudio = Boolean(libraryEntry?.audio_url || sessionAudio || soundLibraryId);
+  const libraryLoading = Boolean(soundLibraryId && !libraryEntry);
   const canSubmit =
     !submitting &&
+    !libraryLoading &&
     species.trim().length > 0 &&
+    (hasAudio || photoUri) &&
     (!photoUri || photoAuthStatus === "passed");
 
   function selectSessionPhoto(photo: SessionPhoto) {
@@ -212,6 +297,7 @@ export default function NewSightingScreen() {
           coords?.latitude ?? null,
           coords?.longitude ?? null,
           radiusKm,
+          observedAt.toISOString(),
         );
         if (!cancelled) setRarity(next);
       } catch {
@@ -224,12 +310,21 @@ export default function NewSightingScreen() {
     return () => {
       cancelled = true;
     };
-  }, [species, scientific, coords, userId]);
+  }, [species, scientific, coords, userId, observedAt]);
 
   async function analyzePhotoCount(uri: string, base64?: string | null) {
     setCountLoading(true);
     try {
-      const { count: detected } = await identifyImage(uri, { base64 });
+      const { count: detected } = await identifyImage(uri, {
+        base64,
+        geo: coords
+          ? {
+              lat: coords.latitude,
+              lng: coords.longitude,
+              observedAt: observedAt.toISOString(),
+            }
+          : undefined,
+      });
       setCount(detected);
       setCountFromPhoto(true);
     } catch (e) {
@@ -272,6 +367,24 @@ export default function NewSightingScreen() {
     }
   }
 
+  function attachLibraryEntry(entry: SoundLibraryEntry) {
+    setLibraryEntry(entry);
+    setSoundLibraryId(entry.id);
+    setHeardSpecies(entry.predictions);
+    if (!species.trim() && entry.predictions[0]) {
+      setSpecies(entry.predictions[0].species);
+      setScientific(entry.predictions[0].scientific_name ?? "");
+    }
+  }
+
+  function detachLibraryAudio() {
+    setLibraryEntry(null);
+    setSoundLibraryId(null);
+    if (!sessionAudio) {
+      setHeardSpecies([]);
+    }
+  }
+
   async function handleSubmit() {
     if (!userId) return;
     if (!species.trim()) {
@@ -296,7 +409,17 @@ export default function NewSightingScreen() {
       if (photoBase64) {
         photoUrl = await uploadSightingPhoto(userId, photoBase64);
       }
-      await createSighting(userId, {
+
+      let audioUrl: string | null = libraryEntry?.audio_url ?? null;
+      let audioPredictions: Prediction[] | null =
+        libraryEntry?.predictions ??
+        (heardSpecies.length > 0 ? heardSpecies : null);
+
+      if (!audioUrl && sessionAudio) {
+        audioUrl = await uploadSoundClip(userId, sessionAudio.uri);
+      }
+
+      const sightingId = await createSighting(userId, {
         species: species.trim(),
         scientific_name: scientific.trim() || null,
         location_name: locationName.trim() || null,
@@ -309,9 +432,16 @@ export default function NewSightingScreen() {
         count,
         notes: notes.trim() || null,
         photo_url: photoUrl,
+        audio_url: audioUrl,
+        audio_predictions: audioPredictions,
         confidence,
         detected_by: detectedBy,
+        publish: publishToProfile,
       });
+
+      if (soundLibraryId) {
+        await linkSoundToSighting(soundLibraryId, sightingId);
+      }
       void maybeGenerateSpeciesProfileAfterSighting(
         species.trim(),
         scientific.trim() || null,
@@ -339,7 +469,7 @@ export default function NewSightingScreen() {
           <X size={22} color="#8a9e82" />
         </Pressable>
         <Text className="font-serif-semibold text-lg text-foreground">
-          Log a Sighting
+          {audioOnly ? "Log sound sighting" : "Log a Sighting"}
         </Text>
         <View className="w-7" />
       </View>
@@ -355,6 +485,13 @@ export default function NewSightingScreen() {
         >
           {photoUri ? (
             <Image source={{ uri: photoUri }} className="h-full w-full" resizeMode="cover" />
+          ) : audioOnly && !photoUri ? (
+            <View className="items-center gap-2 px-6">
+              <Mic size={26} color="#5f9470" />
+              <Text className="text-center font-sans text-sm text-muted-foreground">
+                Audio-only sighting · add a photo below if you have one
+              </Text>
+            </View>
           ) : (
             <View className="items-center gap-2">
               <Camera size={26} color="#8a9e82" />
@@ -402,16 +539,69 @@ export default function NewSightingScreen() {
           </View>
         ) : null}
 
-        {sessionAudio ? (
-          <View className="rounded-xl border border-border bg-card px-3 py-2.5">
-            <Text className="font-sans-medium text-sm text-foreground">
-              Bird call recorded
-            </Text>
-            <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
-              {Math.max(1, Math.round(sessionAudio.durationMs / 1000))}s clip from
-              your camera session
-            </Text>
+        {sessionAudio || libraryEntry ? (
+          <View className="gap-2 rounded-xl border border-border bg-card px-3 py-3">
+            <View className="flex-row items-center justify-between gap-2">
+              <View className="flex-row items-center gap-2">
+                <Mic size={14} color="#5f9470" />
+                <Text className="font-sans-medium text-sm text-foreground">
+                  Bird call attached
+                </Text>
+              </View>
+              {libraryEntry && !sessionAudio ? (
+                <Pressable
+                  onPress={detachLibraryAudio}
+                  className="rounded-full px-2 py-1 active:opacity-70"
+                >
+                  <Text className="font-sans text-xs text-muted-foreground">
+                    Remove
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {libraryEntry ? (
+              <AudioPlayer
+                uri={libraryEntry.audio_url}
+                durationMs={libraryEntry.duration_ms}
+              />
+            ) : sessionAudio ? (
+              <>
+                <AudioPlayer
+                  uri={sessionAudio.uri}
+                  durationMs={sessionAudio.durationMs}
+                />
+                <Text className="font-sans text-xs text-muted-foreground">
+                  Audio uploads when you log this sighting.
+                </Text>
+              </>
+            ) : null}
+            {heardSpecies.length > 0 ? (
+              <View className="mt-1 gap-1">
+                <Text className="font-sans text-xs text-muted-foreground">
+                  Perch heard:
+                </Text>
+                {heardSpecies.slice(0, 4).map((prediction, index) => (
+                  <Text key={`${prediction.species}-${index}`} className="font-sans text-xs text-foreground/80">
+                    · {displaySpeciesName(prediction)}
+                    {displayScientificName(prediction)
+                      ? ` (${displayScientificName(prediction)})`
+                      : ""}{" "}
+                    · {Math.round(prediction.confidence * 100)}%
+                  </Text>
+                ))}
+              </View>
+            ) : null}
           </View>
+        ) : !sessionAudio ? (
+          <Pressable
+            onPress={() => setLibraryPickerOpen(true)}
+            className="flex-row items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 active:opacity-90"
+          >
+            <Volume2 size={16} color="#5f9470" />
+            <Text className="font-sans-medium text-sm text-foreground">
+              Attach bird call from library
+            </Text>
+          </Pressable>
         ) : null}
 
         <View>
@@ -525,6 +715,24 @@ export default function NewSightingScreen() {
           />
         </View>
 
+        <View className="flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+          <View className="min-w-0 flex-1 pr-3">
+            <Text className="font-sans-medium text-sm text-foreground">
+              Share on profile
+            </Text>
+            <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
+              Off saves to your journal only. Turn on to post to your profile and
+              the public feed.
+            </Text>
+          </View>
+          <Switch
+            value={publishToProfile}
+            onValueChange={setPublishToProfile}
+            trackColor={{ false: "#3a4e35", true: "#5f9470" }}
+            thumbColor="#f0ead6"
+          />
+        </View>
+
         <Pressable
           onPress={handleSubmit}
           disabled={!canSubmit}
@@ -543,7 +751,7 @@ export default function NewSightingScreen() {
             </View>
           ) : (
             <Text className="font-sans-bold text-base text-primary-foreground">
-              Log sighting
+              {publishToProfile ? "Save & post" : "Save to journal"}
             </Text>
           )}
         </Pressable>
@@ -553,6 +761,13 @@ export default function NewSightingScreen() {
           </Text>
         ) : null}
       </KeyboardScreen>
+
+      <SoundLibraryPicker
+        visible={libraryPickerOpen}
+        userId={userId}
+        onClose={() => setLibraryPickerOpen(false)}
+        onSelect={attachLibraryEntry}
+      />
     </SafeAreaView>
   );
 }

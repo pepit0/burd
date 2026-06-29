@@ -16,21 +16,37 @@ import {
   Search,
 } from "lucide-react-native";
 import { ActivityRow } from "@/components/ActivityRow";
+import { FilterSheet } from "@/components/FilterSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SightingCard } from "@/components/SightingCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivity } from "@/hooks/useActivity";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { useFeed, type FeedFilter } from "@/hooks/useFeed";
+import {
+  applyFeedContentFilters,
+  countActiveFeedFilters,
+  DEFAULT_FEED_CONTENT_FILTERS,
+  type FeedContentFilters,
+  type FeedNearbyFilter,
+  type FeedRarityFilter,
+} from "@/lib/filters";
 import { getMyProfile } from "@/lib/sightings";
 
-const FILTERS = ["nearby", "following", "rare", "activity"] as const;
-type Tab = (typeof FILTERS)[number];
+const FEED_TABS = [
+  { id: "for_you", label: "For you" },
+  { id: "following", label: "Following" },
+  { id: "new", label: "New" },
+  { id: "activity", label: "Activity" },
+] as const;
+
+type Tab = (typeof FEED_TABS)[number]["id"];
 
 const EMPTY_COPY: Record<FeedFilter, string> = {
-  nearby: "No sightings within your radius yet. Be the first to log one nearby.",
+  for_you:
+    "No suggestions yet. Explore New or find birders near you to get personalized picks.",
   following: "Sightings from people you follow will appear here.",
-  rare: "No rare sightings reported recently.",
+  new: "No new sightings from around the world yet.",
 };
 
 function CenterMessage({
@@ -66,8 +82,13 @@ export default function FeedScreen() {
 
   const { coords, status: locStatus, refresh: refreshLocation } = useCurrentLocation();
   const [radiusKm, setRadiusKm] = useState(25);
-  const [tab, setTab] = useState<Tab>("nearby");
+  const [tab, setTab] = useState<Tab>("for_you");
   const [search, setSearch] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [contentFilters, setContentFilters] = useState<FeedContentFilters>(
+    DEFAULT_FEED_CONTENT_FILTERS,
+  );
+  const activeFilterCount = countActiveFeedFilters(contentFilters);
 
   useEffect(() => {
     if (!userId) return;
@@ -79,7 +100,7 @@ export default function FeedScreen() {
   }, [userId]);
 
   const isActivity = tab === "activity";
-  const feedFilter: FeedFilter = isActivity ? "nearby" : tab;
+  const feedFilter: FeedFilter = tab === "activity" ? "for_you" : tab;
 
   const {
     sightings,
@@ -87,7 +108,6 @@ export default function FeedScreen() {
     loading: feedLoading,
     refreshing: feedRefreshing,
     error: feedError,
-    needsLocation,
     refresh: refreshFeed,
     silentRefresh: silentRefreshFeed,
     toggleLike,
@@ -108,16 +128,24 @@ export default function FeedScreen() {
     silentRefresh: silentRefreshActivity,
   } = useActivity(userId, isActivity);
 
+  const needsNearbyLocation =
+    !isActivity && contentFilters.nearby === "nearby" && !coords;
+
   const visibleSightings = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return sightings;
-    return sightings.filter(
+    let rows = applyFeedContentFilters(sightings, contentFilters, {
+      coords,
+      radiusKm,
+    });
+    if (!q) return rows;
+    return rows.filter(
       (s) =>
         s.species.toLowerCase().includes(q) ||
+        (s.scientific_name ?? "").toLowerCase().includes(q) ||
         (s.location_name ?? "").toLowerCase().includes(q) ||
         s.username.toLowerCase().includes(q),
     );
-  }, [sightings, search]);
+  }, [sightings, search, contentFilters, coords, radiusKm]);
 
   const refreshing = isActivity ? activityRefreshing : feedRefreshing;
   const onRefresh = isActivity ? refreshActivity : refreshFeed;
@@ -155,33 +183,47 @@ export default function FeedScreen() {
           </View>
         )}
 
-        <View className="flex-row items-center gap-2">
-          {FILTERS.map((f) => {
-            const active = tab === f;
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerClassName="flex-row items-center gap-2 pr-2"
+        >
+          {FEED_TABS.map((item) => {
+            const active = tab === item.id;
             return (
               <Pressable
-                key={f}
-                onPress={() => setTab(f)}
+                key={item.id}
+                onPress={() => setTab(item.id)}
                 className={`rounded-full px-3 py-1 ${
                   active ? "bg-primary" : "border border-border bg-card"
                 }`}
               >
                 <Text
-                  className={`text-xs capitalize ${
+                  className={`text-xs ${
                     active ? "font-sans-medium text-primary-foreground" : "text-muted-foreground"
                   }`}
                 >
-                  {f}
+                  {item.label}
                 </Text>
               </Pressable>
             );
           })}
           {!isActivity && (
-            <View className="ml-auto rounded-full border border-border bg-card p-1.5">
-              <Filter size={13} color="#8a9e82" />
-            </View>
+            <Pressable
+              onPress={() => setFilterOpen(true)}
+              className={`ml-1 rounded-full border p-1.5 active:opacity-80 ${
+                activeFilterCount > 0
+                  ? "border-primary bg-primary/15"
+                  : "border-border bg-card"
+              }`}
+            >
+              <Filter
+                size={13}
+                color={activeFilterCount > 0 ? "#5f9470" : "#8a9e82"}
+              />
+            </Pressable>
           )}
-        </View>
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -207,12 +249,12 @@ export default function FeedScreen() {
           ) : (
             activity.map((event) => <ActivityRow key={event.id} event={event} />)
           )
-        ) : needsLocation ? (
+        ) : needsNearbyLocation ? (
           <View className="items-center px-8 pt-16">
             <MapPin size={28} color="#8a9e82" />
             <Text className="mt-3 text-center font-sans text-sm leading-relaxed text-muted-foreground">
               {locStatus === "denied"
-                ? "Location permission is needed to show nearby sightings."
+                ? "Location permission is needed for the nearby filter."
                 : "Finding your location…"}
             </Text>
             <Pressable
@@ -231,14 +273,18 @@ export default function FeedScreen() {
         ) : visibleSightings.length === 0 ? (
           <CenterMessage
             action={
-              feedFilter === "following"
-                ? { label: "Find birders to follow", onPress: () => router.push("/users") }
-                : feedFilter === "nearby"
-                  ? { label: "Find birders near you", onPress: () => router.push("/users") }
-                  : undefined
+              activeFilterCount > 0 || search.trim()
+                ? undefined
+                : feedFilter === "following"
+                  ? { label: "Find birders to follow", onPress: () => router.push("/users") }
+                  : feedFilter === "for_you"
+                    ? { label: "Find birders near you", onPress: () => router.push("/users") }
+                    : undefined
             }
           >
-            {EMPTY_COPY[feedFilter]}
+            {activeFilterCount > 0 || search.trim()
+              ? "No sightings match your search or filters."
+              : EMPTY_COPY[feedFilter]}
           </CenterMessage>
         ) : (
           visibleSightings.map((s) => (
@@ -251,6 +297,43 @@ export default function FeedScreen() {
           ))
         )}
       </ScrollView>
+
+      <FilterSheet
+        visible={filterOpen}
+        title="Filter feed"
+        onClose={() => setFilterOpen(false)}
+        onReset={() => setContentFilters(DEFAULT_FEED_CONTENT_FILTERS)}
+        sections={[
+          {
+            title: "Location",
+            value: contentFilters.nearby,
+            onSelect: (value) =>
+              setContentFilters((prev) => ({
+                ...prev,
+                nearby: value as FeedNearbyFilter,
+              })),
+            options: [
+              { value: "all", label: "Anywhere" },
+              { value: "nearby", label: "Nearby only" },
+            ],
+          },
+          {
+            title: "Rarity",
+            value: contentFilters.rarity,
+            onSelect: (value) =>
+              setContentFilters((prev) => ({
+                ...prev,
+                rarity: value as FeedRarityFilter,
+              })),
+            options: [
+              { value: "all", label: "All" },
+              { value: "common", label: "Common" },
+              { value: "uncommon", label: "Uncommon" },
+              { value: "rare", label: "Rare" },
+            ],
+          },
+        ]}
+      />
     </SafeAreaView>
   );
 }
