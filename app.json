@@ -85,7 +85,7 @@
     },
     "extra": {
       "router": {
-        "origin": false
+        "origin": "https://burdapp.com"
       },
       "eas": {
         "projectId": "eb44b19f-d200-4f0e-a2ed-cc484af04d3e"

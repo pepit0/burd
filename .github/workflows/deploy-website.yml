@@ -16,6 +16,10 @@ on:
       - "package.json"
       - "package-lock.json"
       - "scripts/sync-web-app.mjs"
+      - "scripts/pages-build.mjs"
+      - "wrangler.toml"
+      - "website/wrangler.toml"
+      - "website/package.json"
       - ".github/workflows/deploy-website.yml"
   workflow_dispatch:
 

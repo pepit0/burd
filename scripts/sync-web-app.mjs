@@ -31,6 +31,12 @@ console.log("Copying dist/ → website/app/...");
 emptyDir(appDir);
 cpSync(distDir, appDir, { recursive: true });
 
+const assetsDir = path.join(appDir, "assets");
+const expoDir = path.join(appDir, "_expo");
+if (!existsSync(assetsDir) || !existsSync(expoDir)) {
+  throw new Error("Expo web export is missing assets/ or _expo/ in website/app/");
+}
+
 injectAppShellSeo();
 
 console.log("Done. Preview with: npm run preview:website → http://localhost:4321/app/");

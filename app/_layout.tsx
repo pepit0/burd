@@ -1,6 +1,6 @@
 import "../global.css";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -78,7 +78,7 @@ export default function RootLayout() {
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
 
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Lora_400Regular,
     Lora_400Regular_Italic,
     Lora_500Medium,
@@ -90,6 +90,8 @@ export default function RootLayout() {
     JetBrainsMono_400Regular,
     JetBrainsMono_500Medium,
   });
+  const fontsReady =
+    Platform.OS === "web" || fontsLoaded || Boolean(fontError);
 
   useEffect(() => {
     initRegionalCommunity();
@@ -142,7 +144,7 @@ export default function RootLayout() {
     };
   }, [user?.id, session]);
 
-  if (loading || !fontsLoaded || (session && statusLoading && !accountStatus)) {
+  if (loading || !fontsReady || (session && statusLoading && !accountStatus)) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
         <ActivityIndicator size="large" color="#5f9470" />
