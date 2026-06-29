@@ -52,4 +52,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Deploy from repo root; wrangler.toml sets pages_build_output_dir = "website"
           command: pages deploy website --project-name=burd --branch=main
+          workingDirectory: .
