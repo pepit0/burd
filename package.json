@@ -11,7 +11,7 @@
     "generate:website-favicons": "npm run generate:favicons --prefix website/scripts",
     "build:web-app": "node scripts/sync-web-app.mjs",
     "pages:build": "node scripts/pages-build.mjs",
-    "deploy:website": "npm run build:web-app && npx --yes wrangler pages deploy website --project-name=burd --branch=main --commit-dirty=true",
+    "deploy:website": "npm run build:web-app && npx --yes wrangler pages deploy website --project-name=burd --branch=main --commit-dirty=true && node scripts/purge-cloudflare-cache.mjs",
     "fetch-species-images": "node scripts/fetch-species-images.mjs",
     "generate-bird-catalog": "node scripts/run-python.mjs scripts/generate-bird-catalog.py",
     "build:regional-priors": "node scripts/run-python.mjs scripts/build-regional-priors.py --all",

@@ -3,7 +3,7 @@
   "short_name": "Burd",
   "description": "Burd is the social birding app to log sightings, identify bird calls, explore a field guide, and connect with birders near you.",
   "start_url": "/app/",
-  "scope": "/",
+  "scope": "/app/",
   "display": "standalone",
   "background_color": "#181e16",
   "theme_color": "#181e16",
