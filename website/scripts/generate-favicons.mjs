@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 import sharp from "sharp";
+import toIco from "to-ico";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const assetsDir = path.join(__dirname, "..", "assets");
@@ -18,6 +19,7 @@ async function renderLogoPng(size) {
 
 const sizes = [
   { name: "favicon-48.png", size: 48 },
+  { name: "favicon-96.png", size: 96 },
   { name: "favicon-192.png", size: 192 },
   { name: "apple-touch-icon.png", size: 180 },
 ];
@@ -29,6 +31,13 @@ for (const { name, size } of sizes) {
   console.log(`Wrote ${outPath} (${size}x${size})`);
 }
 
-const favicon48 = await renderLogoPng(48);
-await sharp(favicon48).toFile(path.join(websiteDir, "favicon.ico"));
-console.log(`Wrote ${path.join(websiteDir, "favicon.ico")}`);
+const icoSizes = [16, 32, 48];
+const icoBuffers = await Promise.all(
+  icoSizes.map(async (size) => {
+    const png = await renderLogoPng(size);
+    return sharp(png).png().toBuffer();
+  }),
+);
+const faviconIcoPath = path.join(websiteDir, "favicon.ico");
+fs.writeFileSync(faviconIcoPath, await toIco(icoBuffers));
+console.log(`Wrote ${faviconIcoPath} (${icoSizes.join(", ")}px)`);
