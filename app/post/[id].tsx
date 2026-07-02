@@ -14,7 +14,6 @@ import {
   Feather,
   Heart,
   MessageCircle,
-  Mic,
   MoreHorizontal,
   Repeat2,
   Share2,
@@ -23,11 +22,12 @@ import { Avatar } from "@/components/Avatar";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { PostComments } from "@/components/PostComments";
 import { PostOptionsMenu } from "@/components/PostOptionsMenu";
-import { AudioPlayer } from "@/components/AudioPlayer";
+import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { SightingDetailsSection } from "@/components/SightingDetailsSection";
 import { SpeciesNameLink } from "@/components/SpeciesNameLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { getCommentCountForSighting } from "@/lib/comments";
 import { getErrorMessage } from "@/lib/errors";
 import {
@@ -35,6 +35,7 @@ import {
   getMyLikedIds,
   setLike,
 } from "@/lib/sightings";
+import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import { timeAgo } from "@/lib/time";
 import type { FeedSighting } from "@/types";
 
@@ -77,7 +78,7 @@ function commentLabel(count: number): string {
 
 export default function PostScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, commentId } = useLocalSearchParams<{ id: string; commentId?: string }>();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { isAdmin } = useAdmin(userId);
@@ -92,6 +93,7 @@ export default function PostScreen() {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const scrollRef = useRef<React.ElementRef<typeof KeyboardScreen>>(null);
   const commentsYRef = useRef(0);
+  const audioPlayback = useAudioPlayback(post?.audio_url ?? null);
 
   useEffect(() => {
     if (!id) {
@@ -114,8 +116,11 @@ export default function PostScreen() {
         }
         setPost(row);
         setLikeCount(row.like_count);
-        const comments = await getCommentCountForSighting(row.id);
-        if (!cancelled) setCommentCount(comments);
+        if (!cancelled) {
+          setCommentCount(
+            row.comment_count ?? (await getCommentCountForSighting(row.id)),
+          );
+        }
         if (userId) {
           const likedIds = await getMyLikedIds(userId);
           if (!cancelled) setLiked(likedIds.has(row.id));
@@ -151,6 +156,14 @@ export default function PostScreen() {
   function scrollToComments() {
     scrollRef.current?.scrollTo({ y: commentsYRef.current, animated: true });
   }
+
+  useEffect(() => {
+    if (!commentId || loading || !post) return;
+    const timer = setTimeout(() => {
+      scrollToComments();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [commentId, loading, post]);
 
   const isRemoved = Boolean(post?.removed_at);
   const authorDisqualified = Boolean(post?.author_disqualified);
@@ -223,31 +236,25 @@ export default function PostScreen() {
             className="bg-muted"
             style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
           >
-            {post.photo_url && !isRemoved ? (
+            {isPhotoSighting(post) && !isRemoved ? (
               <Image
-                source={{ uri: post.photo_url }}
+                source={{ uri: post.photo_url! }}
                 style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
                 resizeMode="cover"
               />
-            ) : post.audio_url && !isRemoved ? (
-              <View className="h-full w-full items-center justify-center gap-3 bg-primary/10">
-                <Mic size={44} color="#5f9470" />
-                <Text className="font-mono text-[11px] uppercase tracking-widest text-primary/80">
-                  Bird call sighting
-                </Text>
-              </View>
+            ) : isAudioSighting(post) && !isRemoved ? (
+              <PlaybackWaveform
+                playback={audioPlayback}
+                className="h-full w-full"
+                variant="hero"
+                interactive
+              />
             ) : (
               <View className="h-full w-full items-center justify-center">
                 <Feather size={40} color="#3a4e35" />
               </View>
             )}
           </View>
-
-          {!isRemoved && post.audio_url ? (
-            <View className="border-b border-border px-4 py-3">
-              <AudioPlayer uri={post.audio_url} />
-            </View>
-          ) : null}
 
           {!isRemoved ? (
             <>
@@ -313,6 +320,7 @@ export default function PostScreen() {
             <PostComments
               sightingId={post.id}
               userId={userId}
+              highlightCommentId={commentId ?? null}
               onCommentCountChange={setCommentCount}
             />
           </View>
@@ -325,6 +333,7 @@ export default function PostScreen() {
         <PostOptionsMenu
           sightingId={post.id}
           userId={userId}
+          ownerUserId={post.user_id}
           hasPhoto={Boolean(post.photo_url)}
           authorDisqualified={authorDisqualified}
           isAdmin={isAdmin}

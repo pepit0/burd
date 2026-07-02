@@ -18,13 +18,15 @@ import {
   Mic,
   Share2,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react-native";
 import { RarityBadge } from "@/components/RarityBadge";
-import { AudioPlayer } from "@/components/AudioPlayer";
+import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { useAuth } from "@/hooks/useAuth";
+import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { getErrorMessage } from "@/lib/errors";
-import { getSightingById, publishSighting } from "@/lib/sightings";
+import { deleteMySighting, getSightingById, publishSighting } from "@/lib/sightings";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
 import {
   displayScientificName,
@@ -39,6 +41,7 @@ import {
   sightingAddress,
   sightingCity,
 } from "@/lib/sightingFormat";
+import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import type { Sighting } from "@/types";
 
 function DetailRow({
@@ -78,6 +81,7 @@ export default function SightingDetailScreen() {
   const [publishing, setPublishing] = useState(false);
   const [resolvedCity, setResolvedCity] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
+  const audioPlayback = useAudioPlayback(sighting?.audio_url ?? null);
 
   useEffect(() => {
     if (!id) {
@@ -158,6 +162,33 @@ export default function SightingDetailScreen() {
     }
   }
 
+  function handleDelete() {
+    if (!userId || !sighting) return;
+    Alert.alert(
+      "Delete this sighting?",
+      sighting.published_at
+        ? "This removes it from your journal and profile."
+        : "This removes it from your journal.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                await deleteMySighting(userId, sighting.id);
+                router.back();
+              } catch (e) {
+                Alert.alert("Could not delete", getErrorMessage(e));
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-row items-center justify-between border-b border-border px-4 pb-3 pt-2">
@@ -180,31 +211,25 @@ export default function SightingDetailScreen() {
           contentContainerClassName="pb-12"
         >
           <View className="h-56 bg-muted">
-            {sighting.photo_url ? (
+            {isPhotoSighting(sighting) ? (
               <Image
-                source={{ uri: sighting.photo_url }}
+                source={{ uri: sighting.photo_url! }}
                 className="h-full w-full"
                 resizeMode="cover"
               />
-            ) : sighting.audio_url ? (
-              <View className="h-full w-full items-center justify-center gap-2 bg-primary/10">
-                <Mic size={34} color="#5f9470" />
-                <Text className="font-mono text-[10px] uppercase tracking-widest text-primary/80">
-                  Bird call
-                </Text>
-              </View>
+            ) : isAudioSighting(sighting) ? (
+              <PlaybackWaveform
+                playback={audioPlayback}
+                className="h-full w-full"
+                variant="hero"
+                interactive
+              />
             ) : (
               <View className="h-full w-full items-center justify-center">
                 <Feather size={36} color="#3a4e35" />
               </View>
             )}
           </View>
-
-          {sighting.audio_url ? (
-            <View className="border-b border-border px-4 py-3">
-              <AudioPlayer uri={sighting.audio_url} />
-            </View>
-          ) : null}
 
           {(() => {
             const heard = sighting.audio_predictions ?? [];
@@ -352,6 +377,16 @@ export default function SightingDetailScreen() {
                   {sighting.notes}
                 </Text>
               </View>
+            ) : null}
+
+            {isOwner ? (
+              <Pressable
+                onPress={handleDelete}
+                className="flex-row items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 py-3 active:opacity-90"
+              >
+                <Trash2 size={16} color="#f87171" />
+                <Text className="font-sans-medium text-sm text-foreground">Delete sighting</Text>
+              </Pressable>
             ) : null}
           </View>
         </ScrollView>

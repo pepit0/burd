@@ -10,11 +10,13 @@ import {
   User,
   X,
 } from "lucide-react-native";
+import { AudioPostThumb } from "@/components/AudioPostThumb";
 import { Avatar } from "@/components/Avatar";
+import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import { timeAgo } from "@/lib/time";
-import type { ActivityItem, ActivityType } from "@/types";
+import type { ActivityItem } from "@/types";
 
-function ActivityIcon({ type }: { type: ActivityType }) {
+function ActivityIcon({ type }: { type: ActivityItem["type"] }) {
   if (type === "like") return <Heart size={12} color="#f87171" fill="rgba(248,113,113,0.4)" />;
   if (type === "follow") return <User size={12} color="#5f9470" />;
   if (type === "comment") return <MessageCircle size={12} color="#8a9e82" />;
@@ -46,25 +48,32 @@ export function ActivityRow({
     if (event.actor_id) router.push(`/user/${event.actor_id}`);
   };
 
-  const goToPost = () => {
-    if (event.sighting_id) router.push(`/post/${event.sighting_id}`);
-  };
-
-  const open = () => {
+  const openActivity = () => {
     onOpen?.(event);
-    if (event.sighting_id) goToPost();
-    else if (event.type === "follow" && event.actor_id) goToActor();
-    else if (event.actor_id) goToActor();
+    if (event.sighting_id) {
+      router.push({
+        pathname: "/post/[id]",
+        params: {
+          id: event.sighting_id,
+          ...(event.comment_id ? { commentId: event.comment_id } : {}),
+        },
+      });
+      return;
+    }
+    if (event.type === "follow" && event.actor_id) {
+      goToActor();
+      return;
+    }
+    if (event.actor_id) goToActor();
   };
 
   return (
-    <Pressable
-      onPress={open}
-      className={`flex-row items-start gap-3 border-b border-border/40 py-3 active:opacity-90 ${
+    <View
+      className={`flex-row items-start gap-3 border-b border-border/40 py-3 ${
         unread ? "bg-primary/5" : ""
       }`}
     >
-      <Pressable onPress={goToActor} className="relative">
+      <Pressable onPress={goToActor} className="relative active:opacity-80">
         <Avatar user={handle} color={color} size={36} />
         <View className="absolute -bottom-0.5 -right-0.5 h-4 w-4 items-center justify-center rounded-full border border-border bg-card">
           <ActivityIcon type={event.type} />
@@ -74,7 +83,7 @@ export function ActivityRow({
         ) : null}
       </Pressable>
 
-      <Pressable onPress={goToActor} className="min-w-0 flex-1 pt-0.5">
+      <Pressable onPress={openActivity} className="min-w-0 flex-1 pt-0.5 active:opacity-90">
         <Text
           className={`font-sans text-sm leading-snug text-foreground ${
             unread ? "font-sans-medium" : ""
@@ -84,7 +93,9 @@ export function ActivityRow({
             <Text className="text-foreground/85">{event.detail}</Text>
           ) : (
             <>
-              <Text className="font-sans-medium text-foreground">@{handle}</Text>{" "}
+              <Text onPress={goToActor} className="font-sans-medium text-foreground">
+                @{handle}
+              </Text>{" "}
               <Text className="text-foreground/70">{event.detail}</Text>
             </>
           )}
@@ -94,13 +105,23 @@ export function ActivityRow({
         </Text>
       </Pressable>
 
-      {event.sighting?.photo_url ? (
-        <Pressable onPress={goToPost} className="h-11 w-11 overflow-hidden rounded-lg bg-muted">
+      {event.sighting && isPhotoSighting(event.sighting) ? (
+        <Pressable
+          onPress={openActivity}
+          className="h-11 w-11 overflow-hidden rounded-lg bg-muted active:opacity-90"
+        >
           <Image
-            source={{ uri: event.sighting.photo_url }}
+            source={{ uri: event.sighting.photo_url! }}
             className="h-full w-full"
             resizeMode="cover"
           />
+        </Pressable>
+      ) : event.sighting_id && event.sighting && isAudioSighting(event.sighting) ? (
+        <Pressable
+          onPress={openActivity}
+          className="h-11 w-11 overflow-hidden rounded-lg active:opacity-90"
+        >
+          <AudioPostThumb size="sm" className="h-full w-full" />
         </Pressable>
       ) : null}
 
@@ -114,6 +135,6 @@ export function ActivityRow({
           <X size={14} color="#8a9e82" />
         </Pressable>
       ) : null}
-    </Pressable>
+    </View>
   );
 }

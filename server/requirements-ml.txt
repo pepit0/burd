@@ -14,4 +14,5 @@ birder>=0.6.1
 tensorflow>=2.16
 tensorflow-hub>=0.16
 librosa>=0.10        # audio decode/resample to 32kHz mono
+resampy>=0.4         # required for librosa res_type=kaiser_best
 soundfile>=0.12

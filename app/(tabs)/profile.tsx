@@ -16,25 +16,79 @@ import {
   Camera,
   Check,
   ChevronRight,
-  Feather,
+  Database,
   LogOut,
-  MapPin,
+  Pencil,
   ShieldAlert,
   Star,
   Users,
 } from "lucide-react-native";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import {
+  ProfileBannerPickerSheet,
+} from "@/components/ProfileBannerPickerSheet";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
+import { ProfileDetailsEditSheet } from "@/components/ProfileDetailsEditSheet";
+import {
+  filterProfileSightings,
+  ProfilePostsFilterBar,
+  type ProfilePostsFilter,
+} from "@/components/ProfilePostsFilter";
 import { ProfileStatsRow } from "@/components/ProfileStatsRow";
+import { SightingPostsGrid } from "@/components/SightingPostsGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useProfile } from "@/hooks/useProfile";
 import { getErrorMessage } from "@/lib/errors";
+import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { supabase } from "@/lib/supabase";
 
 const RADIUS_OPTIONS = [5, 10, 25, 50, 100];
+
+function SettingsRow({
+  icon: Icon,
+  iconColor,
+  iconBg,
+  label,
+  description,
+  onPress,
+  borderTop = false,
+}: {
+  icon: typeof Users;
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  description?: string;
+  onPress: () => void;
+  borderTop?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`flex-row items-center gap-3 px-4 py-3.5 active:bg-card/80 ${
+        borderTop ? "border-t border-border" : ""
+      }`}
+    >
+      <View
+        className="h-8 w-8 items-center justify-center rounded-full"
+        style={{ backgroundColor: iconBg }}
+      >
+        <Icon size={15} color={iconColor} />
+      </View>
+      <View className="min-w-0 flex-1">
+        <Text className="font-sans-medium text-sm text-foreground">{label}</Text>
+        {description ? (
+          <Text className="mt-0.5 font-sans text-[11px] text-muted-foreground">
+            {description}
+          </Text>
+        ) : null}
+      </View>
+      <ChevronRight size={15} color="#8a9e82" />
+    </Pressable>
+  );
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -42,9 +96,13 @@ export default function ProfileScreen() {
   const userId = user?.id ?? null;
   const { isAdmin } = useAdmin(userId);
 
-  const { profile, followers, following, loading, refreshing, error, refresh, silentRefresh, setRadius, updateAvatar } =
+  const { profile, followers, following, loading, refreshing, error, refresh, silentRefresh, setRadius, updateAvatar, updateDetails } =
     useProfile(userId);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [bannerPickerOpen, setBannerPickerOpen] = useState(false);
+  const [detailsEditOpen, setDetailsEditOpen] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [postsFilter, setPostsFilter] = useState<ProfilePostsFilter>("all");
   const { sightings, refresh: refreshSightings, silentRefresh: silentRefreshSightings } =
     useMySightings(userId);
 
@@ -69,7 +127,7 @@ export default function ProfileScreen() {
     [sightings],
   );
   const photoCount = useMemo(
-    () => sightings.filter((s) => s.photo_url).length,
+    () => sightings.filter((s) => s.photo_url && !s.audio_url).length,
     [sightings],
   );
   const rareCount = useMemo(
@@ -81,7 +139,10 @@ export default function ProfileScreen() {
     () => sightings.filter((s) => s.published_at),
     [sightings],
   );
-  const recent = publishedSightings.slice(0, 5);
+  const filteredPosts = useMemo(
+    () => filterProfileSightings(publishedSightings, postsFilter),
+    [publishedSightings, postsFilter],
+  );
 
   const badges = useMemo(
     () => [
@@ -95,6 +156,8 @@ export default function ProfileScreen() {
   );
 
   const displayName = profile?.full_name || profile?.username || "Birder";
+  const selectedCoverId = profileCoverPresetId(profile?.cover_url);
+
   const stats: {
     label: string;
     value: number;
@@ -120,6 +183,37 @@ export default function ProfileScreen() {
       onPress: () => router.push({ pathname: "/follows", params: { tab: "following" } }),
     },
   ];
+
+  async function saveProfileDetails(fullName: string, bio: string) {
+    setProfileSaving(true);
+    try {
+      await updateDetails({
+        full_name: fullName || null,
+        bio: bio || null,
+      });
+      setDetailsEditOpen(false);
+    } catch (e) {
+      Alert.alert("Could not update profile", getErrorMessage(e));
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function selectBanner(presetId: ProfileCoverPresetId) {
+    if (presetId === selectedCoverId) {
+      setBannerPickerOpen(false);
+      return;
+    }
+    setProfileSaving(true);
+    try {
+      await updateDetails({ cover_url: presetId });
+      setBannerPickerOpen(false);
+    } catch (e) {
+      Alert.alert("Could not update banner", getErrorMessage(e));
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   async function pickProfilePhoto() {
     if (!userId || avatarUploading) return;
@@ -173,7 +267,11 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor="#5f9470" />
         }
       >
-        <ProfileCoverBanner />
+        <ProfileCoverBanner
+          coverUrl={profile?.cover_url}
+          editable
+          onPress={() => setBannerPickerOpen(true)}
+        />
 
         <View className="-mt-9 px-4">
           <Pressable
@@ -214,7 +312,16 @@ export default function ProfileScreen() {
             ) : null}
           </Pressable>
 
-          <Text className="font-serif-semibold text-xl text-foreground">{displayName}</Text>
+          <View className="flex-row items-center gap-1.5">
+            <Text className="font-serif-semibold text-xl text-foreground">{displayName}</Text>
+            <Pressable
+              onPress={() => setDetailsEditOpen(true)}
+              className="rounded-full p-1 active:bg-muted"
+              accessibilityLabel="Edit display name and bio"
+            >
+              <Pencil size={14} color="#8a9e82" />
+            </Pressable>
+          </View>
           <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
             @{profile?.username ?? "birder"}
             {profile?.location_name ? ` · ${profile.location_name}` : ""}
@@ -223,7 +330,11 @@ export default function ProfileScreen() {
             <Text className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
               {profile.bio}
             </Text>
-          ) : null}
+          ) : (
+            <Text className="mt-2.5 font-sans text-sm text-muted-foreground/70">
+              Add a short bio about your birding.
+            </Text>
+          )}
 
           <ProfileStatsRow stats={stats} />
 
@@ -261,150 +372,114 @@ export default function ProfileScreen() {
               })}
             </View>
           </View>
+        </View>
 
-          <Pressable
-            onPress={() => router.push("/users")}
-            className="mt-4 flex-row items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 active:opacity-90"
-          >
-            <View className="flex-row items-center gap-3">
-              <View className="h-9 w-9 items-center justify-center rounded-full bg-primary/20">
-                <Users size={16} color="#5f9470" />
-              </View>
-              <View>
-                <Text className="font-sans-medium text-sm text-foreground">
-                  Find birders
-                </Text>
-                <Text className="font-sans text-[11px] text-muted-foreground">
-                  Follow others to fill your feed and like their posts
-                </Text>
-              </View>
-            </View>
-            <ChevronRight size={16} color="#8a9e82" />
-          </Pressable>
-
-          {isAdmin ? (
-            <Pressable
-              onPress={() => router.push("/admin/index" as never)}
-              className="mt-3 flex-row items-center justify-between rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 active:opacity-90"
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-9 w-9 items-center justify-center rounded-full bg-accent/20">
-                  <ShieldAlert size={16} color="#c8893a" />
-                </View>
-                <View>
-                  <Text className="font-sans-medium text-sm text-foreground">Admin</Text>
-                  <Text className="font-sans text-[11px] text-muted-foreground">
-                    Reports, moderation log, and admin access
-                  </Text>
-                </View>
-              </View>
-              <ChevronRight size={16} color="#8a9e82" />
-            </Pressable>
-          ) : null}
-
-          <Pressable
-            onPress={() => router.push("/data-sources" as never)}
-            className="mt-3 flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-3 active:opacity-90"
-          >
-            <View className="flex-row items-center gap-3">
-              <View className="h-9 w-9 items-center justify-center rounded-full bg-muted">
-                <Feather size={16} color="#8a9e82" />
-              </View>
-              <View>
-                <Text className="font-sans-medium text-sm text-foreground">Data sources</Text>
-                <Text className="font-sans text-[11px] text-muted-foreground">
-                  Regional frequency and attribution
-                </Text>
-              </View>
-            </View>
-            <ChevronRight size={16} color="#8a9e82" />
-          </Pressable>
-
-          <View className="mt-6">
-            <Text className="mb-3 font-serif-semibold text-base text-foreground">
-              Recent Sightings
-            </Text>
-            {recent.length === 0 ? (
-              <Text className="font-sans text-sm text-muted-foreground">
-                Nothing logged yet.
-              </Text>
-            ) : (
-              <View className="gap-2">
-                {recent.map((e) => (
-                  <Pressable
-                    key={e.id}
-                    onPress={() => router.push(`/post/${e.id}`)}
-                    className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3 active:opacity-90"
-                  >
-                    <View className="h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-muted">
-                      {e.photo_url ? (
-                        <Image
-                          source={{ uri: e.photo_url }}
-                          className="h-full w-full"
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <Feather size={15} color="#3a4e35" />
-                      )}
-                    </View>
-                    <View className="min-w-0 flex-1">
-                      <Text className="font-serif text-sm text-foreground" numberOfLines={1}>
-                        {e.species}
-                      </Text>
-                      <View className="mt-0.5 flex-row items-center gap-1">
-                        <MapPin size={9} color="#8a9e82" />
-                        <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
-                          {e.location_name ?? "Unknown location"}
-                        </Text>
-                      </View>
-                    </View>
-                    <ChevronRight size={13} color="#8a9e82" />
-                  </Pressable>
-                ))}
-              </View>
-            )}
+        <View className="mt-6 border-t border-border">
+          <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
+          <View className="px-4 pt-2">
+            <SightingPostsGrid
+              sightings={filteredPosts}
+              emptyLabel={
+                postsFilter === "photos"
+                  ? "No photo posts yet. Publish a sighting from your journal."
+                  : postsFilter === "audio"
+                    ? "No audio posts yet. Publish a sound sighting from your journal."
+                    : "No posts yet. Publish a sighting from your journal."
+              }
+              onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
+            />
           </View>
+        </View>
 
-          <View className="mt-6">
-            <Text className="mb-3 font-serif-semibold text-base text-foreground">Badges</Text>
-            <View className="gap-2">
-              {badges.map((b) => (
+        <View className="mt-8 px-4">
+          <Text className="mb-3 font-serif-semibold text-base text-foreground">Badges</Text>
+          <View className="gap-2">
+            {badges.map((b) => (
+              <View
+                key={b.label}
+                className={`flex-row items-center gap-3 rounded-xl border bg-card p-3 ${
+                  b.earned ? "border-accent/30" : "border-border/30 opacity-50"
+                }`}
+              >
                 <View
-                  key={b.label}
-                  className={`flex-row items-center gap-3 rounded-xl border bg-card p-3 ${
-                    b.earned ? "border-accent/30" : "border-border/30 opacity-50"
+                  className={`h-9 w-9 items-center justify-center rounded-full ${
+                    b.earned ? "bg-accent/20" : "bg-muted"
                   }`}
                 >
-                  <View
-                    className={`h-9 w-9 items-center justify-center rounded-full ${
-                      b.earned ? "bg-accent/20" : "bg-muted"
-                    }`}
-                  >
-                    <Star
-                      size={15}
-                      color={b.earned ? "#c8893a" : "#8a9e82"}
-                      fill={b.earned ? "rgba(200,137,58,0.3)" : "transparent"}
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-serif text-sm text-foreground">{b.label}</Text>
-                    <Text className="font-sans text-[11px] text-muted-foreground">{b.desc}</Text>
-                  </View>
-                  {b.earned && <Check size={13} color="#c8893a" />}
+                  <Star
+                    size={15}
+                    color={b.earned ? "#c8893a" : "#8a9e82"}
+                    fill={b.earned ? "rgba(200,137,58,0.3)" : "transparent"}
+                  />
                 </View>
-              ))}
-            </View>
+                <View className="flex-1">
+                  <Text className="font-serif text-sm text-foreground">{b.label}</Text>
+                  <Text className="font-sans text-[11px] text-muted-foreground">{b.desc}</Text>
+                </View>
+                {b.earned && <Check size={13} color="#c8893a" />}
+              </View>
+            ))}
           </View>
+        </View>
 
-          <Pressable
-            onPress={() => supabase.auth.signOut()}
-            className="mt-6 flex-row items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 active:opacity-80"
-          >
-            <LogOut size={15} color="#8a9e82" />
-            <Text className="font-sans-medium text-sm text-muted-foreground">Sign out</Text>
-          </Pressable>
+        <View className="mt-8 px-4">
+          <Text className="mb-3 font-serif-semibold text-base text-foreground">More</Text>
+          <View className="overflow-hidden rounded-xl border border-border bg-card">
+            <SettingsRow
+              icon={Users}
+              iconColor="#5f9470"
+              iconBg="rgba(95,148,112,0.15)"
+              label="Find birders"
+              description="Follow others to fill your feed"
+              onPress={() => router.push("/users")}
+            />
+            {isAdmin ? (
+              <SettingsRow
+                icon={ShieldAlert}
+                iconColor="#c8893a"
+                iconBg="rgba(200,137,58,0.15)"
+                label="Admin"
+                description="Reports, moderation, and access"
+                onPress={() => router.push("/admin/index" as never)}
+                borderTop
+              />
+            ) : null}
+            <SettingsRow
+              icon={Database}
+              iconColor="#8a9e82"
+              iconBg="rgba(138,158,130,0.15)"
+              label="Data sources"
+              description="Regional frequency and attribution"
+              onPress={() => router.push("/data-sources" as never)}
+              borderTop
+            />
+            <Pressable
+              onPress={() => supabase.auth.signOut()}
+              className="flex-row items-center justify-center gap-2 border-t border-border px-4 py-3.5 active:bg-card/80"
+            >
+              <LogOut size={15} color="#8a9e82" />
+              <Text className="font-sans-medium text-sm text-muted-foreground">Sign out</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
+
+      <ProfileDetailsEditSheet
+        visible={detailsEditOpen}
+        fullName={profile?.full_name ?? ""}
+        bio={profile?.bio ?? ""}
+        saving={profileSaving}
+        onClose={() => setDetailsEditOpen(false)}
+        onSave={(fullName, bio) => void saveProfileDetails(fullName, bio)}
+      />
+
+      <ProfileBannerPickerSheet
+        visible={bannerPickerOpen}
+        selectedId={selectedCoverId}
+        saving={profileSaving}
+        onClose={() => setBannerPickerOpen(false)}
+        onSelect={(presetId) => void selectBanner(presetId)}
+      />
     </SafeAreaView>
   );
 }

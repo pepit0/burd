@@ -24,6 +24,7 @@ import type { Comment } from "@/types";
 interface PostCommentsProps {
   sightingId: string;
   userId: string | null;
+  highlightCommentId?: string | null;
   onCommentCountChange?: (count: number) => void;
 }
 
@@ -51,6 +52,8 @@ function CommentRow({
   onReply,
   onToggleLike,
   canInteract,
+  highlighted = false,
+  highlightCommentId = null,
 }: {
   comment: Comment;
   nested?: boolean;
@@ -58,9 +61,15 @@ function CommentRow({
   onReply: (comment: Comment) => void;
   onToggleLike: (commentId: string) => void;
   canInteract: boolean;
+  highlighted?: boolean;
+  highlightCommentId?: string | null;
 }) {
   return (
-    <View className={nested ? "ml-10 mt-3" : "mt-4"}>
+    <View
+      className={`${nested ? "ml-10 mt-3" : "mt-4"} ${
+        highlighted ? "rounded-xl bg-primary/10 px-2 py-1" : ""
+      }`}
+    >
       <View className="flex-row gap-2.5">
         <Avatar user={comment.username} color={comment.avatar_color} size={nested ? 28 : 32} />
         <View className="min-w-0 flex-1">
@@ -113,6 +122,7 @@ function CommentRow({
           onReply={onReply}
           onToggleLike={onToggleLike}
           canInteract={canInteract}
+          highlighted={reply.id === highlightCommentId}
         />
       ))}
     </View>
@@ -122,6 +132,7 @@ function CommentRow({
 export function PostComments({
   sightingId,
   userId,
+  highlightCommentId = null,
   onCommentCountChange,
 }: PostCommentsProps) {
   const router = useRouter();
@@ -237,6 +248,8 @@ export function PostComments({
             onReply={setReplyTo}
             onToggleLike={toggleCommentLike}
             canInteract={!!userId}
+            highlighted={comment.id === highlightCommentId}
+            highlightCommentId={highlightCommentId}
           />
         ))
       )}

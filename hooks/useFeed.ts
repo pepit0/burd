@@ -50,7 +50,12 @@ export function useFeed({
 
   const load = useCallback(
     async (mode: "initial" | "refresh" | "silent") => {
-      if (!userId || !enabled) return;
+      if (!userId || !enabled) {
+        if (mode === "initial") {
+          setLoading(false);
+        }
+        return;
+      }
 
       if (mode === "refresh") {
         setRefreshing(true);

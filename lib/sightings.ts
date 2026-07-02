@@ -1,4 +1,5 @@
 import { decode } from "base64-arraybuffer";
+import { getCommentCountsForSightings } from "@/lib/comments";
 import { getMyFollowingIds } from "@/lib/social";
 import { supabase } from "@/lib/supabase";
 import { observedDate } from "@/lib/sightingFormat";
@@ -26,19 +27,29 @@ export async function getNearbyFeed(
 export async function getFollowingFeed(): Promise<FeedSighting[]> {
   const { data, error } = await supabase.rpc("following_feed");
   if (error) throw error;
-  return ((data ?? []) as FeedSighting[]).filter((row) => row.published_at);
+  const rows = ((data ?? []) as FeedSighting[]).filter((row) => row.published_at);
+  return withCommentCounts(rows);
 }
 
-/** Newest sightings worldwide (excluding the current user). */
+/** Newest published sightings worldwide (excluding the current user). */
 export async function getGlobalFeed(userId: string): Promise<FeedSighting[]> {
   const { data, error } = await supabase
     .from("sighting_feed")
     .select("*")
     .neq("user_id", userId)
+    .not("published_at", "is", null)
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
-  return (data ?? []) as FeedSighting[];
+  return withCommentCounts((data ?? []) as FeedSighting[]);
+}
+
+async function withCommentCounts(rows: FeedSighting[]): Promise<FeedSighting[]> {
+  const counts = await getCommentCountsForSightings(rows.map((row) => row.id));
+  return rows.map((row) => ({
+    ...row,
+    comment_count: counts.get(row.id) ?? 0,
+  }));
 }
 
 function forYouScore(row: FeedSighting): number {
@@ -62,12 +73,14 @@ export async function getForYouFeed(
       ? await getNearbyFeed(lat, lng, radiusKm * 1.5)
       : await getGlobalFeed(userId);
 
-  return candidates
+  const filtered = candidates
     .filter(
       (row) => row.user_id !== userId && !followingIds.has(row.user_id),
     )
     .sort((a, b) => forYouScore(b) - forYouScore(a))
     .slice(0, 100);
+
+  return withCommentCounts(filtered);
 }
 
 export async function getMySightings(
@@ -127,6 +140,7 @@ export async function getFeedPostById(id: string): Promise<FeedSighting | null> 
   if (!profileRes.data) return null;
 
   const profile = profileRes.data;
+  const commentCounts = await getCommentCountsForSightings([id]);
 
   return {
     ...sighting,
@@ -134,7 +148,17 @@ export async function getFeedPostById(id: string): Promise<FeedSighting | null> 
     avatar_color: profile.avatar_color as string,
     full_name: (profile.full_name as string | null) ?? null,
     like_count: likesRes.count ?? 0,
+    comment_count: commentCounts.get(id) ?? 0,
   };
+}
+
+export async function deleteMySighting(userId: string, sightingId: string): Promise<void> {
+  const { error } = await supabase
+    .from("sightings")
+    .delete()
+    .eq("id", sightingId)
+    .eq("user_id", userId);
+  if (error) throw error;
 }
 
 export async function getSightingById(id: string): Promise<Sighting | null> {
@@ -225,6 +249,23 @@ export async function updateProfileAvatarUrl(
   const { error } = await supabase
     .from("profiles")
     .update({ avatar_url: avatarUrl })
+    .eq("id", userId);
+  if (error) throw error;
+}
+
+export interface ProfileDetailsUpdate {
+  full_name?: string | null;
+  bio?: string | null;
+  cover_url?: string | null;
+}
+
+export async function updateProfileDetails(
+  userId: string,
+  fields: ProfileDetailsUpdate,
+): Promise<void> {
+  const { error } = await supabase
+    .from("profiles")
+    .update(fields)
     .eq("id", userId);
   if (error) throw error;
 }

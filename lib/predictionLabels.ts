@@ -3,7 +3,8 @@ import {
   getCommonNameByScientific,
   resolveCatalogSpecies,
 } from "@/lib/speciesCatalog";
-import { commonNameForScientific } from "@/lib/soundTaxonomy";
+import { commonNameForScientific as photoCommonName } from "@/lib/photoTaxonomy";
+import { commonNameForScientific as soundCommonName } from "@/lib/soundTaxonomy";
 
 function normalizeLabel(value: string): string {
   return value.trim().replace(/_/g, " ");
@@ -69,7 +70,10 @@ function resolveScientificName(prediction: Prediction): string {
 
 function resolveCommonName(rawSpecies: string, scientific: string): string | null {
   if (scientific) {
-    const fromSoundTaxonomy = commonNameForScientific(scientific);
+    const fromPhotoTaxonomy = photoCommonName(scientific);
+    if (fromPhotoTaxonomy) return fromPhotoTaxonomy;
+
+    const fromSoundTaxonomy = soundCommonName(scientific);
     if (fromSoundTaxonomy) return fromSoundTaxonomy;
 
     const fromScientific = getCommonNameByScientific(scientific);
@@ -94,7 +98,7 @@ export function enrichPrediction(prediction: Prediction): Prediction {
   const scientific = resolveScientificName(prediction);
   const common =
     resolveCommonName(prediction.species, scientific) ||
-    (scientific || normalizeLabel(prediction.species) || "Unknown bird");
+    (scientific || normalizeLabel(prediction.species) || "Unknown species");
 
   return {
     species: common,

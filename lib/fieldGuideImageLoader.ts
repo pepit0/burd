@@ -47,7 +47,7 @@ export function scheduleFieldGuideImage(catalogId: string): void {
   if (allowedIds.has(catalogId)) return;
 
   // Baked catalog URLs render instantly — no queue slot needed.
-  if (speciesImageUrl(catalogId)) {
+  if (speciesImageUrl(catalogId, "")) {
     allowedIds.add(catalogId);
     notifyId(catalogId);
     return;

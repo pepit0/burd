@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import {
@@ -26,6 +27,7 @@ import {
   Images,
   Mic,
   RotateCcw,
+  Scan,
   SwitchCamera,
   Trash2,
   X,
@@ -33,25 +35,30 @@ import {
   ZapOff,
 } from "lucide-react-native";
 import { identifySession } from "@/lib/identifySession";
-import { identifyAudio } from "@/lib/identify";
-import { fusePredictions } from "@/lib/fusePredictions";
-import { validatePhotoAuthenticity } from "@/lib/photoAuthenticity";
+import {
+  PHOTO_AUTHENTICITY_ENABLED,
+  validatePhotoAuthenticity,
+} from "@/lib/photoAuthenticity";
 import {
   isPhotoValidationError,
   validationFailureMessage,
 } from "@/lib/photoValidation";
 import {
   setPendingCapture,
-  type SessionAudio,
   type SessionPhoto,
   type PendingCapture,
 } from "@/lib/pendingCapture";
+import { enrichPrediction } from "@/lib/predictionLabels";
+import { soundConfirmsPhoto } from "@/lib/speciesMatch";
 import { getErrorMessage } from "@/lib/errors";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
+import { LivePhotoOverlay } from "@/components/LivePhotoOverlay";
+import { LiveSoundConfirmationOverlay } from "@/components/LiveSoundConfirmationOverlay";
+import { CameraZoomIndicator } from "@/components/CameraZoomIndicator";
 import { useIdentificationLocation } from "@/hooks/useIdentificationLocation";
-
-const ZOOM_LEVELS = [0, 0.25, 0.5] as const;
-const ZOOM_LABELS = ["1x", "2x", "3x"];
+import { useLivePhotoId } from "@/hooks/useLivePhotoId";
+import { useLiveSoundConfirmation } from "@/hooks/useLiveSoundConfirmation";
+import { useCameraZoom } from "@/hooks/useCameraZoom";
 
 function newPhotoId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -66,15 +73,11 @@ export default function CameraScreen() {
   const [facing, setFacing] = useState<CameraType>("back");
   const [flash, setFlash] = useState<FlashMode>("off");
   const [grid, setGrid] = useState(false);
-  const [zoomIdx, setZoomIdx] = useState(0);
   const [session, setSession] = useState<SessionPhoto[]>([]);
   const [primaryId, setPrimaryId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const [audioClip, setAudioClip] = useState<SessionAudio | null>(null);
 
   const {
     permission: locationPermission,
@@ -84,24 +87,16 @@ export default function CameraScreen() {
     enabled: Boolean(permission?.granted),
   });
 
+  const livePhoto = useLivePhotoId(cameraRef, {
+    active: Boolean(permission?.granted),
+    paused: busy || finishing,
+  });
+
+  const liveSound = useLiveSoundConfirmation();
+
+  const cameraZoom = useCameraZoom(cameraRef, { facing });
+
   const flashAnim = useRef(new Animated.Value(0)).current;
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    void Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    });
-
-    return () => {
-      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-      void recordingRef.current?.stopAndUnloadAsync().catch(() => undefined);
-    };
-  }, []);
 
   if (!permission) {
     return <View className="flex-1 bg-black" />;
@@ -149,90 +144,21 @@ export default function CameraScreen() {
     return idx >= 0 ? idx : 0;
   }
 
-  function clearRecordTimer() {
-    if (recordTimerRef.current) {
-      clearInterval(recordTimerRef.current);
-      recordTimerRef.current = null;
-    }
-  }
-
-  async function stopRecording(): Promise<SessionAudio | null> {
-    clearRecordTimer();
-    const recording = recordingRef.current;
-    if (!recording) {
-      setIsRecording(false);
-      return audioClip;
-    }
-
-    try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      const status = await recording.getStatusAsync();
-      recordingRef.current = null;
-      setIsRecording(false);
-      setRecordSeconds(0);
-
-      if (!uri) return audioClip;
-      const clip: SessionAudio = {
-        uri,
-        durationMs: status.durationMillis ?? 0,
-        recordedAt: new Date().toISOString(),
-      };
-      setAudioClip(clip);
-      return clip;
-    } catch {
-      recordingRef.current = null;
-      setIsRecording(false);
-      setRecordSeconds(0);
-      return audioClip;
-    }
-  }
-
-  async function toggleRecording() {
+  async function toggleLiveSound() {
     if (finishing) return;
 
-    if (isRecording) {
-      await stopRecording();
-      return;
+    if (!liveSound.enabled) {
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          "Microphone access needed",
+          "Allow microphone access so Burd can listen for bird calls while you photograph.",
+        );
+        return;
+      }
     }
 
-    const permission = await Audio.requestPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        "Microphone access needed",
-        "Allow microphone access so Burd can record bird calls while you photograph.",
-      );
-      return;
-    }
-
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await recording.startAsync();
-      recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordSeconds(0);
-      clearRecordTimer();
-      recordTimerRef.current = setInterval(() => {
-        setRecordSeconds((seconds) => seconds + 1);
-      }, 1000);
-    } catch (e) {
-      Alert.alert("Could not start recording", getErrorMessage(e));
-    }
-  }
-
-  function discardAudio() {
-    if (isRecording) {
-      void stopRecording();
-    }
-    setAudioClip(null);
+    await liveSound.toggle();
   }
 
   async function capture() {
@@ -271,25 +197,29 @@ export default function CameraScreen() {
     });
   }
 
-  const hasSessionAudio = Boolean(audioClip || isRecording);
-  const canFinish = session.length > 0 || hasSessionAudio;
+  const canFinish = session.length > 0;
 
   function confirmClose() {
     if (!canFinish) {
+      if (liveSound.enabled) {
+        void liveSound.stop();
+      }
       router.back();
       return;
     }
-    const hasPhotos = session.length > 0;
     Alert.alert(
       "Discard session?",
-      hasPhotos && hasSessionAudio
-        ? "Your photos and recording will be lost if you leave now."
-        : hasSessionAudio
-          ? "Your recording will be lost if you leave now."
-          : "Your session photos will be lost if you leave now.",
+      "Your session photos will be lost if you leave now.",
       [
         { text: "Keep shooting", style: "cancel" },
-        { text: "Discard", style: "destructive", onPress: () => router.back() },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => {
+            void liveSound.stop();
+            router.back();
+          },
+        },
       ],
     );
   }
@@ -297,23 +227,21 @@ export default function CameraScreen() {
   async function finishSession() {
     if (finishing) return;
 
-    const clip = isRecording ? await stopRecording() : audioClip;
-    const hasPhotos = session.length > 0;
-
-    if (!hasPhotos && !clip) {
-      Alert.alert(
-        "Nothing to save",
-        "Record a bird call or take a photo before finishing.",
-      );
+    if (session.length === 0) {
+      Alert.alert("Nothing to save", "Take a photo before finishing.");
       return;
     }
 
     setFinishing(true);
     try {
-      const idx = hasPhotos ? primaryIndex() : 0;
-      const primary = hasPhotos ? session[idx] : null;
+      const soundSnapshot = liveSound.enabled
+        ? await liveSound.settle()
+        : { primary: null, predictions: [] };
 
-      if (primary) {
+      const idx = primaryIndex();
+      const primary = session[idx];
+
+      if (PHOTO_AUTHENTICITY_ENABLED) {
         try {
           await validatePhotoAuthenticity(primary.uri, primary.base64);
         } catch (e) {
@@ -327,7 +255,6 @@ export default function CameraScreen() {
         }
       }
 
-      let result: Awaited<ReturnType<typeof identifySession>> | null = null;
       const observedAt = new Date().toISOString();
       const coords = await refreshLocation();
       const geo = coords
@@ -338,12 +265,12 @@ export default function CameraScreen() {
           }
         : undefined;
 
+      let result: Awaited<ReturnType<typeof identifySession>> | null = null;
       try {
         result = await identifySession({
-          photoUri: primary?.uri ?? null,
-          audioUri: clip?.uri,
+          photoUri: primary.uri,
           skipPhotoAuthenticity: true,
-          photoBase64: primary?.base64,
+          photoBase64: primary.base64,
           geo,
         });
       } catch (e) {
@@ -354,57 +281,44 @@ export default function CameraScreen() {
           );
           return;
         }
-        if (clip?.uri) {
-          try {
-            const audioResult = await identifyAudio(clip.uri, geo);
-            const fused = fusePredictions([], audioResult.predictions);
-            result = {
-              ...fused,
-              count: 1,
-              imagePredictions: [],
-              audioPredictions: audioResult.predictions,
-              heardSpecies: audioResult.heardSpecies,
-            };
-          } catch {
-            // Species ID failed — user can still log manually.
-          }
-        }
       }
+
+      const soundTop = soundSnapshot.primary
+        ? enrichPrediction({
+            ...soundSnapshot.primary.prediction,
+            confidence: soundSnapshot.primary.peakConfidence,
+          })
+        : null;
+      const agreed = soundConfirmsPhoto(result?.top ?? null, soundTop);
 
       const top = result?.top;
       const pending: PendingCapture = {
         photos: session,
         primaryIndex: idx,
         count: result?.count ?? 1,
-        audio: clip,
         analysis: result
           ? {
-              detectedBy: result.detectedBy,
-              top: result.top,
-              agreed: result.agreed,
+              detectedBy: "image",
+              top,
+              agreed,
               imagePredictions: result.imagePredictions,
-              audioPredictions: result.audioPredictions,
-              heardSpecies: result.heardSpecies,
+              audioPredictions: soundSnapshot.predictions,
+              heardSpecies: soundSnapshot.predictions,
               count: result.count,
             }
           : undefined,
       };
       setPendingCapture(pending);
 
-      if (clip) {
-        router.replace("/sound-review");
-        return;
-      }
-
       router.replace({
         pathname: "/new-sighting",
         params: {
-          source: result?.detectedBy ?? "image",
+          source: "image",
           species: top?.species ?? "",
           scientific_name: top?.scientific_name ?? "",
           confidence: top ? String(top.confidence) : "",
           count: String(result?.count ?? 1),
-          audio_agreed: result?.agreed ? "1" : "0",
+          audio_agreed: agreed ? "1" : "0",
         },
       });
     } catch (e) {
@@ -419,16 +333,42 @@ export default function CameraScreen() {
 
   const topPad = insets.top + 12;
   const bottomPad = insets.bottom + 20;
+  const liveBannerTop = topPad + 52;
+  const locationBannerTop = topPad + 56;
+  // Keep Live ID reticle corners above shutter row and below top controls.
+  const reticleTop = topPad + 44 + 16;
+  const reticleBottom = bottomPad + 108 + 48 + 16;
+  const photoBannerBlock =
+    livePhoto.isScanning && livePhoto.primaryDetection
+      ? 80
+      : livePhoto.isScanning && livePhoto.isProcessing
+        ? 36
+        : 0;
+  const soundBannerTop = liveBannerTop + (photoBannerBlock > 0 ? photoBannerBlock + 8 : 0);
+  const soundBannerBlock =
+    liveSound.enabled && liveSound.primaryDetection
+      ? 72
+      : liveSound.enabled && liveSound.isProcessing
+        ? 36
+        : 0;
+  const locationTop =
+    photoBannerBlock || soundBannerBlock
+      ? liveBannerTop +
+        (photoBannerBlock > 0 ? photoBannerBlock + 8 : 0) +
+        (soundBannerBlock > 0 ? soundBannerBlock + 8 : 0)
+      : locationBannerTop;
   const latestPhoto = session[session.length - 1];
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <View className="flex-1 bg-black">
       <CameraView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing={facing}
         flash={flash}
-        zoom={ZOOM_LEVELS[zoomIdx]}
+        zoom={cameraZoom.zoom}
+        onCameraReady={cameraZoom.onCameraReady}
       />
 
       {grid && (
@@ -450,16 +390,54 @@ export default function CameraScreen() {
         <View className="absolute inset-0 z-20 items-center justify-center bg-black/60">
           <ActivityIndicator size="large" color="#5f9470" />
           <Text className="mt-3 font-sans text-sm text-foreground/80">
-            {session.length > 0
-              ? `Identifying from photo${hasSessionAudio ? " and sound" : ""}...`
-              : "Identifying from sound..."}
+            Identifying from photo...
           </Text>
         </View>
       )}
 
+      <LivePhotoOverlay
+        enabled={livePhoto.isScanning}
+        isProcessing={livePhoto.isProcessing}
+        primaryDetection={livePhoto.primaryDetection}
+        spottedInFrame={livePhoto.spottedInFrame}
+        bannerTop={liveBannerTop}
+        reticleTop={reticleTop}
+        reticleBottom={reticleBottom}
+      />
+
+      <LiveSoundConfirmationOverlay
+        enabled={liveSound.enabled}
+        isProcessing={liveSound.isProcessing}
+        soundDetection={liveSound.primaryDetection}
+        photoDetection={livePhoto.primaryDetection}
+        bannerTop={soundBannerTop}
+      />
+
+      <View
+        className="absolute inset-x-4"
+        style={{ top: locationTop }}
+        pointerEvents="box-none"
+      >
+        <LocationAccuracyBanner
+          permission={locationPermission}
+          onEnablePress={() => {
+            if (locationPermission === "denied") {
+              openLocationSettings();
+              return;
+            }
+            void refreshLocation();
+          }}
+        />
+      </View>
+
+      {/* Pinch-to-zoom sits above the preview but below controls. */}
+      <GestureDetector gesture={cameraZoom.pinchGesture}>
+        <View collapsable={false} style={[StyleSheet.absoluteFill, { zIndex: 5 }]} />
+      </GestureDetector>
+
       {/* Top controls */}
       <View
-        className="absolute inset-x-0 flex-row items-center justify-between px-4"
+        className="absolute inset-x-0 z-20 flex-row items-center justify-between px-4"
         style={{ top: topPad }}
       >
         <Pressable
@@ -509,79 +487,48 @@ export default function CameraScreen() {
           >
             <Grid3x3 size={18} color={grid ? "#181e16" : "#eee8d4"} />
           </Pressable>
-        </View>
-      </View>
 
-      <View
-        className="absolute inset-x-4"
-        style={{ top: topPad + 56 }}
-        pointerEvents="box-none"
-      >
-        <LocationAccuracyBanner
-          permission={locationPermission}
-          onEnablePress={() => {
-            if (locationPermission === "denied") {
-              openLocationSettings();
-              return;
-            }
-            void refreshLocation();
-          }}
-        />
+          <Pressable
+            onPress={() => livePhoto.setEnabled(!livePhoto.enabled)}
+            disabled={finishing}
+            className={`h-11 items-center justify-center rounded-full px-3 ${
+              livePhoto.enabled ? "bg-accent" : "bg-background/60"
+            }`}
+          >
+            <View className="flex-row items-center gap-1.5">
+              <Scan size={16} color={livePhoto.enabled ? "#181e16" : "#eee8d4"} />
+              <Text
+                className={`font-sans-medium text-xs ${
+                  livePhoto.enabled ? "text-[#181e16]" : "text-foreground"
+                }`}
+              >
+                Live ID
+              </Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
 
       {/* Bottom controls */}
-      <View className="absolute inset-x-0" style={{ bottom: bottomPad }}>
-        <View className="mb-2 flex-row items-center justify-center gap-2">
-          {ZOOM_LABELS.map((label, index) => {
-            const selected = zoomIdx === index;
-            return (
-              <Pressable
-                key={label}
-                onPress={() => setZoomIdx(index)}
-                className={`h-9 min-w-[40px] items-center justify-center rounded-full px-3 active:opacity-80 ${
-                  selected ? "bg-accent" : "bg-background/60"
-                }`}
-              >
-                <Text
-                  className={`font-mono text-xs ${
-                    selected ? "text-[#181e16] font-sans-medium" : "text-foreground"
-                  }`}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
+      <View className="absolute inset-x-0 z-20" style={{ bottom: bottomPad }}>
         <View className="flex-row items-end px-8">
           <View className="w-16 items-center">
             <View className="-mt-4 mb-5 items-center">
               <Pressable
-                onPress={toggleRecording}
+                onPress={toggleLiveSound}
                 disabled={finishing}
-                onLongPress={audioClip && !isRecording ? discardAudio : undefined}
-                className={`relative h-12 w-12 items-center justify-center rounded-full border ${
-                  isRecording
-                    ? "border-red-400 bg-red-500/30"
-                    : audioClip
-                      ? "border-primary bg-primary/25"
-                      : "border-white/20 bg-background/60"
-                } active:opacity-80`}
+                className={`relative h-12 w-12 items-center justify-center rounded-full border active:opacity-80 ${
+                  liveSound.enabled
+                    ? "border-primary bg-primary/25"
+                    : "border-white/20 bg-background/60"
+                }`}
               >
                 <Mic
                   size={20}
-                  color={isRecording ? "#fca5a5" : audioClip ? "#5f9470" : "#eee8d4"}
+                  color={liveSound.enabled ? "#5f9470" : "#eee8d4"}
                 />
-                {isRecording ? (
-                  <View className="absolute -bottom-5 rounded-full bg-red-500/90 px-2 py-0.5">
-                    <Text className="font-mono text-[10px] text-white">
-                      {Math.floor(recordSeconds / 60)}:
-                      {String(recordSeconds % 60).padStart(2, "0")}
-                    </Text>
-                  </View>
-                ) : audioClip ? (
-                  <View className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary" />
+                {liveSound.isProcessing ? (
+                  <View className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent" />
                 ) : null}
               </Pressable>
             </View>
@@ -610,6 +557,10 @@ export default function CameraScreen() {
           </View>
 
           <View className="flex-1 items-center">
+            <CameraZoomIndicator
+              zoomLabel={cameraZoom.zoomLabel}
+              visible={cameraZoom.isPinching}
+            />
             <Pressable
               onPress={capture}
               disabled={busy || finishing}
@@ -731,5 +682,6 @@ export default function CameraScreen() {
         </SafeAreaView>
       </Modal>
     </View>
+    </GestureHandlerRootView>
   );
 }

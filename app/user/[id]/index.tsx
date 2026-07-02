@@ -13,6 +13,11 @@ import { ChevronLeft, Grid3X3, ShieldAlert } from "lucide-react-native";
 import { FollowButton } from "@/components/FollowButton";
 import { ProfileBadges } from "@/components/ProfileBadges";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
+import {
+  filterProfileSightings,
+  ProfilePostsFilterBar,
+  type ProfilePostsFilter,
+} from "@/components/ProfilePostsFilter";
 import { ProfileStatsRow } from "@/components/ProfileStatsRow";
 import { SightingPostsGrid } from "@/components/SightingPostsGrid";
 import { UserModerationSheet } from "@/components/UserModerationSheet";
@@ -29,6 +34,7 @@ export default function UserProfileScreen() {
   const currentUserId = user?.id ?? null;
   const { isAdmin } = useAdmin(currentUserId);
   const [moderationOpen, setModerationOpen] = useState(false);
+  const [postsFilter, setPostsFilter] = useState<ProfilePostsFilter>("all");
 
   const {
     profile,
@@ -72,6 +78,18 @@ export default function UserProfileScreen() {
       }),
     [sightings.length, photoCount, rareCount, following],
   );
+
+  const filteredSightings = useMemo(
+    () => filterProfileSightings(sightings, postsFilter),
+    [sightings, postsFilter],
+  );
+
+  const emptyPostsLabel =
+    postsFilter === "photos"
+      ? "No photo posts yet."
+      : postsFilter === "audio"
+        ? "No audio posts yet."
+        : "No sightings yet.";
 
   const displayName = profile?.full_name || profile?.username || "Birder";
   const profileId = id ?? "";
@@ -141,7 +159,7 @@ export default function UserProfileScreen() {
         </Text>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-12">
-          <ProfileCoverBanner />
+          <ProfileCoverBanner coverUrl={profile.cover_url} />
 
           <View className="-mt-9 px-4">
             <View className="flex-row items-end justify-between">
@@ -202,10 +220,12 @@ export default function UserProfileScreen() {
                 Posts
               </Text>
             </View>
+            <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
 
             <View className="px-4 pt-2">
               <SightingPostsGrid
-                sightings={sightings}
+                sightings={filteredSightings}
+                emptyLabel={emptyPostsLabel}
                 onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
               />
             </View>

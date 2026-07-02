@@ -7,6 +7,11 @@ class Prediction(BaseModel):
     confidence: float  # 0..1
 
 
+class NativeLogit(BaseModel):
+    species_code: str
+    logit: float
+
+
 class ValidationCheck(BaseModel):
     id: str
     passed: bool
@@ -22,10 +27,13 @@ class ValidationResult(BaseModel):
 
 class IdentifyResponse(BaseModel):
     predictions: list[Prediction]
+    heard_species: list[Prediction] = []
     count: int = 1
     model: str
     mock: bool
     validation: ValidationResult | None = None
+    regional_context_applied: bool = False
+    native_logits: list[NativeLogit] = []
 
 
 class ModelStatus(BaseModel):

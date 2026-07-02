@@ -227,8 +227,9 @@ export default function FeedScreen() {
       </View>
 
       <ScrollView
+        className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="px-4 pb-8 gap-4"
+        contentContainerClassName="px-4 pb-28 gap-4"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

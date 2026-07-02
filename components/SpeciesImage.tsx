@@ -9,12 +9,13 @@ import {
 } from "@/lib/fieldGuideImageLoader";
 import {
   resolveSpeciesImageUrl,
+  speciesImageCacheKey,
   speciesImageUrl,
   type SpeciesImageSize,
 } from "@/lib/speciesImages";
 
 interface SpeciesImageProps {
-  catalogId: string;
+  catalogId?: string | null;
   scientificName: string;
   /** Field guide grid: queue photo fetch via fieldGuideImageLoader. */
   gridLoader?: boolean;
@@ -40,7 +41,7 @@ function useGridImageAllowed(catalogId: string, enabled: boolean): boolean {
 }
 
 export function SpeciesImage({
-  catalogId,
+  catalogId = null,
   scientificName,
   gridLoader = false,
   size = "medium",
@@ -49,19 +50,22 @@ export function SpeciesImage({
   contentFit = "cover",
   zoom,
 }: SpeciesImageProps) {
+  const cacheKey = speciesImageCacheKey(catalogId, scientificName, size);
+  const queueId = catalogId ?? cacheKey;
+
   const [uri, setUri] = useState(
-    () => speciesImageUrl(catalogId, size) ?? null,
+    () => speciesImageUrl(catalogId, scientificName, size) ?? null,
   );
 
-  const canFetch = useGridImageAllowed(catalogId, gridLoader);
+  const canFetch = useGridImageAllowed(queueId, gridLoader);
 
   useEffect(() => {
     if (!gridLoader) return;
-    scheduleFieldGuideImage(catalogId);
-  }, [gridLoader, catalogId]);
+    scheduleFieldGuideImage(queueId);
+  }, [gridLoader, queueId]);
 
   useEffect(() => {
-    const baked = speciesImageUrl(catalogId, size);
+    const baked = speciesImageUrl(catalogId, scientificName, size);
     if (baked) {
       setUri(baked);
       return;
@@ -103,7 +107,7 @@ export function SpeciesImage({
         contentFit={contentFit}
         contentPosition="top"
         transition={200}
-        recyclingKey={catalogId}
+        recyclingKey={cacheKey}
       />
     </View>
   );

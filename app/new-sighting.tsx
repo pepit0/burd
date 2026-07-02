@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { identifyImage, isPhotoValidationError, PhotoValidationError } from "@/lib/identify";
 import {
   checkPhotoAuthenticity,
+  PHOTO_AUTHENTICITY_ENABLED,
   type PhotoAuthStatus,
   validatePhotoAuthenticity,
 } from "@/lib/photoAuthenticity";
@@ -195,6 +196,12 @@ export default function NewSightingScreen() {
       return;
     }
 
+    if (!PHOTO_AUTHENTICITY_ENABLED) {
+      setPhotoAuthStatus("passed");
+      setPhotoAuthMessage(null);
+      return;
+    }
+
     let cancelled = false;
     setPhotoAuthStatus("checking");
     setPhotoAuthMessage(null);
@@ -233,7 +240,7 @@ export default function NewSightingScreen() {
     !libraryLoading &&
     species.trim().length > 0 &&
     (hasAudio || photoUri) &&
-    (!photoUri || photoAuthStatus === "passed");
+    (!photoUri || !PHOTO_AUTHENTICITY_ENABLED || photoAuthStatus === "passed");
 
   function selectSessionPhoto(photo: SessionPhoto) {
     setPrimaryPhotoId(photo.id);
@@ -391,7 +398,7 @@ export default function NewSightingScreen() {
       Alert.alert("Species required", "Please enter the species you spotted.");
       return;
     }
-    if (photoUri && photoAuthStatus !== "passed") {
+    if (photoUri && PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus !== "passed") {
       Alert.alert(
         "Photo not accepted",
         photoAuthMessage ?? "Please wait for photo validation to finish.",
@@ -401,12 +408,12 @@ export default function NewSightingScreen() {
 
     setSubmitting(true);
     try {
-      if (photoUri) {
+      if (photoUri && PHOTO_AUTHENTICITY_ENABLED && !(audioOnly || detectedBy === "audio")) {
         await validatePhotoAuthenticity(photoUri, photoBase64);
       }
 
       let photoUrl: string | null = null;
-      if (photoBase64) {
+      if (photoBase64 && !(audioOnly || detectedBy === "audio")) {
         photoUrl = await uploadSightingPhoto(userId, photoBase64);
       }
 
@@ -480,16 +487,17 @@ export default function NewSightingScreen() {
         contentContainerClassName="px-4 pb-12 pt-4 gap-4"
       >
         <Pressable
-          onPress={pickPhoto}
+          onPress={audioOnly ? undefined : pickPhoto}
+          disabled={audioOnly}
           className="h-44 items-center justify-center overflow-hidden rounded-2xl border border-border bg-card"
         >
-          {photoUri ? (
+          {photoUri && !audioOnly ? (
             <Image source={{ uri: photoUri }} className="h-full w-full" resizeMode="cover" />
-          ) : audioOnly && !photoUri ? (
+          ) : audioOnly ? (
             <View className="items-center gap-2 px-6">
-              <Mic size={26} color="#5f9470" />
+              <Mic size={28} color="#5f9470" />
               <Text className="text-center font-sans text-sm text-muted-foreground">
-                Audio-only sighting · add a photo below if you have one
+                Sound-only sighting
               </Text>
             </View>
           ) : (
@@ -742,7 +750,7 @@ export default function NewSightingScreen() {
         >
           {submitting ? (
             <ActivityIndicator color="#f0ead6" />
-          ) : photoAuthStatus === "checking" ? (
+          ) : PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus === "checking" ? (
             <View className="flex-row items-center gap-2">
               <ActivityIndicator color="#f0ead6" size="small" />
               <Text className="font-sans-bold text-base text-primary-foreground">
@@ -755,7 +763,7 @@ export default function NewSightingScreen() {
             </Text>
           )}
         </Pressable>
-        {photoAuthStatus === "failed" && photoAuthMessage ? (
+        {PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus === "failed" && photoAuthMessage ? (
           <Text className="text-center font-sans text-xs text-red-400/90">
             {photoAuthMessage}
           </Text>

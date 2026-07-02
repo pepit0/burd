@@ -1,5 +1,6 @@
 import birdCatalog from "@/data/bird-catalog.json";
 import scientificCommon from "@/data/scientific-common.json";
+import { commonNameForScientific as photoCommonName } from "@/lib/photoTaxonomy";
 import { lookupBaselineRarity } from "@/lib/speciesBaselines";
 import type { Rarity } from "@/types";
 
@@ -83,7 +84,7 @@ export function getCommonNameByScientific(scientificName: string): string | unde
     return commonByScientific.get(binomial);
   }
 
-  return undefined;
+  return photoCommonName(scientificName) ?? undefined;
 }
 
 /** Match a logged sighting to a catalog entry (scientific name preferred). */

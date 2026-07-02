@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   RefreshControl,
@@ -17,17 +18,21 @@ import {
   Clock,
   Feather,
   MapPin,
-  Mic,
   Plus,
   Search,
+  Trash2,
   Volume2,
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { AudioPostThumb } from "@/components/AudioPostThumb";
 import { useAuth } from "@/hooks/useAuth";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useResolvedCities } from "@/hooks/useResolvedCities";
+import { getErrorMessage } from "@/lib/errors";
+import { deleteMySighting } from "@/lib/sightings";
+import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import {
   formatJournalWhen,
   observedDate,
@@ -123,6 +128,33 @@ export default function JournalScreen() {
     }
     return Array.from(map, ([date, entries]) => ({ date, entries }));
   }, [filteredSightings]);
+
+  function confirmDeleteSighting(sighting: Sighting) {
+    if (!userId) return;
+    Alert.alert(
+      "Delete this sighting?",
+      sighting.published_at
+        ? "This removes it from your journal and profile."
+        : "This removes it from your journal.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                await deleteMySighting(userId, sighting.id);
+                await refresh();
+              } catch (e) {
+                Alert.alert("Could not delete", getErrorMessage(e));
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -227,14 +259,14 @@ export default function JournalScreen() {
                           className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3 active:opacity-90"
                         >
                           <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-muted">
-                            {e.photo_url ? (
+                            {isPhotoSighting(e) ? (
                               <Image
-                                source={{ uri: e.photo_url }}
+                                source={{ uri: e.photo_url! }}
                                 className="h-full w-full"
                                 resizeMode="cover"
                               />
-                            ) : e.audio_url ? (
-                              <Mic size={16} color="#5f9470" />
+                            ) : isAudioSighting(e) ? (
+                              <AudioPostThumb size="sm" className="h-full w-full" />
                             ) : (
                               <Feather size={16} color="#3a4e35" />
                             )}
@@ -273,6 +305,14 @@ export default function JournalScreen() {
                               birds
                             </Text>
                           </View>
+                          <Pressable
+                            onPress={() => confirmDeleteSighting(e)}
+                            hitSlop={8}
+                            className="rounded-full p-2 active:bg-card"
+                            accessibilityLabel="Delete sighting"
+                          >
+                            <Trash2 size={14} color="#8a9e82" />
+                          </Pressable>
                           <ChevronRight size={13} color="#8a9e82" />
                         </Pressable>
                       );

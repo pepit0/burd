@@ -18,6 +18,7 @@ export type NotificationRouteData = {
   activity_id?: string;
   type?: string;
   sighting_id?: string;
+  comment_id?: string;
   actor_id?: string;
 };
 
@@ -84,6 +85,7 @@ export function parseNotificationData(
     activity_id: typeof data.activity_id === "string" ? data.activity_id : undefined,
     type: typeof data.type === "string" ? data.type : undefined,
     sighting_id: typeof data.sighting_id === "string" ? data.sighting_id : undefined,
+    comment_id: typeof data.comment_id === "string" ? data.comment_id : undefined,
     actor_id: typeof data.actor_id === "string" ? data.actor_id : undefined,
   };
 }
@@ -91,7 +93,12 @@ export function parseNotificationData(
 export function routeFromNotificationData(
   data: NotificationRouteData,
 ): string | null {
-  if (data.sighting_id) return `/post/${data.sighting_id}`;
+  if (data.sighting_id) {
+    if (data.comment_id) {
+      return `/post/${data.sighting_id}?commentId=${encodeURIComponent(data.comment_id)}`;
+    }
+    return `/post/${data.sighting_id}`;
+  }
   if (data.type === "follow" && data.actor_id) return `/user/${data.actor_id}`;
   if (data.actor_id) return `/user/${data.actor_id}`;
   return "/notifications";

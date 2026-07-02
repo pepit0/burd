@@ -1,4 +1,5 @@
 import { enrichPrediction } from "@/lib/predictionLabels";
+import { isInPhotoTaxonomy } from "@/lib/photoTaxonomy";
 import {
   getCatalogSpeciesByScientificName,
   resolveCatalogSpecies,
@@ -37,6 +38,7 @@ export function resolveToCatalogScientific(
 export function isInCatalog(scientificName: string): boolean {
   const key = normalizeScientificName(scientificName);
   if (!key) return false;
+  if (isInPhotoTaxonomy(key)) return true;
   return Boolean(getCatalogSpeciesByScientificName(key));
 }
 

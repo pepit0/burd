@@ -11,7 +11,10 @@ import {
 } from "@/lib/regionalFrequency";
 import { applyNativeDisplayScoring, type NativeLogit } from "@/lib/soundDisplayScoring";
 import { logSoundDebug, SOUND_DEBUG } from "@/lib/soundDebug";
-import { validatePhotoAuthenticity } from "@/lib/photoAuthenticity";
+import {
+  PHOTO_AUTHENTICITY_ENABLED,
+  validatePhotoAuthenticity,
+} from "@/lib/photoAuthenticity";
 import {
   PhotoValidationError,
   type ValidationResult,
@@ -109,6 +112,18 @@ function appendGeoFields(form: FormData, geo?: IdentifyGeoOptions): void {
 function appendLiveSoundField(form: FormData, liveSound?: boolean): void {
   if (liveSound) {
     form.append("live_sound", "true");
+  }
+}
+
+function appendImageValidationFields(
+  form: FormData,
+  options?: { livePhoto?: boolean },
+): void {
+  if (options?.livePhoto) {
+    form.append("live_photo", "true");
+  }
+  if (!PHOTO_AUTHENTICITY_ENABLED) {
+    form.append("skip_validation", "true");
   }
 }
 
@@ -226,13 +241,16 @@ async function postFile(
   fileName: string,
   mimeType: string,
   geo?: IdentifyGeoOptions,
-  parseOptions?: { liveSound?: boolean },
+  parseOptions?: { liveSound?: boolean; livePhoto?: boolean },
 ): Promise<IdentifyResult> {
   ensureConfigured();
   const form = new FormData();
   await appendFormFile(form, field, uri, fileName, mimeType);
   appendGeoFields(form, geo);
   appendLiveSoundField(form, parseOptions?.liveSound);
+  if (path === "/identify/image") {
+    appendImageValidationFields(form, { livePhoto: parseOptions?.livePhoto });
+  }
 
   let res: Response;
   try {
@@ -277,7 +295,7 @@ export async function identifyImage(
     geo?: IdentifyGeoOptions;
   },
 ): Promise<IdentifyResult> {
-  if (!options?.skipAuthenticity) {
+  if (PHOTO_AUTHENTICITY_ENABLED && !options?.skipAuthenticity) {
     await validatePhotoAuthenticity(uri, options?.base64);
   }
   return postFile(
@@ -288,6 +306,61 @@ export async function identifyImage(
     "image/jpeg",
     options?.geo,
   );
+}
+
+/** Live camera frame identify — never throws; times out so scanning doesn't hang. */
+export async function identifyImageChunkSafe(
+  uri: string,
+  geo?: IdentifyGeoOptions,
+  timeoutMs = 12_000,
+): Promise<IdentifyChunkOutcome> {
+  if (!BASE_URL) {
+    return { ok: false, reason: "Inference URL not configured" };
+  }
+
+  try {
+    const form = new FormData();
+    await appendFormFile(form, "image", uri, "frame.jpg", "image/jpeg");
+    appendGeoFields(form, geo);
+    appendImageValidationFields(form, { livePhoto: true });
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(`${BASE_URL}/identify/image`, {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        const reason = `Server error (${res.status})${text ? `: ${text.slice(0, 120)}` : ""}`;
+        if (__DEV__) {
+          console.warn("[LivePhotoId] identifyImageChunkSafe:", reason);
+        }
+        return { ok: false, reason };
+      }
+
+      const data = (await res.json()) as IdentifyResponse;
+      return {
+        ok: true,
+        result: parseIdentifyResponse(data, geo),
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Request failed";
+    const reason = message.includes("abort")
+      ? "Identification timed out"
+      : message;
+    if (__DEV__) {
+      console.warn("[LivePhotoId] identifyImageChunkSafe:", reason);
+    }
+    return { ok: false, reason };
+  }
 }
 
 export function identifyAudio(

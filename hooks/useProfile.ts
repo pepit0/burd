@@ -3,8 +3,10 @@ import {
   getFollowCounts,
   getMyProfile,
   updateProfileAvatarUrl,
+  updateProfileDetails,
   updateSearchRadius,
   uploadAvatarPhoto,
+  type ProfileDetailsUpdate,
 } from "@/lib/sightings";
 import { getErrorMessage } from "@/lib/errors";
 import type { Profile } from "@/types";
@@ -23,6 +25,7 @@ interface UseProfile {
   silentRefresh: () => Promise<void>;
   setRadius: (km: number) => Promise<void>;
   updateAvatar: (base64: string, ext?: string) => Promise<void>;
+  updateDetails: (fields: ProfileDetailsUpdate) => Promise<void>;
 }
 
 export function useProfile(userId: string | null): UseProfile {
@@ -100,6 +103,25 @@ export function useProfile(userId: string | null): UseProfile {
     [userId, profile],
   );
 
+  const updateDetails = useCallback(
+    async (fields: ProfileDetailsUpdate) => {
+      if (!userId || !profile) return;
+      const prev = {
+        full_name: profile.full_name,
+        bio: profile.bio,
+        cover_url: profile.cover_url,
+      };
+      setProfile({ ...profile, ...fields });
+      try {
+        await updateProfileDetails(userId, fields);
+      } catch (e) {
+        setProfile((p) => (p ? { ...p, ...prev } : p));
+        throw e;
+      }
+    },
+    [userId, profile],
+  );
+
   const refresh = useCallback(() => load("refresh"), [load]);
   const silentRefresh = useCallback(() => load("silent"), [load]);
 
@@ -114,5 +136,6 @@ export function useProfile(userId: string | null): UseProfile {
     silentRefresh,
     setRadius,
     updateAvatar,
+    updateDetails,
   };
 }

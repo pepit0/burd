@@ -204,3 +204,23 @@ export async function setCommentLike(
 }
 
 export { countComments };
+
+export async function getCommentCountsForSightings(
+  sightingIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (sightingIds.length === 0) return counts;
+
+  const { data, error } = await supabase
+    .from("comments")
+    .select("sighting_id")
+    .in("sighting_id", sightingIds);
+
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    const id = row.sighting_id as string;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}

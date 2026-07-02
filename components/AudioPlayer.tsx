@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { Audio } from "expo-av";
 import { Pause, Play } from "lucide-react-native";
+import type { AudioPlaybackState } from "@/hooks/useAudioPlayback";
+import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { getErrorMessage } from "@/lib/errors";
 
 interface AudioPlayerProps {
   uri: string;
   durationMs?: number;
   compact?: boolean;
+  playback?: AudioPlaybackState;
 }
 
 function formatDuration(ms: number): string {
@@ -17,7 +20,15 @@ function formatDuration(ms: number): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-export function AudioPlayer({ uri, durationMs, compact = false }: AudioPlayerProps) {
+export function AudioPlayer({
+  uri,
+  durationMs,
+  compact = false,
+  playback: externalPlayback,
+}: AudioPlayerProps) {
+  const internalPlayback = useAudioPlayback(externalPlayback ? null : uri, durationMs);
+  const playback = externalPlayback ?? internalPlayback;
+
   const soundRef = useRef<Audio.Sound | null>(null);
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -25,7 +36,11 @@ export function AudioPlayer({ uri, durationMs, compact = false }: AudioPlayerPro
   const [loadedDurationMs, setLoadedDurationMs] = useState(durationMs ?? 0);
   const [error, setError] = useState<string | null>(null);
 
+  const usesSharedPlayback = Boolean(externalPlayback);
+
   useEffect(() => {
+    if (usesSharedPlayback) return undefined;
+
     setPlaying(false);
     setPositionMs(0);
     setLoadedDurationMs(durationMs ?? 0);
@@ -38,9 +53,9 @@ export function AudioPlayer({ uri, durationMs, compact = false }: AudioPlayerPro
       void soundRef.current?.unloadAsync().catch(() => undefined);
       soundRef.current = null;
     };
-  }, [uri, durationMs]);
+  }, [uri, durationMs, usesSharedPlayback]);
 
-  async function togglePlayback() {
+  async function toggleStandalonePlayback() {
     if (loading || !uri) return;
 
     if (playing && soundRef.current) {
@@ -104,29 +119,43 @@ export function AudioPlayer({ uri, durationMs, compact = false }: AudioPlayerPro
     }
   }
 
-  const totalMs = loadedDurationMs || durationMs || 0;
-  const progress = totalMs > 0 ? Math.min(1, positionMs / totalMs) : 0;
+  const activeLoading = usesSharedPlayback ? playback.loading : loading;
+  const activePlaying = usesSharedPlayback ? playback.playing : playing;
+  const activePositionMs = usesSharedPlayback ? playback.positionMs : positionMs;
+  const activeDurationMs = usesSharedPlayback
+    ? playback.durationMs
+    : loadedDurationMs || durationMs || 0;
+  const activeError = usesSharedPlayback ? playback.error : error;
+  const toggle = usesSharedPlayback
+    ? playback.toggle
+    : () => toggleStandalonePlayback();
+
+  const progress =
+    activeDurationMs > 0 ? Math.min(1, activePositionMs / activeDurationMs) : 0;
 
   if (compact) {
     return (
       <View className="gap-1">
         <Pressable
-          onPress={() => void togglePlayback()}
+          onPress={(event) => {
+            event.stopPropagation?.();
+            void toggle();
+          }}
           className="flex-row items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 active:opacity-80"
         >
-          {loading ? (
+          {activeLoading ? (
             <ActivityIndicator size="small" color="#5f9470" />
-          ) : playing ? (
+          ) : activePlaying ? (
             <Pause size={14} color="#5f9470" />
           ) : (
             <Play size={14} color="#5f9470" />
           )}
           <Text className="font-mono text-[10px] text-muted-foreground">
-            {formatDuration(totalMs || positionMs)}
+            {formatDuration(activeDurationMs || activePositionMs)}
           </Text>
         </Pressable>
-        {error ? (
-          <Text className="font-sans text-[10px] text-red-400/90">{error}</Text>
+        {activeError ? (
+          <Text className="font-sans text-[10px] text-red-400/90">{activeError}</Text>
         ) : null}
       </View>
     );
@@ -136,12 +165,15 @@ export function AudioPlayer({ uri, durationMs, compact = false }: AudioPlayerPro
     <View className="rounded-xl border border-border bg-card px-3 py-3">
       <View className="flex-row items-center gap-3">
         <Pressable
-          onPress={() => void togglePlayback()}
+          onPress={(event) => {
+            event.stopPropagation?.();
+            void toggle();
+          }}
           className="h-10 w-10 items-center justify-center rounded-full bg-primary/20 active:opacity-80"
         >
-          {loading ? (
+          {activeLoading ? (
             <ActivityIndicator size="small" color="#5f9470" />
-          ) : playing ? (
+          ) : activePlaying ? (
             <Pause size={18} color="#5f9470" />
           ) : (
             <Play size={18} color="#5f9470" />
@@ -155,10 +187,10 @@ export function AudioPlayer({ uri, durationMs, compact = false }: AudioPlayerPro
             />
           </View>
           <Text className="font-mono text-[10px] text-muted-foreground">
-            {formatDuration(positionMs)} / {formatDuration(totalMs)}
+            {formatDuration(activePositionMs)} / {formatDuration(activeDurationMs)}
           </Text>
-          {error ? (
-            <Text className="font-sans text-[10px] text-red-400/90">{error}</Text>
+          {activeError ? (
+            <Text className="font-sans text-[10px] text-red-400/90">{activeError}</Text>
           ) : null}
         </View>
       </View>

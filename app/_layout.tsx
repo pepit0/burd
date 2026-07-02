@@ -1,6 +1,8 @@
+import "react-native-gesture-handler";
 import "../global.css";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -164,8 +166,10 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeKeyboardProvider>
-      <AppShell />
-    </SafeKeyboardProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeKeyboardProvider>
+        <AppShell />
+      </SafeKeyboardProvider>
+    </GestureHandlerRootView>
   );
 }

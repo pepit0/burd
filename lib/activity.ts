@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type { ActivityItem } from "@/types";
 
 const ACTIVITY_SELECT =
-  "*, actor:profiles!actor_id(username, avatar_color), sighting:sightings(species, photo_url)";
+  "*, actor:profiles!actor_id(username, avatar_color), sighting:sightings(species, photo_url, audio_url)";
 
 export async function getActivity(userId: string): Promise<ActivityItem[]> {
   const { data, error } = await supabase

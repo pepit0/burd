@@ -7,6 +7,10 @@ import {
   type ValidationResult,
 } from "@/lib/photoValidation";
 
+/** Reality filter (AI / screen / stock photo detection). Off by default for now. */
+export const PHOTO_AUTHENTICITY_ENABLED =
+  process.env.EXPO_PUBLIC_PHOTO_AUTHENTICITY === "true";
+
 export type PhotoAuthenticityClass =
   | "real"
   | "screen"
@@ -96,6 +100,8 @@ export async function validatePhotoAuthenticity(
   uri: string,
   existingBase64?: string | null,
 ): Promise<void> {
+  if (!PHOTO_AUTHENTICITY_ENABLED) return;
+
   const { base64, mediaType } = await preparePhotoForAuthenticity(uri, existingBase64);
 
   const { data, error } = await supabase.functions.invoke<AuthenticityResponse>(
@@ -130,6 +136,10 @@ export async function checkPhotoAuthenticity(
   uri: string,
   existingBase64?: string | null,
 ): Promise<{ status: "passed" | "failed"; message?: string; validation?: ValidationResult }> {
+  if (!PHOTO_AUTHENTICITY_ENABLED) {
+    return { status: "passed" };
+  }
+
   try {
     await validatePhotoAuthenticity(uri, existingBase64);
     return { status: "passed" };

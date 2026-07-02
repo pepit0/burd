@@ -1,6 +1,10 @@
-import { SPECIES_IMAGE_URLS } from "@/lib/speciesImageUrls";
+import speciesImageUrls from "@/data/species-image-urls.json";
+import { catalogIdFromScientific } from "@/lib/photoCatalog";
+import { normalizeScientificName } from "@/lib/taxonomy";
 
 export type SpeciesImageSize = "medium" | "large" | "original";
+
+const SPECIES_IMAGE_URLS = speciesImageUrls as Record<string, string>;
 
 const runtimeCache = new Map<string, string>();
 const pendingFetches = new Map<string, Promise<string>>();
@@ -39,26 +43,52 @@ function sizedUrl(url: string, size: SpeciesImageSize): string {
   return url.replace(/\/(medium|large|original)\.(jpe?g|png)/i, `/${size}.$2`);
 }
 
+function resolveCatalogId(
+  catalogId: string | null | undefined,
+  scientificName: string,
+): string | null {
+  const trimmed = catalogId?.trim();
+  if (trimmed) return trimmed;
+  return catalogIdFromScientific(scientificName);
+}
+
+/** Stable cache key — avoids collisions when catalogId is missing. */
+export function speciesImageCacheKey(
+  catalogId: string | null | undefined,
+  scientificName: string,
+  size: SpeciesImageSize = "medium",
+): string {
+  const id = resolveCatalogId(catalogId, scientificName);
+  if (id) return `${id}:${size}`;
+  const sci = normalizeScientificName(scientificName);
+  if (sci) return `sci:${sci}:${size}`;
+  const fallback = scientificName.trim().toLowerCase();
+  return fallback ? `name:${fallback}:${size}` : `unknown:${size}`;
+}
+
 /** Sync URL from the baked catalog map (instant grid render). */
 export function speciesImageUrl(
-  catalogId: string,
+  catalogId: string | null | undefined,
+  scientificName: string,
   size: SpeciesImageSize = "medium",
 ): string | null {
-  const url = SPECIES_IMAGE_URLS[catalogId];
+  const id = resolveCatalogId(catalogId, scientificName);
+  if (!id) return null;
+  const url = SPECIES_IMAGE_URLS[id];
   if (!url) return null;
   return sizedUrl(url, size);
 }
 
 /** Resolve a photo for any catalog species — baked first, then iNaturalist API. */
 export async function resolveSpeciesImageUrl(
-  catalogId: string,
+  catalogId: string | null | undefined,
   scientificName: string,
   size: SpeciesImageSize = "medium",
 ): Promise<string> {
-  const baked = speciesImageUrl(catalogId, size);
+  const baked = speciesImageUrl(catalogId, scientificName, size);
   if (baked) return baked;
 
-  const cacheKey = `${catalogId}:${size}`;
+  const cacheKey = speciesImageCacheKey(catalogId, scientificName, size);
   const cached = runtimeCache.get(cacheKey);
   if (cached) return cached;
 
@@ -110,8 +140,10 @@ async function fetchInatDefaultPhoto(
 
 /** @deprecated Use speciesImageUrl */
 export function catalogImageUrl(
-  entry: { id: string },
+  entry: { id: string; scientific_name?: string },
   size: SpeciesImageSize = "medium",
 ): string {
-  return speciesImageUrl(entry.id, size) ?? PLACEHOLDER;
+  return (
+    speciesImageUrl(entry.id, entry.scientific_name ?? "", size) ?? PLACEHOLDER
+  );
 }

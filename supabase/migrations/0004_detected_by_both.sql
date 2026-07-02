@@ -5,3 +5,4 @@ alter table public.sightings
 alter table public.sightings
   add constraint sightings_detected_by_check
   check (detected_by in ('manual', 'image', 'audio', 'both'));
+  

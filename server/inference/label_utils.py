@@ -43,8 +43,17 @@ def _scientific_to_common() -> dict[str, str]:
     return {}
 
 
+def _binomial_key(scientific: str) -> str:
+    parts = scientific.strip().lower().replace("_", " ").split()
+    if len(parts) < 2:
+        return scientific.strip().lower().replace("_", " ")
+    return f"{parts[0]} {parts[1]}"
+
+
 def _lookup_common(scientific: str) -> str:
-    common = _scientific_to_common().get(scientific.strip().lower())
+    key = scientific.strip().lower().replace("_", " ")
+    common_map = _scientific_to_common()
+    common = common_map.get(key) or common_map.get(_binomial_key(scientific))
     return common if common else scientific
 
 

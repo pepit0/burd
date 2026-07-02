@@ -27,6 +27,7 @@ export interface Profile {
   full_name: string | null;
   avatar_color: string;
   avatar_url: string | null;
+  cover_url: string | null;
   bio: string | null;
   location_name: string | null;
   latitude: number | null;
@@ -90,6 +91,7 @@ export interface FeedSighting extends Sighting {
   avatar_color: string;
   full_name: string | null;
   like_count: number;
+  comment_count?: number;
 }
 
 export interface Comment {
@@ -116,7 +118,7 @@ export interface ActivityItem {
   created_at: string;
   read_at: string | null;
   actor: { username: string; avatar_color: string } | null;
-  sighting: { species: string; photo_url: string | null } | null;
+  sighting: { species: string; photo_url: string | null; audio_url: string | null } | null;
 }
 
 export interface NewSightingInput {

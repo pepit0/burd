@@ -4,11 +4,29 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
-const catalogPath = path.join(root, "data", "bird-catalog.json");
 
-/** Reads ids + scientific names from data/bird-catalog.json (run generate-bird-catalog first). */
-const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
-const species = catalog.map((entry) => [entry.id, entry.scientific_name]);
+const args = process.argv.slice(2);
+const birdsOnly = args.includes("--birds-only");
+const limitIdx = args.indexOf("--limit");
+const limit =
+  limitIdx >= 0 ? Number.parseInt(args[limitIdx + 1] ?? "", 10) : null;
+
+const catalogPath = path.join(
+  root,
+  "data",
+  birdsOnly ? "bird-catalog.json" : "photo-catalog.json",
+);
+const outPath = path.join(root, "data", "species-image-urls.json");
+
+/** Prefer CC0 / CC-BY (not NC) or iNat open-data CDN URLs. */
+function isCommercialPhoto(photo) {
+  const url = photo?.url ?? "";
+  if (url.includes("inaturalist-open-data.s3.amazonaws.com")) return true;
+  const code = photo?.license_code ?? "";
+  if (code === "CC0" || code === "CC0-1.0") return true;
+  if (code.startsWith("CC-BY") && !code.includes("NC")) return true;
+  return false;
+}
 
 async function fetchInat(scientific) {
   const url =
@@ -19,33 +37,47 @@ async function fetchInat(scientific) {
   if (!res.ok) return null;
   const data = await res.json();
   const taxon = data.results?.[0];
-  if (!taxon?.default_photo?.url) return null;
-  return taxon.default_photo.url.replace("square", "medium");
+  const photo = taxon?.default_photo;
+  if (!photo?.url || !isCommercialPhoto(photo)) return null;
+  return photo.url.replace("square", "medium");
 }
 
-const out = {};
+const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+let species = catalog.map((entry) => [entry.id, entry.scientific_name]);
+if (limit != null && Number.isFinite(limit) && limit > 0) {
+  species = species.slice(0, limit);
+}
+
+const existing = fs.existsSync(outPath)
+  ? JSON.parse(fs.readFileSync(outPath, "utf8"))
+  : {};
+
+const out = { ...existing };
 let missing = 0;
+let skipped = 0;
+
+console.log(
+  `Fetching ${species.length} species from ${path.basename(catalogPath)}…`,
+);
 
 for (const [id, scientific] of species) {
+  if (out[id] && !args.includes("--refresh")) {
+    skipped += 1;
+    continue;
+  }
   const img = await fetchInat(scientific);
-  out[id] = img;
-  if (!img) missing += 1;
+  if (img) {
+    out[id] = img;
+  } else {
+    missing += 1;
+    if (!out[id]) delete out[id];
+  }
   console.log(id, img ? "ok" : "MISSING");
   await new Promise((r) => setTimeout(r, 200));
 }
 
-const lines = Object.entries(out).map(([id, url]) => {
-  if (!url) return `  "${id}": null,`;
-  return `  "${id}":\n    "${url}",`;
-});
+fs.writeFileSync(outPath, `${JSON.stringify(out, null, 2)}\n`, "utf8");
 
-const contents = `/** Auto-generated iNaturalist default photos — run \`npm run fetch-species-images\` to refresh. */
-export const SPECIES_IMAGE_URLS: Record<string, string | null> = {
-${lines.join("\n")}
-};
-`;
-
-const target = path.join(root, "lib", "speciesImageUrls.ts");
-fs.writeFileSync(target, contents, "utf8");
-
-console.log(`Wrote ${target} (${Object.keys(out).length} species, ${missing} missing)`);
+console.log(
+  `Wrote ${outPath} (${Object.keys(out).length} urls, ${missing} missing this run, ${skipped} skipped)`,
+);

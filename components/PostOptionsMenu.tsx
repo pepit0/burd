@@ -12,10 +12,12 @@ import { ModerationReasonModal } from "@/components/ModerationReasonModal";
 import { getErrorMessage } from "@/lib/errors";
 import { removePostAsAdmin, removePostAuthorAsAdmin } from "@/lib/moderation";
 import { reportPost } from "@/lib/reports";
+import { deleteMySighting } from "@/lib/sightings";
 
 interface PostOptionsMenuProps {
   sightingId: string;
   userId: string | null;
+  ownerUserId?: string | null;
   hasPhoto?: boolean;
   authorDisqualified?: boolean;
   isAdmin?: boolean;
@@ -28,6 +30,7 @@ interface PostOptionsMenuProps {
 export function PostOptionsMenu({
   sightingId,
   userId,
+  ownerUserId = null,
   hasPhoto = false,
   authorDisqualified = false,
   isAdmin = false,
@@ -40,6 +43,42 @@ export function PostOptionsMenu({
   const [submitting, setSubmitting] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removeAuthorOpen, setRemoveAuthorOpen] = useState(false);
+
+  const isOwner = Boolean(userId && ownerUserId && userId === ownerUserId);
+
+  function handleDeletePress() {
+    onClose();
+    if (!userId || !isOwner) return;
+
+    Alert.alert(
+      "Delete this post?",
+      "This removes the sighting from your journal and profile. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void confirmDelete();
+          },
+        },
+      ],
+    );
+  }
+
+  async function confirmDelete() {
+    if (!userId || submitting) return;
+    setSubmitting(true);
+    try {
+      await deleteMySighting(userId, sightingId);
+      onPostRemoved?.();
+      Alert.alert("Deleted", "Your post was removed.");
+    } catch (e) {
+      Alert.alert("Could not delete", getErrorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   function handleReportPress() {
     onClose();
@@ -178,6 +217,17 @@ export function PostOptionsMenu({
                   </Text>
                 </View>
               </>
+            ) : null}
+
+            {isOwner ? (
+              <Pressable
+                onPress={handleDeletePress}
+                disabled={submitting}
+                className="mb-2 flex-row items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3.5 active:opacity-90"
+              >
+                <Trash2 size={18} color="#f87171" />
+                <Text className="font-sans-medium text-sm text-foreground">Delete post</Text>
+              </Pressable>
             ) : null}
 
             <Pressable
