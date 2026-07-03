@@ -78,3 +78,7 @@ Wrong startup (needs redeploy):
 npm run start
 expo start
 ```
+
+### "operator torchvision::nms does not exist"
+
+torch and torchvision versions were mismatched in the slim Docker image. `Dockerfile.fly` pins both from the PyTorch **CPU** index (`2.12.1` + `0.27.1`). Re-run the deploy workflow after pulling this fix.

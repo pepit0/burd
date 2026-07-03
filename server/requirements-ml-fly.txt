@@ -1,4 +1,5 @@
-# Fly production ML deps (torch installed separately as CPU-only wheel).
+# Fly production ML deps.
+# torch + torchvision are pinned in Dockerfile.fly (CPU index, matching versions).
 pillow>=11.3
 numpy>=2.2
 birder>=0.6.1
