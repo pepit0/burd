@@ -62,4 +62,17 @@ https://burd-inference.fly.dev/health
 | **burd-inference** | `server/` | uvicorn | 8000 |
 | **burd-rg1taa** | repo root | expo/npm | 3000 |
 
-If burd-inference logs show `expo start`, the wrong folder was deployed — re-run the GitHub Action above.
+If burd-inference logs show `expo start`, the machine is still on the **wrong Node image** (deployed from repo root by mistake). Re-run the GitHub Action above — it destroys stale machines and deploys the Python image from `server/`.
+
+Expected startup:
+
+```text
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Wrong startup (needs redeploy):
+
+```text
+npm run start
+expo start
+```

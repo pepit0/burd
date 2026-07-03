@@ -20,8 +20,26 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
+      # Stopped machines can keep an old rootfs (e.g. Expo/npm from a mistaken
+      # root deploy). Destroy them so the new Python image is always used.
+      - name: Remove stale machines (wrong Expo/npm image)
+        run: |
+          set -euo pipefail
+          APP=burd-inference
+          ids=$(flyctl machines list -a "$APP" --json | jq -r '.[].id // empty')
+          if [ -n "$ids" ]; then
+            echo "Destroying stale machines: $ids"
+            for id in $ids; do
+              flyctl machine destroy "$id" -a "$APP" --force
+            done
+          else
+            echo "No existing machines to destroy"
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
       - name: Deploy burd-inference (Python server/, port 8000)
-        run: flyctl deploy --remote-only --config fly.toml
+        run: flyctl deploy --remote-only --config fly.toml --strategy immediate
         working-directory: server
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
