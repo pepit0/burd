@@ -7,7 +7,8 @@ import {
   IOSAudioQuality,
   IOSOutputFormat,
 } from "expo-av/build/Audio/RecordingConstants";
-import { identifyAudioChunkSafe, type IdentifyResult } from "@/lib/identify";
+import type { IdentifyResult } from "@/lib/identify";
+import { LiveSoundChunkSender } from "@/lib/liveSoundChunkSender";
 import { useIdentificationLocation } from "@/hooks/useIdentificationLocation";
 import {
   buildLiveSessionReview,
@@ -40,8 +41,6 @@ import {
 } from "@/lib/audioChunkOverlap";
 
 export const LIVE_CHUNK_SECONDS = LIVE_WINDOW_MS / 1000;
-
-const MAX_IN_FLIGHT_CHUNKS = 2;
 
 export type LiveSoundStatus =
   | "idle"
@@ -182,7 +181,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
   const pruneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionRef = useRef<PendingSession | null>(null);
   const activeRef = useRef(false);
-  const pendingChunksRef = useRef(0);
+  const chunkSenderRef = useRef(new LiveSoundChunkSender());
   const previousSegmentUriRef = useRef<string | null>(null);
   const segmentStartedAtRef = useRef<number | null>(null);
   const userIdRef = useRef(userId);
@@ -233,15 +232,58 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
 
   const updateStatusFromPending = useCallback(() => {
     if (!activeRef.current) return;
-    if (pendingChunksRef.current > 0) {
+    if (chunkSenderRef.current.inFlight > 0 || chunkSenderRef.current.queued > 0) {
       setStatus("processing");
       return;
     }
     setStatus("listening");
   }, []);
 
+  const handleChunkOutcome = useCallback(
+    (
+      outcome:
+        | { ok: true; result: IdentifyResult }
+        | { ok: false; reason: string },
+    ) => {
+      if (outcome.ok && sessionRef.current) {
+        sessionRef.current.failedChunks = 0;
+        sessionRef.current.lastChunkError = null;
+        setChunkWarning(null);
+        if (outcome.result.nativeLogits?.length) {
+          sessionRef.current.latestNativeLogits = outcome.result.nativeLogits;
+        }
+        sessionRef.current.detections = mergeChunkPredictions(
+          sessionRef.current.detections,
+          outcome.result,
+          Date.now(),
+        );
+        sessionRef.current.lastChunkSpeciesKeys = highlightSpeciesKeysFromChunk(
+          outcome.result,
+          sessionRef.current.coords,
+          sessionRef.current.observedAt,
+          sessionRef.current.latestNativeLogits,
+        );
+        refreshDetections();
+        return;
+      }
+
+      if (!outcome.ok && sessionRef.current) {
+        sessionRef.current.failedChunks += 1;
+        sessionRef.current.lastChunkError = outcome.reason;
+        sessionRef.current.lastChunkSpeciesKeys = new Set();
+        refreshDetections();
+        console.warn(
+          `[LiveSoundId] chunk failed (${sessionRef.current.failedChunks}):`,
+          outcome.reason,
+        );
+        setChunkWarning(`Could not analyze audio: ${outcome.reason}`);
+      }
+    },
+    [refreshDetections],
+  );
+
   const processChunk = useCallback(
-    async (
+    (
       uri: string,
       durationMs: number,
       analyzeUri?: string,
@@ -257,61 +299,23 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
         return;
       }
 
-      if (pendingChunksRef.current >= MAX_IN_FLIGHT_CHUNKS) {
-        return;
-      }
-
-      pendingChunksRef.current += 1;
       updateStatusFromPending();
-
-      const uploadUri = analyzeUri ?? uri;
-
-      try {
-        const outcome = await identifyAudioChunkSafe(uploadUri, {
-          lat: session.coords?.latitude ?? null,
-          lng: session.coords?.longitude ?? null,
-          observedAt: session.observedAt,
-        });
-        if (outcome.ok && sessionRef.current) {
-          sessionRef.current.failedChunks = 0;
-          sessionRef.current.lastChunkError = null;
-          setChunkWarning(null);
-          if (outcome.result.nativeLogits?.length) {
-            sessionRef.current.latestNativeLogits = outcome.result.nativeLogits;
-          }
-          sessionRef.current.detections = mergeChunkPredictions(
-            sessionRef.current.detections,
-            outcome.result,
-            Date.now(),
-          );
-          sessionRef.current.lastChunkSpeciesKeys = highlightSpeciesKeysFromChunk(
-            outcome.result,
-            sessionRef.current.coords,
-            sessionRef.current.observedAt,
-            sessionRef.current.latestNativeLogits,
-          );
-          refreshDetections();
-        } else if (!outcome.ok && sessionRef.current) {
-          sessionRef.current.failedChunks += 1;
-          sessionRef.current.lastChunkError = outcome.reason;
-          sessionRef.current.lastChunkSpeciesKeys = new Set();
-          refreshDetections();
-          if (__DEV__) {
-            console.warn(
-              `[LiveSoundId] chunk failed (${sessionRef.current.failedChunks}):`,
-              outcome.reason,
-            );
-          }
-          setChunkWarning(
-            `Could not analyze audio: ${outcome.reason}`,
-          );
-        }
-      } finally {
-        pendingChunksRef.current = Math.max(0, pendingChunksRef.current - 1);
-        updateStatusFromPending();
-      }
+      chunkSenderRef.current.submit(
+        {
+          uploadUri: analyzeUri ?? uri,
+          geo: {
+            lat: session.coords?.latitude ?? null,
+            lng: session.coords?.longitude ?? null,
+            observedAt: session.observedAt,
+          },
+        },
+        (outcome) => {
+          handleChunkOutcome(outcome);
+          updateStatusFromPending();
+        },
+      );
     },
-    [refreshDetections, updateStatusFromPending],
+    [handleChunkOutcome, updateStatusFromPending],
   );
 
   const stopCurrentRecording = useCallback(async (): Promise<SessionSegment | null> => {
@@ -376,7 +380,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
         segment.durationMs,
       );
       previousSegmentUriRef.current = segment.uri;
-      void processChunk(
+      processChunk(
         segment.uri,
         segment.durationMs,
         overlapped.uri,
@@ -622,10 +626,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
       );
     }
 
-    const deadline = Date.now() + 30_000;
-    while (pendingChunksRef.current > 0 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+    await chunkSenderRef.current.waitForIdle(30_000);
 
     openReview();
   }, [
@@ -646,7 +647,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     sessionRef.current = null;
     previousSegmentUriRef.current = null;
     segmentStartedAtRef.current = null;
-    pendingChunksRef.current = 0;
+    chunkSenderRef.current = new LiveSoundChunkSender();
     setStatus("idle");
     setDisplayRows([]);
     setSessionResult(null);

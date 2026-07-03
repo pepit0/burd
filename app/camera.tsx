@@ -348,7 +348,7 @@ export default function CameraScreen() {
   const soundBannerBlock =
     liveSound.enabled && liveSound.primaryDetection
       ? 72
-      : liveSound.enabled && liveSound.isProcessing
+      : liveSound.enabled && (liveSound.isProcessing || liveSound.chunkWarning)
         ? 36
         : 0;
   const locationTop =
@@ -408,6 +408,7 @@ export default function CameraScreen() {
       <LiveSoundConfirmationOverlay
         enabled={liveSound.enabled}
         isProcessing={liveSound.isProcessing}
+        chunkWarning={liveSound.chunkWarning}
         soundDetection={liveSound.primaryDetection}
         photoDetection={livePhoto.primaryDetection}
         bannerTop={soundBannerTop}
