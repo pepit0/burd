@@ -413,9 +413,7 @@ export async function identifyAudioChunkSafe(
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         const reason = `Server error (${res.status})${text ? `: ${text.slice(0, 120)}` : ""}`;
-        if (__DEV__) {
-          console.warn("[LiveSoundId] identifyAudioChunkSafe:", reason);
-        }
+        console.warn("[LiveSoundId] identifyAudioChunkSafe:", reason);
         return { ok: false, reason };
       }
 
@@ -432,9 +430,7 @@ export async function identifyAudioChunkSafe(
     const reason = message.includes("abort")
       ? "Identification timed out"
       : message;
-    if (__DEV__) {
-      console.warn("[LiveSoundId] identifyAudioChunkSafe:", reason);
-    }
+    console.warn("[LiveSoundId] identifyAudioChunkSafe:", reason);
     return { ok: false, reason };
   }
 }

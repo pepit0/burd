@@ -12,6 +12,7 @@ import type { LiveDetection } from "@/lib/liveSoundSession";
 interface LiveSoundConfirmationOverlayProps {
   enabled: boolean;
   isProcessing: boolean;
+  chunkWarning?: string | null;
   soundDetection: LiveDetection | null;
   photoDetection: LivePhotoDetection | null;
   bannerTop: number;
@@ -20,6 +21,7 @@ interface LiveSoundConfirmationOverlayProps {
 export function LiveSoundConfirmationOverlay({
   enabled,
   isProcessing,
+  chunkWarning,
   soundDetection,
   photoDetection,
   bannerTop,
@@ -30,7 +32,10 @@ export function LiveSoundConfirmationOverlay({
   const agrees = speciesKeysMatch(photoDetection, soundDetection);
   const hasPhotoReference = Boolean(photoDetection);
   const showBanner = Boolean(
-    enabled && (soundDetection || (isProcessing && !soundDetection)),
+    enabled &&
+      (soundDetection ||
+        chunkWarning ||
+        (isProcessing && !soundDetection)),
   );
 
   useEffect(() => {
@@ -75,12 +80,20 @@ export function LiveSoundConfirmationOverlay({
         ],
       }}
     >
-      {!soundDetection && isProcessing ? (
+      {!soundDetection && isProcessing && !chunkWarning ? (
         <View className="items-center">
           <View className="flex-row items-center gap-2 rounded-full bg-background/70 px-3 py-1.5">
             <ActivityIndicator size="small" color="#5f9470" />
             <Text className="font-sans text-xs text-foreground/80">Listening…</Text>
           </View>
+        </View>
+      ) : null}
+
+      {chunkWarning ? (
+        <View className="rounded-2xl border border-amber-400/35 bg-black/70 px-3.5 py-2.5">
+          <Text className="font-sans text-xs leading-relaxed text-amber-100/90">
+            {chunkWarning}
+          </Text>
         </View>
       ) : null}
 

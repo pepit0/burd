@@ -7,7 +7,8 @@ import {
   IOSAudioQuality,
   IOSOutputFormat,
 } from "expo-av/build/Audio/RecordingConstants";
-import { identifyAudioChunkSafe } from "@/lib/identify";
+import { LiveSoundChunkSender } from "@/lib/liveSoundChunkSender";
+import type { IdentifyResult } from "@/lib/identify";
 import { useIdentificationLocation } from "@/hooks/useIdentificationLocation";
 import {
   buildOverlappedAnalyzeUri,
@@ -31,7 +32,6 @@ import {
 import { prefetchRegionalCommunity } from "@/lib/regionalCommunity";
 import type { Prediction } from "@/types";
 
-const MAX_IN_FLIGHT_CHUNKS = 2;
 const PCM_SAMPLE_RATE = 44100;
 const PCM_BIT_RATE = PCM_SAMPLE_RATE * 16;
 
@@ -92,6 +92,7 @@ export interface UseLiveSoundConfirmationResult {
   enabled: boolean;
   isActive: boolean;
   isProcessing: boolean;
+  chunkWarning: string | null;
   primaryDetection: LiveDetection | null;
   displayRows: LiveSoundDisplayRow[];
   toggle: () => Promise<void>;
@@ -102,6 +103,7 @@ export interface UseLiveSoundConfirmationResult {
 export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
   const [enabled, setEnabled] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [chunkWarning, setChunkWarning] = useState<string | null>(null);
   const [displayRows, setDisplayRows] = useState<LiveSoundDisplayRow[]>([]);
 
   const { refresh: refreshLocation } = useIdentificationLocation({
@@ -114,7 +116,7 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
   const pruneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionRef = useRef<PendingSession | null>(null);
   const activeRef = useRef(false);
-  const pendingChunksRef = useRef(0);
+  const chunkSenderRef = useRef(new LiveSoundChunkSender());
   const previousSegmentUriRef = useRef<string | null>(null);
   const segmentStartedAtRef = useRef<number | null>(null);
   const enabledRef = useRef(enabled);
@@ -168,11 +170,47 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
       setIsProcessing(false);
       return;
     }
-    setIsProcessing(pendingChunksRef.current > 0);
+    setIsProcessing(
+      chunkSenderRef.current.inFlight > 0 || chunkSenderRef.current.queued > 0,
+    );
   }, []);
 
+  const handleChunkOutcome = useCallback(
+    (
+      outcome:
+        | { ok: true; result: IdentifyResult }
+        | { ok: false; reason: string },
+    ) => {
+      if (outcome.ok && sessionRef.current) {
+        setChunkWarning(null);
+        if (outcome.result.nativeLogits?.length) {
+          sessionRef.current.latestNativeLogits = outcome.result.nativeLogits;
+        }
+        sessionRef.current.detections = mergeChunkPredictions(
+          sessionRef.current.detections,
+          outcome.result,
+          Date.now(),
+        );
+        sessionRef.current.lastChunkSpeciesKeys = highlightSpeciesKeysFromChunk(
+          outcome.result,
+          sessionRef.current.coords,
+          sessionRef.current.observedAt,
+          sessionRef.current.latestNativeLogits,
+        );
+        refreshDetections();
+        return;
+      }
+
+      if (!outcome.ok) {
+        console.warn("[LiveSoundConfirmation] chunk failed:", outcome.reason);
+        setChunkWarning(`Could not analyze audio: ${outcome.reason}`);
+      }
+    },
+    [refreshDetections],
+  );
+
   const processChunk = useCallback(
-    async (
+    (
       uri: string,
       durationMs: number,
       analyzeUri?: string,
@@ -185,40 +223,24 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
 
       const uploadDurationMs = analyzeDurationMs ?? durationMs;
       if (uploadDurationMs < LIVE_MIN_RECORDING_MS) return;
-      if (pendingChunksRef.current >= MAX_IN_FLIGHT_CHUNKS) return;
 
-      pendingChunksRef.current += 1;
       updateProcessing();
-
-      try {
-        const outcome = await identifyAudioChunkSafe(analyzeUri ?? uri, {
-          lat: session.coords?.latitude ?? null,
-          lng: session.coords?.longitude ?? null,
-          observedAt: session.observedAt,
-        });
-        if (outcome.ok && sessionRef.current) {
-          if (outcome.result.nativeLogits?.length) {
-            sessionRef.current.latestNativeLogits = outcome.result.nativeLogits;
-          }
-          sessionRef.current.detections = mergeChunkPredictions(
-            sessionRef.current.detections,
-            outcome.result,
-            Date.now(),
-          );
-          sessionRef.current.lastChunkSpeciesKeys = highlightSpeciesKeysFromChunk(
-            outcome.result,
-            sessionRef.current.coords,
-            sessionRef.current.observedAt,
-            sessionRef.current.latestNativeLogits,
-          );
-          refreshDetections();
-        }
-      } finally {
-        pendingChunksRef.current = Math.max(0, pendingChunksRef.current - 1);
-        updateProcessing();
-      }
+      chunkSenderRef.current.submit(
+        {
+          uploadUri: analyzeUri ?? uri,
+          geo: {
+            lat: session.coords?.latitude ?? null,
+            lng: session.coords?.longitude ?? null,
+            observedAt: session.observedAt,
+          },
+        },
+        (outcome) => {
+          handleChunkOutcome(outcome);
+          updateProcessing();
+        },
+      );
     },
-    [refreshDetections, updateProcessing],
+    [handleChunkOutcome, updateProcessing],
   );
 
   const stopCurrentRecording = useCallback(async (): Promise<SessionSegment | null> => {
@@ -282,7 +304,7 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
         segment.durationMs,
       );
       previousSegmentUriRef.current = segment.uri;
-      void processChunk(
+      processChunk(
         segment.uri,
         segment.durationMs,
         overlapped.uri,
@@ -322,9 +344,10 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
     void stopCurrentRecording();
     sessionRef.current = null;
     previousSegmentUriRef.current = null;
-    pendingChunksRef.current = 0;
+    chunkSenderRef.current = new LiveSoundChunkSender();
     setEnabled(false);
     setIsProcessing(false);
+    setChunkWarning(null);
     setDisplayRows([]);
   }, [clearMeteringTimer, clearPruneTimer, clearSegmentTimer, stopCurrentRecording]);
 
@@ -345,10 +368,7 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
       );
     }
 
-    const deadline = Date.now() + 20_000;
-    while (pendingChunksRef.current > 0 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+    await chunkSenderRef.current.waitForIdle(20_000);
   }, [processChunk, stopCurrentRecording]);
 
   const snapshotFromSession = useCallback((): SoundConfirmationSnapshot => {
@@ -394,6 +414,7 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
     previousSegmentUriRef.current = null;
     activeRef.current = true;
     setEnabled(true);
+    setChunkWarning(null);
     setDisplayRows([]);
 
     const started = await startRecordingSegment();
@@ -497,6 +518,7 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
     enabled,
     isActive: enabled,
     isProcessing,
+    chunkWarning,
     primaryDetection,
     displayRows,
     toggle,

@@ -183,6 +183,14 @@ async def identify_audio(
 ) -> IdentifyResponse:
     is_live = _parse_live_sound(live_sound)
     data = await audio.read()
+    logger.info(
+        "POST /identify/audio live=%s filename=%r bytes=%d lat=%r lng=%r",
+        is_live,
+        audio.filename,
+        len(data),
+        latitude,
+        longitude,
+    )
     if not data:
         raise HTTPException(status_code=400, detail="Empty audio upload")
     if len(data) > MAX_BYTES:
