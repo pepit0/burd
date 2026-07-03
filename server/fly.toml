@@ -6,6 +6,14 @@
 app = 'burd-inference'
 primary_region = 'iad'
 
+# ML image layers exceed the default 8GB unpack cap when uncompressed.
+[rootfs]
+  size_gb = 20
+  persist = "restart"
+
+# Extra swap helps birder + Perch fit in the 2GB RAM org limit.
+swap_size_mb = 1024
+
 [build]
   dockerfile = 'Dockerfile.fly'
 

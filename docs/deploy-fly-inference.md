@@ -37,7 +37,9 @@ Merge the fix branch to `main`, or run the GitHub Action manually:
 
 GitHub builds **`server/Dockerfile.fly`** and deploys to **`burd-inference`** on port **8000**.
 
-VM memory is set to **2gb** (Fly org limit for this app). If the machine OOMs during model load, upgrade the Fly plan or use a smaller audio model.
+VM memory is set to **2gb** (Fly org limit for this app). Rootfs is **20gb** so the ML image can unpack (default 8GB cap is too small for PyTorch + TensorFlow). Birder weights download on **first boot** and are cached across restarts.
+
+If the machine OOMs during model load, upgrade the Fly plan or use a smaller audio model.
 
 ### 5. Verify (wait ~5 minutes after deploy)
 

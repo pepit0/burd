@@ -8,15 +8,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements-ml.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-ml.txt
-
-# Bake birder weights into the image so cold starts are reliable on Fly.
-RUN python -m birder.tools download-model rope_vit_reg4_b14_capi-inat21
+COPY requirements.txt requirements-ml-fly.txt ./
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements-ml-fly.txt
 
 COPY . .
+RUN chmod +x docker-entrypoint-fly.sh
 
 ENV INFERENCE_MOCK=false
+ENV TFHUB_CACHE_DIR=/root/.cache/tfhub
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["./docker-entrypoint-fly.sh"]
