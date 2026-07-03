@@ -1,0 +1,27 @@
+name: Deploy inference to Fly.io
+
+on:
+  push:
+    branches: [main, cursor/fix-sound-id-server-upload-b7b5]
+    paths:
+      - "server/**"
+      - ".github/workflows/deploy-inference.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-inference
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy burd-inference (Python server/, port 8000)
+        run: flyctl deploy --remote-only --config fly.toml
+        working-directory: server
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
