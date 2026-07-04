@@ -61,18 +61,15 @@ stick. Worse, editing memory in the Fly UI can **regenerate the app config and
 strip `swap_size_mb` / `[rootfs]`**, which reintroduces the OOM crash loop.
 Change memory only in `server/fly.toml`, then redeploy via the GitHub Action.
 
-### Using more than 2GB RAM
+### Memory (current: 4GB)
 
-`memory` above `2gb` fails with `cannot exceed 2048 MiB` because the Fly **org**
-is capped (typically a trial / no-payment-method limit). To raise it:
+`server/fly.toml` runs the machine at **4gb / 4 shared CPUs**, which comfortably
+holds birder (PyTorch) + Perch (TensorFlow) together. `AUDIO_WARMUP=1` pre-compiles
+Perch at startup so the first sound request is fast.
 
-1. Fly dashboard → your **organization** → **Billing** → add a payment method /
-   upgrade off the trial plan.
-2. Once the cap is lifted, set `memory = '4gb'` in `server/fly.toml`.
-3. Redeploy via the GitHub Action.
-
-At 4GB, birder + Perch fit comfortably and you can set `AUDIO_WARMUP=1` to
-pre-compile Perch for a fast first sound request.
+Going above `2gb` requires the Fly **org** memory cap to be lifted (add a payment
+method / upgrade off the trial plan). If a deploy ever fails with
+`cannot exceed 2048 MiB`, the cap is back on — check org billing.
 
 ### 5. Verify (wait ~5 minutes after deploy)
 

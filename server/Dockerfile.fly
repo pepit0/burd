@@ -30,17 +30,15 @@ ENV INFERENCE_MOCK=false
 ENV TFHUB_CACHE_DIR=/root/.cache/tfhub
 ENV AUDIO_MODEL_HUB_URL=https://www.kaggle.com/models/google/bird-vocalization-classifier/frameworks/TensorFlow2/variations/perch_v2_cpu/versions/1
 
-# Keep peak memory under the 2GB org cap. birder (PyTorch) + Perch (TensorFlow)
-# together were OOM-killed during first inference/XLA compile. Disable oneDNN
-# and XLA JIT (biggest transient allocations), cap threads, and limit glibc
-# malloc arenas to curb multi-thread heap bloat.
-ENV TF_ENABLE_ONEDNN_OPTS=0
+# With 4GB we have headroom, so keep oneDNN on (faster CPU inference) and use
+# more threads. XLA auto-JIT stays off — it added a large transient allocation
+# for little CPU benefit. MALLOC_ARENA_MAX still curbs glibc heap bloat.
 ENV TF_XLA_FLAGS=--tf_xla_auto_jit=0
 ENV TF_CPP_MIN_LOG_LEVEL=1
-ENV OMP_NUM_THREADS=2
-ENV OPENBLAS_NUM_THREADS=2
-ENV MKL_NUM_THREADS=2
-ENV MALLOC_ARENA_MAX=2
+ENV OMP_NUM_THREADS=4
+ENV OPENBLAS_NUM_THREADS=4
+ENV MKL_NUM_THREADS=4
+ENV MALLOC_ARENA_MAX=4
 
 # Bake both models into the image (rootfs is 20GB) so machines boot fast and
 # /health passes without an 8-10 min first-boot download. Photo = birder,
