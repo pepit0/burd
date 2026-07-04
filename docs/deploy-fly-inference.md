@@ -37,9 +37,9 @@ Merge the fix branch to `main`, or run the GitHub Action manually:
 
 GitHub builds **`server/Dockerfile.fly`** and deploys to **`burd-inference`** on port **8000**.
 
-VM memory is set to **2gb** (Fly org limit for this app). Rootfs is **20gb** so the ML image can unpack (default 8GB cap is too small for PyTorch + TensorFlow). Birder weights download on **first boot** and are cached across restarts.
+VM memory is set to **2gb** (Fly org limit for this app). Rootfs is **20gb** so the ML image can unpack (default 8GB cap is too small for PyTorch + TensorFlow).
 
-**First boot can take ~8–10 minutes** (birder + Perch downloads). Wait for `Application startup complete` in logs before testing.
+**Both models are baked into the image** at build time (birder for photo, Perch for sound), so machines boot in **~1–3 minutes** with no model downloads. This makes `/health` pass reliably and avoids the old 8–10 min first-boot race.
 
 CPU inference on 2GB can take **30–90 seconds per request**. The app uses longer timeouts when `EXPO_PUBLIC_INFERENCE_URL` contains `fly.dev` — rebuild TestFlight after updating that env.
 
