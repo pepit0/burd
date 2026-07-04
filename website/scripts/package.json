@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "generate:favicons": "node generate-favicons.mjs",
+    "generate:app-icons": "node generate-app-icons.mjs",
     "generate:og-image": "node generate-og-image.mjs"
   },
   "devDependencies": {

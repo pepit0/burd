@@ -6,6 +6,12 @@
     "orientation": "portrait",
     "scheme": "burd",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#5f9470"
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -20,7 +26,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#5f9470"
       },
       "package": "com.burd.app",
       "usesCleartextTraffic": true,
