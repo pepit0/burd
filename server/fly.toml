@@ -11,8 +11,9 @@ primary_region = 'iad'
   size_gb = 20
   persist = "restart"
 
-# Extra swap helps birder + Perch fit in the 2GB RAM org limit.
-swap_size_mb = 1024
+# Generous swap so the Perch/XLA compile spike can't OOM-kill the process on
+# the 2GB RAM org cap. Slower during the spike, but no crash loop.
+swap_size_mb = 3072
 
 [build]
   dockerfile = 'Dockerfile.fly'

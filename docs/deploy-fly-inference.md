@@ -43,6 +43,17 @@ VM memory is set to **2gb** (Fly org limit for this app). Rootfs is **20gb** so 
 
 CPU inference on 2GB can take **30–90 seconds per request**. The app uses longer timeouts when `EXPO_PUBLIC_INFERENCE_URL` contains `fly.dev` — rebuild TestFlight after updating that env.
 
+### Memory (2GB is tight for birder + Perch)
+
+birder (PyTorch) and Perch (TensorFlow) together previously **OOM-killed** the machine during the first Perch/XLA compile. To fit under the 2GB org cap:
+
+- `TF_ENABLE_ONEDNN_OPTS=0`, `TF_XLA_FLAGS=--tf_xla_auto_jit=0` (avoid large transient allocations)
+- `MALLOC_ARENA_MAX=2`, thread caps (`OMP/MKL/OPENBLAS_NUM_THREADS=2`)
+- `swap_size_mb = 3072` so any spike spills to swap instead of OOM
+- Inference is **serialized** (one heavy pass at a time) via a semaphore in `main.py`
+
+If OOM persists, the only real cure is more RAM (raise the Fly org memory limit) or splitting photo and sound onto separate machines.
+
 ### 5. Verify (wait ~5 minutes after deploy)
 
 Logs should show:
