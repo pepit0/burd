@@ -11,12 +11,15 @@ primary_region = 'iad'
   size_gb = 20
   persist = "restart"
 
-# Generous swap so the Perch/XLA compile spike can't OOM-kill the process on
-# the 2GB RAM org cap. Slower during the spike, but no crash loop.
-swap_size_mb = 3072
+# Swap as a safety net for transient allocation spikes.
+swap_size_mb = 2048
 
 [build]
   dockerfile = 'Dockerfile.fly'
+
+# Pre-compile Perch at startup now that we have 4GB — first sound request is fast.
+[env]
+  AUDIO_WARMUP = '1'
 
 [http_service]
   internal_port = 8000
@@ -32,7 +35,9 @@ swap_size_mb = 3072
     path = '/health'
     timeout = '60s'
 
+# 4GB comfortably holds birder (PyTorch) + Perch (TensorFlow) together.
+# Requires the Fly org memory cap to be lifted (add a payment method).
 [[vm]]
-  memory = '2gb'
+  memory = '4gb'
   cpu_kind = 'shared'
-  cpus = 2
+  cpus = 4

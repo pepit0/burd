@@ -67,13 +67,23 @@ async def lifespan(app: FastAPI):
             exc_info=True,
         )
 
-    # Warm up models so the first user request doesn't pay JIT/compile cost.
-    for name, clf in (("image", image_classifier), ("audio", audio_classifier)):
+    # Warm up the image model (cheap, keeps photo ID fast). The audio (Perch)
+    # warmup triggers a large XLA/TensorFlow allocation that OOM-kills the
+    # process on the 2GB VM *before* the server can serve anything — so it is
+    # gated behind AUDIO_WARMUP and left off by default. Perch instead compiles
+    # lazily on the first sound request (swap absorbs the spike).
+    try:
+        await asyncio.to_thread(image_classifier.warmup)
+        logger.info("Warmed up image model")
+    except Exception as exc:
+        logger.warning("image warmup skipped: %s", exc)
+
+    if settings.audio_warmup:
         try:
-            await asyncio.to_thread(clf.warmup)
-            logger.info("Warmed up %s model", name)
+            await asyncio.to_thread(audio_classifier.warmup)
+            logger.info("Warmed up audio model")
         except Exception as exc:
-            logger.warning("%s warmup skipped: %s", name, exc)
+            logger.warning("audio warmup skipped: %s", exc)
 
     yield
 

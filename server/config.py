@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     audio_display_top_k: int = 5
     # Log raw Perch vs final predictions and key species softmax (AUDIO_DEBUG=true).
     audio_debug: bool = False
+    # Pre-compile Perch at startup. Off by default: the XLA compile spike can
+    # OOM-kill the 2GB VM before serving. Enable only with >2GB RAM.
+    audio_warmup: bool = False
 
     regional_min_expected_freq: float = 0.001
     regional_vagrant_confidence: float = 0.55

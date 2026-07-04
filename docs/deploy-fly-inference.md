@@ -54,6 +54,23 @@ birder (PyTorch) and Perch (TensorFlow) together previously **OOM-killed** the m
 
 If OOM persists, the only real cure is more RAM (raise the Fly org memory limit) or splitting photo and sound onto separate machines.
 
+### Do NOT edit memory in the Fly dashboard
+
+Every deploy resets machine config from `server/fly.toml`, so UI edits don't
+stick. Worse, editing memory in the Fly UI can **regenerate the app config and
+strip `swap_size_mb` / `[rootfs]`**, which reintroduces the OOM crash loop.
+Change memory only in `server/fly.toml`, then redeploy via the GitHub Action.
+
+### Memory (current: 4GB)
+
+`server/fly.toml` runs the machine at **4gb / 4 shared CPUs**, which comfortably
+holds birder (PyTorch) + Perch (TensorFlow) together. `AUDIO_WARMUP=1` pre-compiles
+Perch at startup so the first sound request is fast.
+
+Going above `2gb` requires the Fly **org** memory cap to be lifted (add a payment
+method / upgrade off the trial plan). If a deploy ever fails with
+`cannot exceed 2048 MiB`, the cap is back on — check org billing.
+
 ### 5. Verify (wait ~5 minutes after deploy)
 
 Logs should show:
