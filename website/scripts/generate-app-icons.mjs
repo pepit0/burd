@@ -8,11 +8,26 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const assetsDir = path.join(__dirname, "..", "..", "assets");
 const logoSvg = fs.readFileSync(path.join(assetsDir, "logo-mark.svg"));
 
+const BRAND_GREEN = "#5f9470";
+
 async function renderLogoPng(size) {
   const resvg = new Resvg(logoSvg, {
     fitTo: { mode: "width", value: size },
   });
   return resvg.render().asPng();
+}
+
+async function writeOpaqueIcon(name, size) {
+  const png = await renderLogoPng(size);
+  const outPath = path.join(assetsDir, name);
+  // iOS rejects app icons with transparency; the SVG's rounded rect leaves
+  // transparent corners that show up blank on TestFlight/home screen.
+  await sharp(png)
+    .flatten({ background: BRAND_GREEN })
+    .removeAlpha()
+    .png()
+    .toFile(outPath);
+  console.log(`Wrote ${outPath} (${size}x${size}, opaque)`);
 }
 
 const outputs = [
@@ -22,8 +37,5 @@ const outputs = [
 ];
 
 for (const { name, size } of outputs) {
-  const png = await renderLogoPng(size);
-  const outPath = path.join(assetsDir, name);
-  await sharp(png).png().toFile(outPath);
-  console.log(`Wrote ${outPath} (${size}x${size})`);
+  await writeOpaqueIcon(name, size);
 }
