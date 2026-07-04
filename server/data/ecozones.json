@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "zones": [
+    {
+      "id": "alaska",
+      "label": "Alaska",
+      "minLat": 55,
+      "maxLat": 72,
+      "minLng": -170,
+      "maxLng": -130
+    },
+    {
+      "id": "pacific_nw",
+      "label": "Pacific Northwest",
+      "minLat": 42,
+      "maxLat": 60,
+      "minLng": -130,
+      "maxLng": -115
+    },
+    {
+      "id": "canadian_prairies",
+      "label": "Canadian Prairies",
+      "minLat": 49,
+      "maxLat": 60,
+      "minLng": -115,
+      "maxLng": -95
+    },
+    {
+      "id": "rockies",
+      "label": "Rocky Mountains",
+      "minLat": 37,
+      "maxLat": 49,
+      "minLng": -115,
+      "maxLng": -104
+    },
+    {
+      "id": "california",
+      "label": "California",
+      "minLat": 32,
+      "maxLat": 42,
+      "minLng": -125,
+      "maxLng": -115
+    },
+    {
+      "id": "southwest_us",
+      "label": "Southwest US",
+      "minLat": 25,
+      "maxLat": 37,
+      "minLng": -115,
+      "maxLng": -102
+    },
+    {
+      "id": "texas",
+      "label": "Texas",
+      "minLat": 25,
+      "maxLat": 36,
+      "minLng": -106,
+      "maxLng": -93
+    },
+    {
+      "id": "midwest_us",
+      "label": "Midwest US",
+      "minLat": 37,
+      "maxLat": 49,
+      "minLng": -104,
+      "maxLng": -80
+    },
+    {
+      "id": "northeast_us",
+      "label": "Northeast US",
+      "minLat": 37,
+      "maxLat": 47,
+      "minLng": -80,
+      "maxLng": -66
+    },
+    {
+      "id": "southeast_us",
+      "label": "Southeast US",
+      "minLat": 25,
+      "maxLat": 37,
+      "minLng": -95,
+      "maxLng": -75
+    },
+    {
+      "id": "florida",
+      "label": "Florida",
+      "minLat": 24,
+      "maxLat": 31,
+      "minLng": -87,
+      "maxLng": -80
+    },
+    {
+      "id": "eastern_canada",
+      "label": "Eastern Canada",
+      "minLat": 43,
+      "maxLat": 55,
+      "minLng": -95,
+      "maxLng": -57
+    },
+    {
+      "id": "mexico_north",
+      "label": "Northern Mexico",
+      "minLat": 15,
+      "maxLat": 32,
+      "minLng": -115,
+      "maxLng": -86
+    }
+  ]
+}

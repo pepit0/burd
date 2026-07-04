@@ -8,7 +8,21 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "regional-priors"
 ROOT_DATA = Path(__file__).resolve().parent.parent.parent / "data" / "regional-priors"
-ECOZONES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "ecozones.json"
+# Prefer server/data (bundled in the Fly image); fall back to the repo root for
+# local dev. The root data/ dir is NOT copied into the production image.
+_SERVER_DATA = Path(__file__).resolve().parent.parent / "data"
+_ROOT_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+_ECOZONES_CANDIDATES = (
+    _SERVER_DATA / "ecozones.json",
+    _ROOT_DATA_DIR / "ecozones.json",
+)
+
+
+def _ecozones_path() -> Path:
+    for candidate in _ECOZONES_CANDIDATES:
+        if candidate.is_file():
+            return candidate
+    return _ECOZONES_CANDIDATES[0]
 
 
 def _checklist_path() -> Path:
@@ -30,9 +44,10 @@ def _normalize_scientific(name: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_ecozones() -> list[dict]:
-    if not ECOZONES_PATH.is_file():
+    path = _ecozones_path()
+    if not path.is_file():
         return []
-    payload = json.loads(ECOZONES_PATH.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
     return payload.get("zones", [])
 
 
