@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
+import asyncio
 import logging
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -140,7 +141,7 @@ async def identify_image(
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="Image too large")
     try:
-        preds, count = image_classifier.predict(data)
+        preds, count = await asyncio.to_thread(image_classifier.predict, data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     validation = validate_image(data, preds)
@@ -204,7 +205,9 @@ async def identify_audio(
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="Audio too large")
     try:
-        preds, heard = audio_classifier.predict(data, live=is_live)
+        preds, heard = await asyncio.to_thread(
+            audio_classifier.predict, data, live=is_live
+        )
     except Exception as exc:
         logger.exception("Audio identify failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
