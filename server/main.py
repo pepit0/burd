@@ -48,6 +48,11 @@ image_classifier = ImageClassifier()
 audio_classifier = AudioClassifier()
 logger = logging.getLogger(__name__)
 
+# Serialize heavy inference: the Fly machine has ~1-2 shared CPUs and 2GB RAM.
+# Running multiple birder/Perch passes at once (live sound sends many chunks)
+# thrashes CPU and risks OOM, so nothing completes. One at a time is faster.
+_inference_lock = asyncio.Semaphore(1)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,6 +66,15 @@ async def lifespan(app: FastAPI):
             exc,
             exc_info=True,
         )
+
+    # Warm up models so the first user request doesn't pay JIT/compile cost.
+    for name, clf in (("image", image_classifier), ("audio", audio_classifier)):
+        try:
+            await asyncio.to_thread(clf.warmup)
+            logger.info("Warmed up %s model", name)
+        except Exception as exc:
+            logger.warning("%s warmup skipped: %s", name, exc)
+
     yield
 
 
@@ -141,7 +155,8 @@ async def identify_image(
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="Image too large")
     try:
-        preds, count = await asyncio.to_thread(image_classifier.predict, data)
+        async with _inference_lock:
+            preds, count = await asyncio.to_thread(image_classifier.predict, data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     validation = validate_image(data, preds)
@@ -205,9 +220,10 @@ async def identify_audio(
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="Audio too large")
     try:
-        preds, heard = await asyncio.to_thread(
-            audio_classifier.predict, data, live=is_live
-        )
+        async with _inference_lock:
+            preds, heard = await asyncio.to_thread(
+                audio_classifier.predict, data, live=is_live
+            )
     except Exception as exc:
         logger.exception("Audio identify failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

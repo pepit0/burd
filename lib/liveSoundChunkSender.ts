@@ -14,12 +14,20 @@ export type LiveSoundChunkResultHandler = (
     | { ok: false; reason: string; dropped?: boolean },
 ) => void;
 
-/** Serialize uploads so slow Perch responses do not drop rotated mic chunks. */
+/**
+ * Serialize uploads so slow Perch responses do not overlap. Remote CPU
+ * inference (Fly) can take up to a minute; running one at a time avoids
+ * thrashing the server. Only the most recent queued chunk is kept so live
+ * results track current audio instead of falling minutes behind.
+ */
 export class LiveSoundChunkSender {
   private pending = 0;
   private readonly queue: LiveSoundChunkPayload[] = [];
 
-  constructor(private readonly maxInFlight = 2) {}
+  constructor(
+    private readonly maxInFlight = 1,
+    private readonly maxQueued = 1,
+  ) {}
 
   get inFlight(): number {
     return this.pending;
@@ -32,6 +40,11 @@ export class LiveSoundChunkSender {
   submit(payload: LiveSoundChunkPayload, onResult: LiveSoundChunkResultHandler): void {
     if (this.pending >= this.maxInFlight) {
       this.queue.push(payload);
+      // Drop the oldest queued chunks so the backlog never grows unbounded on
+      // a slow server — keep only the freshest audio.
+      while (this.queue.length > this.maxQueued) {
+        this.queue.shift();
+      }
       logSoundDebug("queue", `chunk queued (${this.queue.length} waiting)`, {
         uploadUri: payload.uploadUri,
       });
