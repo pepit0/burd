@@ -2,7 +2,7 @@ name: Deploy inference to Fly.io
 
 on:
   push:
-    branches: [main, cursor/fix-sound-id-server-upload-b7b5]
+    branches: [main]
     paths:
       - "server/**"
       - ".github/workflows/deploy-inference.yml"
@@ -43,3 +43,16 @@ jobs:
         working-directory: server
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Verify /health responds (Python server, not Expo)
+        run: |
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -sf --max-time 20 https://burd-inference.fly.dev/health | grep -q '"ok"'; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Waiting for inference server ($i/10)..."
+            sleep 30
+          done
+          echo "Health check failed — burd-inference may still be on the wrong Expo image"
+          exit 1
