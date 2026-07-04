@@ -78,6 +78,21 @@ class ImageClassifier:
             "load_error": self.load_error,
         }
 
+    def warmup(self) -> None:
+        """Run one dummy inference so the first real request isn't slow."""
+        if self.mock or self._net is None or self._transform is None:
+            return
+        import io
+
+        from PIL import Image
+        from birder.inference.classification import infer_image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (336, 336), (127, 127, 127)).save(buf, format="JPEG")
+        buf.seek(0)
+        image = Image.open(buf).convert("RGB")
+        infer_image(self._net, image, self._transform, device=self._device)
+
     def predict(self, image_bytes: bytes) -> tuple[list[Prediction], int]:
         if self.mock:
             rows = mock_predictions(settings.top_k)

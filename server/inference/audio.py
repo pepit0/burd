@@ -45,6 +45,23 @@ class AudioClassifier:
             self.load_error = str(exc)
             raise
 
+    def warmup(self) -> None:
+        """Run one dummy inference so XLA/TF compiles before real requests.
+
+        The first Perch call JIT-compiles on CPU (tens of seconds). Doing it at
+        startup means live-sound chunks are not stuck waiting on compilation.
+        """
+        if not self.live or self._infer is None:
+            return
+        import numpy as np
+        import tensorflow as tf
+
+        input_key = next(iter(self._infer.structured_input_signature[1].keys()))
+        tensor = tf.constant(
+            np.zeros((1, self.WINDOW_SAMPLES), dtype=np.float32)
+        )
+        self._infer(**{input_key: tensor})
+
     def status(self) -> dict:
         if self.live:
             note = "Google Perch / Bird Vocalization Classifier (Apache-2.0)."
