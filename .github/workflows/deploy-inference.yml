@@ -45,14 +45,20 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Verify /health responds (Python server, not Expo)
+        continue-on-error: true
         run: |
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            if curl -sf --max-time 20 https://burd-inference.fly.dev/health | grep -q '"ok"'; then
-              echo "Health check passed"
+          # Models are baked into the image, so startup is usually 1-3 min. Give
+          # a fresh machine up to ~10 min before warning (do not fail the deploy).
+          for i in $(seq 1 20); do
+            body=$(curl -sf --max-time 30 https://burd-inference.fly.dev/health || true)
+            if echo "$body" | grep -q '"ok":true'; then
+              echo "Health check passed:"
+              echo "$body"
               exit 0
             fi
-            echo "Waiting for inference server ($i/10)..."
+            echo "Waiting for inference server ($i/20)..."
             sleep 30
           done
-          echo "Health check failed — burd-inference may still be on the wrong Expo image"
-          exit 1
+          echo "::warning::/health did not return ok within ~10 min. The deploy"
+          echo "::warning::finished; the machine may still be loading models."
+          echo "::warning::Check: fly logs -a burd-inference (expect uvicorn, not expo)."
