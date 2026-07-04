@@ -22,6 +22,32 @@ import {
 
 const BASE_URL = process.env.EXPO_PUBLIC_INFERENCE_URL ?? "";
 
+/** Fly CPU inference can take 30–90s per request on a 2GB machine. */
+function isRemoteInference(): boolean {
+  return /fly\.dev/i.test(BASE_URL);
+}
+
+function inferenceChunkTimeoutMs(kind: "audio" | "photo"): number {
+  if (isRemoteInference()) {
+    return kind === "audio" ? 90_000 : 60_000;
+  }
+  return kind === "audio" ? 15_000 : 12_000;
+}
+
+function inferencePostTimeoutMs(): number {
+  return isRemoteInference() ? 120_000 : 0;
+}
+
+function formatInferenceError(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.name === "AbortError" || /abort/i.test(error.message)) {
+      return "Identification timed out";
+    }
+    return error.message;
+  }
+  return "Request failed";
+}
+
 export interface IdentifyGeoOptions {
   lat?: number | null;
   lng?: number | null;
@@ -253,13 +279,30 @@ async function postFile(
   }
 
   let res: Response;
+  const postTimeout = inferencePostTimeoutMs();
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
-      method: "POST",
-      body: form,
-    });
+    if (postTimeout > 0) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), postTimeout);
+      try {
+        res = await fetch(`${BASE_URL}${path}`, {
+          method: "POST",
+          body: form,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method: "POST",
+        body: form,
+      });
+    }
   } catch (error) {
-    throw wrapInferenceNetworkError(error);
+    throw wrapInferenceNetworkError(
+      postTimeout > 0 ? new Error(formatInferenceError(error)) : error,
+    );
   }
 
   if (!res.ok) {
@@ -312,7 +355,7 @@ export async function identifyImage(
 export async function identifyImageChunkSafe(
   uri: string,
   geo?: IdentifyGeoOptions,
-  timeoutMs = 12_000,
+  timeoutMs = inferenceChunkTimeoutMs("photo"),
 ): Promise<IdentifyChunkOutcome> {
   if (!BASE_URL) {
     return { ok: false, reason: "Inference URL not configured" };
@@ -352,10 +395,7 @@ export async function identifyImageChunkSafe(
       clearTimeout(timer);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Request failed";
-    const reason = message.includes("abort")
-      ? "Identification timed out"
-      : message;
+    const reason = formatInferenceError(error);
     if (__DEV__) {
       console.warn("[LivePhotoId] identifyImageChunkSafe:", reason);
     }
@@ -387,7 +427,7 @@ export type IdentifyChunkOutcome =
 export async function identifyAudioChunkSafe(
   uri: string,
   geo?: IdentifyGeoOptions,
-  timeoutMs = 15_000,
+  timeoutMs = inferenceChunkTimeoutMs("audio"),
 ): Promise<IdentifyChunkOutcome> {
   if (!BASE_URL) {
     return { ok: false, reason: "Inference URL not configured" };
@@ -426,10 +466,7 @@ export async function identifyAudioChunkSafe(
       clearTimeout(timer);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Request failed";
-    const reason = message.includes("abort")
-      ? "Identification timed out"
-      : message;
+    const reason = formatInferenceError(error);
     console.warn("[LiveSoundId] identifyAudioChunkSafe:", reason);
     return { ok: false, reason };
   }

@@ -39,7 +39,9 @@ GitHub builds **`server/Dockerfile.fly`** and deploys to **`burd-inference`** on
 
 VM memory is set to **2gb** (Fly org limit for this app). Rootfs is **20gb** so the ML image can unpack (default 8GB cap is too small for PyTorch + TensorFlow). Birder weights download on **first boot** and are cached across restarts.
 
-If the machine OOMs during model load, upgrade the Fly plan or use a smaller audio model.
+**First boot can take ~8–10 minutes** (birder + Perch downloads). Wait for `Application startup complete` in logs before testing.
+
+CPU inference on 2GB can take **30–90 seconds per request**. The app uses longer timeouts when `EXPO_PUBLIC_INFERENCE_URL` contains `fly.dev` — rebuild TestFlight after updating that env.
 
 ### 5. Verify (wait ~5 minutes after deploy)
 
