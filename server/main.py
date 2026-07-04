@@ -51,7 +51,15 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     image_classifier.load()
-    audio_classifier.load()
+    try:
+        audio_classifier.load()
+    except Exception as exc:
+        # Perch/TensorFlow can OOM or fail on small VMs — keep photo ID up.
+        logger.error(
+            "Audio model failed to load (sound ID unavailable): %s",
+            exc,
+            exc_info=True,
+        )
     yield
 
 

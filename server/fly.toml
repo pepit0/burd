@@ -1,0 +1,37 @@
+# Burd ML inference (birder photo ID + Perch sound ID).
+# Deploy from the server/ directory: fly deploy --app burd-inference
+#
+# IMPORTANT: internal_port must be 8000 — uvicorn listens there, not 3000.
+
+app = 'burd-inference'
+primary_region = 'iad'
+
+# ML image layers exceed the default 8GB unpack cap when uncompressed.
+[rootfs]
+  size_gb = 20
+  persist = "restart"
+
+# Extra swap helps birder + Perch fit in the 2GB RAM org limit.
+swap_size_mb = 1024
+
+[build]
+  dockerfile = 'Dockerfile.fly'
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = '300s'
+    interval = '30s'
+    method = 'GET'
+    path = '/health'
+    timeout = '10s'
+
+[[vm]]
+  memory = '2gb'
+  cpu_kind = 'shared'
+  cpus = 1

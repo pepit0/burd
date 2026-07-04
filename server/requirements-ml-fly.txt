@@ -1,0 +1,10 @@
+# Fly production ML deps.
+# torch + torchvision are pinned in Dockerfile.fly (CPU index, matching versions).
+pillow>=11.3
+numpy>=2.2
+birder>=0.6.1
+tensorflow>=2.16
+tensorflow-hub>=0.16
+librosa>=0.10
+resampy>=0.4
+soundfile>=0.12

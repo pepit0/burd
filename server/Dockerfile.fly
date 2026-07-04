@@ -1,0 +1,36 @@
+# Production image for Fly.io (burd-inference). Deploy from server/ only.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements-ml-fly.txt ./
+
+# birder needs torch>=2.10 + torchvision with matching ABI. Install both from the
+# CPU index together, then reinstall after other deps so pip cannot swap in a
+# mismatched torchvision (RuntimeError: operator torchvision::nms does not exist).
+ARG TORCH_VERSION=2.12.1
+ARG TORCHVISION_VERSION=0.27.1
+
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir \
+        "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" \
+        --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements-ml-fly.txt \
+    && pip install --no-cache-dir --force-reinstall --no-deps \
+        "torch==${TORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" \
+        --index-url https://download.pytorch.org/whl/cpu \
+    && python -c "import torch, torchvision, birder; print('ok', torch.__version__, torchvision.__version__)"
+
+COPY . .
+RUN chmod +x docker-entrypoint-fly.sh
+
+ENV INFERENCE_MOCK=false
+ENV TFHUB_CACHE_DIR=/root/.cache/tfhub
+EXPOSE 8000
+
+CMD ["./docker-entrypoint-fly.sh"]
