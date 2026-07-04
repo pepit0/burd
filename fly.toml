@@ -1,5 +1,4 @@
-# fly.toml for burd-rg1taa (Expo app at repo root).
-# Do NOT connect this app to burd-inference — inference uses server/fly.toml.
+# fly.toml app configuration file generated for burd-rg1taa on 2026-07-04T03:48:27Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -10,23 +9,23 @@ primary_region = 'iad'
 [build]
 
 [http_service]
-  internal_port = 3000
+  internal_port = 8000
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = false
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ['app']
+  checks = [{ grace_period = '5m0s', interval = '45s', method = 'GET', path = '/health', timeout = '1m0s' }]
 
 [[vm]]
-  memory = '1gb'
+  memory = '2gb'
   cpu_kind = 'shared'
-  cpus = 1
-  memory_mb = 1024
+  cpus = 2
 
 [[vm]]
-  memory = '8gb'
+  memory = '4gb'
   cpu_kind = 'shared'
-  cpus = 4
-  memory_mb = 8192
+  cpus = 2
+  memory_mb = 4096
   processes = ['app']
-  size = 'shared-cpu-4x'
+  size = 'shared-cpu-2x'
