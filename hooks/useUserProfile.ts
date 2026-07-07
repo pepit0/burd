@@ -1,24 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  getFollowCounts,
   getMyProfile,
   getMySightings,
 } from "@/lib/sightings";
-import { followUser, isFollowing, unfollowUser } from "@/lib/social";
+import { getFriendCounts } from "@/lib/social";
 import { getErrorMessage } from "@/lib/errors";
 import type { Profile, Sighting } from "@/types";
 
 interface UseUserProfile {
   profile: Profile | null;
-  followers: number;
-  following: number;
+  friends: number;
   sightings: Sighting[];
-  followingThem: boolean;
+  status: import("@/lib/social").FriendshipStatus;
   isSelf: boolean;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  toggleFollow: () => Promise<void>;
+  toggleFriend: () => Promise<void>;
+  declineRequest: () => Promise<void>;
 }
 
 export function useUserProfile(
@@ -26,10 +25,9 @@ export function useUserProfile(
   currentUserId: string | null,
 ): UseUserProfile {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [followers, setFollowers] = useState(0);
-  const [following, setFollowing] = useState(0);
+  const [friends, setFriends] = useState(0);
   const [sightings, setSightings] = useState<Sighting[]>([]);
-  const [followingThem, setFollowingThem] = useState(false);
+  const [status, setStatus] = useState<import("@/lib/social").FriendshipStatus>("none");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,19 +38,18 @@ export function useUserProfile(
     setLoading(true);
     setError(null);
     try {
-      const [p, counts, s, follows] = await Promise.all([
+      const [p, counts, s, rel] = await Promise.all([
         getMyProfile(targetId),
-        getFollowCounts(targetId),
+        getFriendCounts(targetId),
         getMySightings(targetId, { publishedOnly: true }),
         !isSelf && currentUserId
-          ? isFollowing(currentUserId, targetId)
-          : Promise.resolve(false),
+          ? (await import("@/lib/social")).getFriendshipStatus(currentUserId, targetId)
+          : Promise.resolve("none" as import("@/lib/social").FriendshipStatus),
       ]);
       setProfile(p);
-      setFollowers(counts.followers);
-      setFollowing(counts.following);
+      setFriends(counts.friends);
       setSightings(s.filter((row) => !row.removed_at));
-      setFollowingThem(follows);
+      setStatus(rel);
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
@@ -64,30 +61,60 @@ export function useUserProfile(
     load();
   }, [load]);
 
-  const toggleFollow = useCallback(async () => {
+  const toggleFriend = useCallback(async () => {
     if (!currentUserId || !targetId || isSelf) return;
-    const willFollow = !followingThem;
-    setFollowingThem(willFollow);
-    setFollowers((c) => c + (willFollow ? 1 : -1));
-    const action = willFollow ? followUser : unfollowUser;
+    const { acceptFriendRequest, cancelFriendRequest, sendFriendRequest, unfriendUser } =
+      await import("@/lib/social");
+
+    const prev = status;
+    const apply = (next: import("@/lib/social").FriendshipStatus) => setStatus(next);
+
     try {
-      await action(currentUserId, targetId);
+      if (prev === "friends") {
+        apply("none");
+        await unfriendUser(targetId);
+        return;
+      }
+      if (prev === "outgoing") {
+        apply("none");
+        await cancelFriendRequest(targetId);
+        return;
+      }
+      if (prev === "incoming") {
+        apply("friends");
+        await acceptFriendRequest(targetId);
+        return;
+      }
+      apply("outgoing");
+      await sendFriendRequest(targetId);
     } catch {
-      setFollowingThem(!willFollow);
-      setFollowers((c) => c + (willFollow ? -1 : 1));
+      apply(prev);
     }
-  }, [currentUserId, targetId, isSelf, followingThem]);
+  }, [currentUserId, targetId, isSelf, status]);
+
+  const declineRequest = useCallback(async () => {
+    if (!currentUserId || !targetId || isSelf) return;
+    if (status !== "incoming") return;
+    const { declineFriendRequest } = await import("@/lib/social");
+    const prev = status;
+    setStatus("none");
+    try {
+      await declineFriendRequest(targetId);
+    } catch {
+      setStatus(prev);
+    }
+  }, [currentUserId, targetId, isSelf, status]);
 
   return {
     profile,
-    followers,
-    following,
+    friends,
     sightings,
-    followingThem,
+    status,
     isSelf,
     loading,
     error,
     refresh: load,
-    toggleFollow,
+    toggleFriend,
+    declineRequest,
   };
 }

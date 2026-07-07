@@ -12,6 +12,7 @@ import {
 } from "lucide-react-native";
 import { AudioPostThumb } from "@/components/AudioPostThumb";
 import { Avatar } from "@/components/Avatar";
+import { acceptFriendRequest, declineFriendRequest } from "@/lib/social";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import { timeAgo } from "@/lib/time";
 import type { ActivityItem } from "@/types";
@@ -67,6 +68,26 @@ export function ActivityRow({
     if (event.actor_id) goToActor();
   };
 
+  const isFriendRequest =
+    event.type === "follow" &&
+    typeof event.detail === "string" &&
+    event.detail.includes("sent you a friend request") &&
+    Boolean(event.actor_id);
+
+  const handleAccept = async () => {
+    if (!event.actor_id) return;
+    onOpen?.(event);
+    await acceptFriendRequest(event.actor_id);
+    onClear?.(event);
+  };
+
+  const handleDecline = async () => {
+    if (!event.actor_id) return;
+    onOpen?.(event);
+    await declineFriendRequest(event.actor_id);
+    onClear?.(event);
+  };
+
   return (
     <View
       className={`flex-row items-start gap-3 border-b border-border/40 py-3 ${
@@ -83,27 +104,46 @@ export function ActivityRow({
         ) : null}
       </Pressable>
 
-      <Pressable onPress={openActivity} className="min-w-0 flex-1 pt-0.5 active:opacity-90">
-        <Text
-          className={`font-sans text-sm leading-snug text-foreground ${
-            unread ? "font-sans-medium" : ""
-          }`}
-        >
-          {event.type === "moderation" ? (
-            <Text className="text-foreground/85">{event.detail}</Text>
-          ) : (
-            <>
-              <Text onPress={goToActor} className="font-sans-medium text-foreground">
-                @{handle}
-              </Text>{" "}
-              <Text className="text-foreground/70">{event.detail}</Text>
-            </>
-          )}
-        </Text>
-        <Text className="mt-0.5 font-mono text-[10px] text-muted-foreground/50">
-          {timeAgo(event.created_at)}
-        </Text>
-      </Pressable>
+      <View className="min-w-0 flex-1 pt-0.5">
+        <Pressable onPress={openActivity} className="active:opacity-90">
+          <Text
+            className={`font-sans text-sm leading-snug text-foreground ${
+              unread ? "font-sans-medium" : ""
+            }`}
+          >
+            {event.type === "moderation" ? (
+              <Text className="text-foreground/85">{event.detail}</Text>
+            ) : (
+              <>
+                <Text onPress={goToActor} className="font-sans-medium text-foreground">
+                  @{handle}
+                </Text>{" "}
+                <Text className="text-foreground/70">{event.detail}</Text>
+              </>
+            )}
+          </Text>
+          <Text className="mt-0.5 font-mono text-[10px] text-muted-foreground/50">
+            {timeAgo(event.created_at)}
+          </Text>
+        </Pressable>
+
+        {isFriendRequest ? (
+          <View className="mt-2 flex-row gap-2">
+            <Pressable
+              onPress={() => void handleAccept()}
+              className="rounded-full bg-primary px-3.5 py-2 active:opacity-90"
+            >
+              <Text className="font-sans-medium text-xs text-primary-foreground">Accept</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void handleDecline()}
+              className="rounded-full border border-border bg-card px-3.5 py-2 active:opacity-90"
+            >
+              <Text className="font-sans-medium text-xs text-muted-foreground">Decline</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
 
       {event.sighting && isPhotoSighting(event.sighting) ? (
         <Pressable

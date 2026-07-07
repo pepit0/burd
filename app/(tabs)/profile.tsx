@@ -17,12 +17,15 @@ import {
   Check,
   ChevronRight,
   Database,
+  FileText,
   LogOut,
   Pencil,
+  Settings,
   ShieldAlert,
   Star,
   Users,
 } from "lucide-react-native";
+import { Linking } from "react-native";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import {
   ProfileBannerPickerSheet,
@@ -34,6 +37,7 @@ import {
   ProfilePostsFilterBar,
   type ProfilePostsFilter,
 } from "@/components/ProfilePostsFilter";
+import { DisplayNameText } from "@/components/DisplayNameText";
 import { ProfileStatsRow } from "@/components/ProfileStatsRow";
 import { SightingPostsGrid } from "@/components/SightingPostsGrid";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,8 +48,9 @@ import { getErrorMessage } from "@/lib/errors";
 import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { supabase } from "@/lib/supabase";
+import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 
-const RADIUS_OPTIONS = [5, 10, 25, 50, 100];
+const PRIVACY_POLICY_URL = "https://burdapp.com/privacy.html";
 
 function SettingsRow({
   icon: Icon,
@@ -96,7 +101,7 @@ export default function ProfileScreen() {
   const userId = user?.id ?? null;
   const { isAdmin } = useAdmin(userId);
 
-  const { profile, followers, following, loading, refreshing, error, refresh, silentRefresh, setRadius, updateAvatar, updateDetails } =
+  const { profile, friends, loading, refreshing, error, refresh, silentRefresh, updateAvatar, updateDetails } =
     useProfile(userId);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [bannerPickerOpen, setBannerPickerOpen] = useState(false);
@@ -150,12 +155,13 @@ export default function ProfileScreen() {
       { label: "Shutterbug", desc: "Added a photo to a sighting", earned: photoCount >= 1 },
       { label: "Rare Find", desc: "Spotted a rare bird", earned: rareCount >= 1 },
       { label: "Prolific Birder", desc: "Logged 10+ sightings", earned: sightings.length >= 10 },
-      { label: "Social Flyer", desc: "Followed another birder", earned: following >= 1 },
+      { label: "Social Flyer", desc: "Added another birder", earned: friends >= 1 },
     ],
-    [sightings.length, photoCount, rareCount, following],
+    [sightings.length, photoCount, rareCount, friends],
   );
 
   const displayName = profile?.full_name || profile?.username || "Birder";
+  const displayNamePlain = stripDisplayNameColorCodes(displayName);
   const selectedCoverId = profileCoverPresetId(profile?.cover_url);
 
   const stats: {
@@ -163,7 +169,7 @@ export default function ProfileScreen() {
     value: number;
     onPress: () => void;
   }[] = [
-    { label: "Sightings", value: sightings.length, onPress: () => router.push("/(tabs)/journal") },
+    { label: "Posts", value: publishedSightings.length, onPress: () => router.push("/(tabs)/journal") },
     {
       label: "Species",
       value: speciesCount,
@@ -173,14 +179,9 @@ export default function ProfileScreen() {
       },
     },
     {
-      label: "Followers",
-      value: followers,
-      onPress: () => router.push({ pathname: "/follows", params: { tab: "followers" } }),
-    },
-    {
-      label: "Following",
-      value: following,
-      onPress: () => router.push({ pathname: "/follows", params: { tab: "following" } }),
+      label: "Friends",
+      value: friends,
+      onPress: () => router.push({ pathname: "/follows", params: { tab: "friends" } }),
     },
   ];
 
@@ -258,7 +259,18 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <ScreenHeader title="Profile" />
+      <ScreenHeader
+        title="Profile"
+        action={
+          <Pressable
+            onPress={() => router.push("/profile-settings" as never)}
+            className="rounded-full p-2 active:bg-card"
+            accessibilityLabel="Profile settings"
+          >
+            <Settings size={18} color="#8a9e82" />
+          </Pressable>
+        }
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -274,58 +286,70 @@ export default function ProfileScreen() {
         />
 
         <View className="-mt-9 px-4">
-          <Pressable
-            onPress={() => void pickProfilePhoto()}
-            disabled={avatarUploading}
-            className="relative mb-3 h-[72px] w-[72px] active:opacity-90"
-          >
-            <View
-              className="h-full w-full overflow-hidden rounded-full border-[3px] border-background"
-              style={{ backgroundColor: profile?.avatar_color ?? "#5f9470" }}
+          <View className="mb-3 flex-row items-end gap-3">
+            <Pressable
+              onPress={() => void pickProfilePhoto()}
+              disabled={avatarUploading}
+              className="relative h-[72px] w-[72px] shrink-0 active:opacity-90"
             >
-              {profile?.avatar_url ? (
-                <Image
-                  source={{ uri: profile.avatar_url }}
-                  className="h-full w-full"
-                  resizeMode="cover"
-                />
-              ) : (
-                <View className="h-full w-full items-center justify-center">
-                  <Text className="font-serif-semibold text-2xl text-primary-foreground">
-                    {displayName.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              {avatarUploading ? (
-                <View className="absolute inset-0 items-center justify-center bg-black/45">
-                  <ActivityIndicator color="#f0ead6" />
+              <View
+                className="h-full w-full overflow-hidden rounded-full border-[3px] border-background"
+                style={{ backgroundColor: profile?.avatar_color ?? "#5f9470" }}
+              >
+                {profile?.avatar_url ? (
+                  <Image
+                    source={{ uri: profile.avatar_url }}
+                    className="h-full w-full"
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View className="h-full w-full items-center justify-center">
+                    <Text className="font-serif-semibold text-2xl text-primary-foreground">
+                      {displayNamePlain.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                {avatarUploading ? (
+                  <View className="absolute inset-0 items-center justify-center bg-black/45">
+                    <ActivityIndicator color="#f0ead6" />
+                  </View>
+                ) : null}
+              </View>
+              {!avatarUploading ? (
+                <View
+                  className="absolute -bottom-0.5 -right-0.5 z-10 h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-card shadow-sm"
+                  style={{ elevation: 4 }}
+                >
+                  <Camera size={13} color="#8a9e82" />
                 </View>
               ) : null}
-            </View>
-            {!avatarUploading ? (
-              <View
-                className="absolute -bottom-0.5 -right-0.5 z-10 h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-card shadow-sm"
-                style={{ elevation: 4 }}
-              >
-                <Camera size={13} color="#8a9e82" />
-              </View>
-            ) : null}
-          </Pressable>
-
-          <View className="flex-row items-center gap-1.5">
-            <Text className="font-serif-semibold text-xl text-foreground">{displayName}</Text>
-            <Pressable
-              onPress={() => setDetailsEditOpen(true)}
-              className="rounded-full p-1 active:bg-muted"
-              accessibilityLabel="Edit display name and bio"
-            >
-              <Pencil size={14} color="#8a9e82" />
             </Pressable>
           </View>
-          <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
-            @{profile?.username ?? "birder"}
-            {profile?.location_name ? ` · ${profile.location_name}` : ""}
-          </Text>
+
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="min-w-0 flex-1">
+              <View className="flex-row items-center gap-1.5">
+                <DisplayNameText
+                  text={displayName}
+                  className="font-serif-semibold text-xl text-foreground"
+                />
+                <Pressable
+                  onPress={() => setDetailsEditOpen(true)}
+                  className="rounded-full p-1 active:bg-muted"
+                  accessibilityLabel="Edit display name and bio"
+                >
+                  <Pencil size={14} color="#8a9e82" />
+                </Pressable>
+              </View>
+              <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
+                @{profile?.username ?? "birder"}
+                {profile?.location_name ? ` · ${profile.location_name}` : ""}
+              </Text>
+            </View>
+            <View className="mr-2">
+              <ProfileStatsRow stats={stats} variant="inline" />
+            </View>
+          </View>
           {profile?.bio ? (
             <Text className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
               {profile.bio}
@@ -336,42 +360,10 @@ export default function ProfileScreen() {
             </Text>
           )}
 
-          <ProfileStatsRow stats={stats} />
-
           {error ? (
             <Text className="mt-3 font-sans text-xs text-destructive">{error}</Text>
           ) : null}
 
-          <View className="mt-6">
-            <Text className="mb-1 font-serif-semibold text-base text-foreground">
-              Nearby Radius
-            </Text>
-            <Text className="mb-3 font-sans text-xs text-muted-foreground">
-              Show sightings within this distance on your Nearby feed.
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {RADIUS_OPTIONS.map((km) => {
-                const active = profile?.search_radius_km === km;
-                return (
-                  <Pressable
-                    key={km}
-                    onPress={() => setRadius(km)}
-                    className={`rounded-full border px-4 py-2 ${
-                      active ? "border-primary bg-primary" : "border-border bg-card"
-                    }`}
-                  >
-                    <Text
-                      className={`font-mono text-xs ${
-                        active ? "text-primary-foreground" : "text-muted-foreground"
-                      }`}
-                    >
-                      {km} km
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
         </View>
 
         <View className="mt-6 border-t border-border">
@@ -440,10 +432,19 @@ export default function ProfileScreen() {
                 iconBg="rgba(200,137,58,0.15)"
                 label="Admin"
                 description="Reports, moderation, and access"
-                onPress={() => router.push("/admin/index" as never)}
+                onPress={() => router.push("/admin" as never)}
                 borderTop
               />
             ) : null}
+            <SettingsRow
+              icon={FileText}
+              iconColor="#8a9e82"
+              iconBg="rgba(138,158,130,0.15)"
+              label="Privacy Policy"
+              description="How Burd collects and uses data"
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+              borderTop
+            />
             <SettingsRow
               icon={Database}
               iconColor="#8a9e82"

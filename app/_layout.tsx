@@ -3,6 +3,7 @@ import "../global.css";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { vars } from "nativewind";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -25,24 +26,27 @@ import {
 import { SuspensionScreen } from "@/components/SuspensionScreen";
 import { NotificationBadgeProvider } from "@/components/NotificationBadgeProvider";
 import { SafeKeyboardProvider } from "@/components/SafeKeyboardProvider";
+import { ColorThemeProvider, useColorTheme } from "@/components/ColorThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { nativewindColorVars } from "@/lib/colorTheme";
 import { getMyAccountStatus } from "@/lib/moderation";
 import { initRegionalCommunity } from "@/lib/regionalCommunity";
 import type { AccountStatus } from "@/types";
 
 function AppShell() {
   const { user } = useAuth();
+  const { palette } = useColorTheme();
   usePushNotifications(user?.id ?? null);
 
   return (
     <NotificationBadgeProvider userId={user?.id ?? null}>
-      <View className="flex-1 bg-background">
+      <View className="flex-1 bg-background" style={vars(nativewindColorVars(palette))}>
         <StatusBar style="light" />
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: "#181e16" },
+            contentStyle: { backgroundColor: palette.background },
           }}
         >
           <Stack.Screen name="(auth)" />
@@ -58,6 +62,7 @@ function AppShell() {
           <Stack.Screen name="follows" />
           <Stack.Screen name="user/[id]" />
           <Stack.Screen name="admin" />
+          <Stack.Screen name="profile-settings" />
           <Stack.Screen
             name="camera"
             options={{ presentation: "fullScreenModal", animation: "fade" }}
@@ -74,7 +79,16 @@ function AppShell() {
 }
 
 export default function RootLayout() {
+  return (
+    <ColorThemeProvider>
+      <RootLayoutInner />
+    </ColorThemeProvider>
+  );
+}
+
+function RootLayoutInner() {
   const { session, loading, user } = useAuth();
+  const { palette } = useColorTheme();
   const segments = useSegments();
   const router = useRouter();
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
@@ -149,7 +163,7 @@ export default function RootLayout() {
   if (loading || !fontsReady || (session && statusLoading && !accountStatus)) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator size="large" color="#5f9470" />
+        <ActivityIndicator size="large" color={palette.primary} />
       </View>
     );
   }

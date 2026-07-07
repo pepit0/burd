@@ -10,21 +10,26 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, Search, Users } from "lucide-react-native";
 import { Avatar } from "@/components/Avatar";
+import { DisplayNameText } from "@/components/DisplayNameText";
 import { FollowButton } from "@/components/FollowButton";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errors";
 import { getMyProfile } from "@/lib/sightings";
 import {
-  followUser,
-  getFollowersList,
-  getFollowingList,
-  unfollowUser,
+  acceptFriendRequest,
+  cancelFriendRequest,
+  declineFriendRequest,
+  getFriendsList,
+  getIncomingFriendRequests,
+  getOutgoingFriendRequests,
+  sendFriendRequest,
+  unfriendUser,
   type UserListItem,
 } from "@/lib/social";
 import type { Profile } from "@/types";
 
-type FollowTab = "followers" | "following";
+type FriendsTab = "requests" | "friends";
 
 function matchesQuery(item: UserListItem, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -37,8 +42,8 @@ function matchesQuery(item: UserListItem, query: string): boolean {
 
 export default function FollowsScreen() {
   const router = useRouter();
-  const { tab = "followers", profileId: profileIdParam } = useLocalSearchParams<{
-    tab?: FollowTab;
+  const { tab = "friends", profileId: profileIdParam } = useLocalSearchParams<{
+    tab?: FriendsTab;
     profileId?: string | string[];
   }>();
   const { user } = useAuth();
@@ -47,7 +52,7 @@ export default function FollowsScreen() {
   const profileUserId = profileId ?? userId;
   const isOwnList = !profileId || profileId === userId;
 
-  const mode: FollowTab = tab === "following" ? "following" : "followers";
+  const mode: FriendsTab = tab === "requests" ? "requests" : "friends";
   const [ownerProfile, setOwnerProfile] = useState<Profile | null>(null);
 
   const [query, setQuery] = useState("");
@@ -59,13 +64,21 @@ export default function FollowsScreen() {
     if (!userId || !profileUserId) return;
     setLoading(true);
     try {
+      const listPromise =
+        mode === "requests"
+          ? isOwnList
+            ? Promise.all([
+                getIncomingFriendRequests(userId),
+                getOutgoingFriendRequests(userId),
+              ]).then(([incoming, outgoing]) => [...incoming, ...outgoing])
+            : Promise.resolve([])
+          : getFriendsList(profileUserId, userId);
+
       const [list, owner] = await Promise.all([
-        mode === "followers"
-          ? getFollowersList(profileUserId, userId)
-          : getFollowingList(profileUserId, userId),
+        listPromise,
         !isOwnList ? getMyProfile(profileUserId) : Promise.resolve(null),
       ]);
-      setRows(list);
+      setRows(Array.isArray(list) ? list : []);
       setOwnerProfile(owner);
       setError(null);
     } catch (e) {
@@ -84,48 +97,63 @@ export default function FollowsScreen() {
     [rows, query],
   );
 
-  const toggleFollow = useCallback(
+  const toggleFriend = useCallback(
     (target: UserListItem) => {
       if (!userId || target.id === userId) return;
-      const willFollow = !target.isFollowing;
-      setRows((prev) =>
-        prev.map((u) =>
-          u.id === target.id ? { ...u, isFollowing: willFollow } : u,
-        ),
-      );
-      const action = willFollow ? followUser : unfollowUser;
-      action(userId, target.id).catch(() => {
-        setRows((prev) =>
-          prev.map((u) =>
-            u.id === target.id ? { ...u, isFollowing: !willFollow } : u,
-          ),
-        );
-      });
+      const prev = target.status;
+
+      const apply = (next: UserListItem["status"]) =>
+        setRows((rows) => rows.map((u) => (u.id === target.id ? { ...u, status: next } : u)));
+
+      if (prev === "friends") {
+        apply("none");
+        unfriendUser(target.id).catch(() => apply("friends"));
+        return;
+      }
+      if (prev === "outgoing") {
+        apply("none");
+        cancelFriendRequest(target.id).catch(() => apply("outgoing"));
+        return;
+      }
+      if (prev === "incoming") {
+        // Primary action: accept.
+        apply("friends");
+        acceptFriendRequest(target.id).catch(() => apply("incoming"));
+        return;
+      }
+
+      apply("outgoing");
+      sendFriendRequest(target.id).catch(() => apply("none"));
     },
     [userId],
   );
 
+  const declineRequest = useCallback(
+    (target: UserListItem) => {
+      if (!userId || target.id === userId) return;
+      if (target.status !== "incoming") return;
+      setRows((rows) => rows.filter((u) => u.id !== target.id));
+      declineFriendRequest(target.id).catch(() => void load());
+    },
+    [load, userId],
+  );
+
   const ownerHandle = ownerProfile?.username ? `@${ownerProfile.username}` : "This birder";
   const title = isOwnList
-    ? mode === "followers"
-      ? "Followers"
-      : "Following"
-    : mode === "followers"
-      ? `${ownerHandle}'s followers`
-      : `${ownerHandle} is following`;
+    ? mode === "requests"
+      ? "Friend requests"
+      : "Friends"
+    : `${ownerHandle}'s friends`;
 
-  const emptyCopy =
-    mode === "followers"
-      ? query.trim()
-        ? "No followers match your search."
-        : isOwnList
-          ? "No followers yet."
-          : `${ownerHandle} has no followers yet.`
-      : query.trim()
-        ? "No followed birders match your search."
-        : isOwnList
-          ? "You are not following anyone yet."
-          : `${ownerHandle} is not following anyone yet.`;
+  const emptyCopy = mode === "requests"
+    ? query.trim()
+      ? "No requests match your search."
+      : "No friend requests right now."
+    : query.trim()
+      ? "No friends match your search."
+      : isOwnList
+        ? "No friends yet."
+        : `${ownerHandle} has no friends yet.`;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -166,13 +194,13 @@ export default function FollowsScreen() {
             <Text className="mt-3 text-center font-sans text-sm leading-relaxed text-muted-foreground">
               {emptyCopy}
             </Text>
-            {mode === "following" && !query.trim() && isOwnList ? (
+            {mode === "friends" && !query.trim() && isOwnList ? (
               <Pressable
                 onPress={() => router.push("/users")}
                 className="mt-4 rounded-xl bg-primary px-4 py-2.5"
               >
                 <Text className="font-sans-medium text-sm text-primary-foreground">
-                  Find birders
+                  Add birders
                 </Text>
               </Pressable>
             ) : null}
@@ -185,14 +213,18 @@ export default function FollowsScreen() {
                 onPress={() => router.push(`/user/${u.id}`)}
                 className="flex-row items-center gap-3 rounded-xl py-2.5 active:bg-card"
               >
-                <Avatar user={u.username} color={u.avatar_color} size={42} />
+                <Avatar
+                  user={u.username}
+                  color={u.avatar_color}
+                  avatarUrl={u.avatar_url}
+                  size={42}
+                />
                 <View className="min-w-0 flex-1">
-                  <Text
+                  <DisplayNameText
+                    text={u.full_name || u.username}
                     className="font-sans-medium text-sm text-foreground"
                     numberOfLines={1}
-                  >
-                    {u.full_name || u.username}
-                  </Text>
+                  />
                   <Text
                     className="font-mono text-xs text-muted-foreground"
                     numberOfLines={1}
@@ -210,8 +242,9 @@ export default function FollowsScreen() {
                 </View>
                 {u.id !== userId ? (
                   <FollowButton
-                    following={u.isFollowing}
-                    onPress={() => toggleFollow(u)}
+                    status={u.status}
+                    onPress={() => toggleFriend(u)}
+                    onSecondaryPress={() => declineRequest(u)}
                   />
                 ) : null}
               </Pressable>

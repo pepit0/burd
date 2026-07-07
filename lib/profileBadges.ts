@@ -33,7 +33,7 @@ export function buildProfileBadges(input: {
     },
     {
       label: "Social Flyer",
-      desc: "Followed another birder",
+      desc: "Added another birder",
       earned: input.following >= 1,
     },
   ];

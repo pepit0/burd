@@ -10,16 +10,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, MapPin, Search, Users } from "lucide-react-native";
 import { Avatar } from "@/components/Avatar";
+import { DisplayNameText } from "@/components/DisplayNameText";
 import { FollowButton } from "@/components/FollowButton";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { getMyProfile } from "@/lib/sightings";
 import {
-  followUser,
+  acceptFriendRequest,
+  cancelFriendRequest,
+  declineFriendRequest,
   getNearbyBirders,
   searchUsers,
-  unfollowUser,
+  sendFriendRequest,
+  unfriendUser,
   type UserListItem,
 } from "@/lib/social";
 import { getErrorMessage } from "@/lib/errors";
@@ -92,22 +96,45 @@ export default function UsersScreen() {
     };
   }, [query, userId, mode, coords, radiusKm, locStatus]);
 
-  const toggleFollow = useCallback(
+  const toggleFriend = useCallback(
     (target: UserListItem) => {
       if (!userId) return;
-      const willFollow = !target.isFollowing;
-      setResults((prev) =>
-        prev.map((u) =>
-          u.id === target.id ? { ...u, isFollowing: willFollow } : u,
-        ),
-      );
-      const action = willFollow ? followUser : unfollowUser;
-      action(userId, target.id).catch(() => {
-        setResults((prev) =>
-          prev.map((u) =>
-            u.id === target.id ? { ...u, isFollowing: !willFollow } : u,
-          ),
+      const prev = target.status;
+      const apply = (next: UserListItem["status"]) =>
+        setResults((rows) =>
+          rows.map((u) => (u.id === target.id ? { ...u, status: next } : u)),
         );
+
+      if (prev === "friends") {
+        apply("none");
+        unfriendUser(target.id).catch(() => apply("friends"));
+        return;
+      }
+      if (prev === "outgoing") {
+        apply("none");
+        cancelFriendRequest(target.id).catch(() => apply("outgoing"));
+        return;
+      }
+      if (prev === "incoming") {
+        apply("friends");
+        acceptFriendRequest(target.id).catch(() => apply("incoming"));
+        return;
+      }
+
+      apply("outgoing");
+      sendFriendRequest(target.id).catch(() => apply("none"));
+    },
+    [userId],
+  );
+
+  const declineRequest = useCallback(
+    (target: UserListItem) => {
+      if (!userId) return;
+      if (target.status !== "incoming") return;
+      setResults((rows) => rows.filter((u) => u.id !== target.id));
+      declineFriendRequest(target.id).catch(() => {
+        // fall back to reload next tick by forcing state update
+        setResults((rows) => rows);
       });
     },
     [userId],
@@ -181,7 +208,7 @@ export default function UsersScreen() {
 
           {mode === "nearby" && coords ? (
             <Text className="font-sans text-[11px] text-muted-foreground">
-              Within {radiusKm} km · follow someone to see their posts in Following
+              Within {radiusKm} km · add birders to see their posts in Friends
             </Text>
           ) : null}
         </View>
@@ -230,14 +257,18 @@ export default function UsersScreen() {
                 onPress={() => router.push(`/user/${u.id}`)}
                 className="flex-row items-center gap-3 rounded-xl py-2.5 active:bg-card"
               >
-                <Avatar user={u.username} color={u.avatar_color} size={42} />
+                <Avatar
+                  user={u.username}
+                  color={u.avatar_color}
+                  avatarUrl={u.avatar_url}
+                  size={42}
+                />
                 <View className="min-w-0 flex-1">
-                  <Text
+                  <DisplayNameText
+                    text={u.full_name || u.username}
                     className="font-sans-medium text-sm text-foreground"
                     numberOfLines={1}
-                  >
-                    {u.full_name || u.username}
-                  </Text>
+                  />
                   <Text
                     className="font-mono text-xs text-muted-foreground"
                     numberOfLines={1}
@@ -254,8 +285,9 @@ export default function UsersScreen() {
                   ) : null}
                 </View>
                 <FollowButton
-                  following={u.isFollowing}
-                  onPress={() => toggleFollow(u)}
+                  status={u.status}
+                  onPress={() => toggleFriend(u)}
+                  onSecondaryPress={() => declineRequest(u)}
                 />
               </Pressable>
             ))}

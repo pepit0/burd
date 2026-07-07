@@ -5,6 +5,7 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -15,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Check, Filter, Search } from "lucide-react-native";
 import { FilterSheet } from "@/components/FilterSheet";
+import { FieldGuideExploreTab } from "@/components/FieldGuideExploreTab";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesImage } from "@/components/SpeciesImage";
@@ -40,6 +42,13 @@ import { resetFieldGuideImageLoader, primeFieldGuideImages } from "@/lib/fieldGu
 import { getMyProfile } from "@/lib/sightings";
 import { consumeFieldGuideIntent } from "@/lib/navigationIntent";
 import { SPECIES_CATALOG } from "@/lib/speciesCatalog";
+
+const FIELD_GUIDE_TABS = [
+  { id: "guide", label: "Guide" },
+  { id: "explore", label: "Explore" },
+] as const;
+
+type FieldGuideTab = (typeof FIELD_GUIDE_TABS)[number]["id"];
 
 /** Species shown on first paint (5 rows × 2 columns). */
 const INITIAL_COUNT = 10;
@@ -155,6 +164,7 @@ export default function FieldGuideScreen() {
     DEFAULT_FIELD_GUIDE_FILTERS,
   );
   const [filterOpen, setFilterOpen] = useState(false);
+  const [tab, setTab] = useState<FieldGuideTab>("guide");
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
   const activeFilterCount = countActiveFieldGuideFilters(guideFilters);
 
@@ -170,6 +180,7 @@ export default function FieldGuideScreen() {
       if (intent) {
         setSortLoggedFirst(intent.sortLoggedFirst);
         setViewUserId(intent.userId);
+        setTab("guide");
         setVisibleCount(INITIAL_COUNT);
         visibleCountRef.current = INITIAL_COUNT;
         resetFieldGuideImageLoader();
@@ -355,11 +366,49 @@ export default function FieldGuideScreen() {
   const loggedFilterLabel = viewProfile
     ? `Logged by @${viewProfile.username}`
     : "Logged by you";
+  const showExploreTab = !viewUserId;
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <ScreenHeader title={headerTitle} />
 
+      {showExploreTab ? (
+        <View className="px-4 pb-1 pt-3">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerClassName="flex-row items-center gap-2 pr-2"
+          >
+            {FIELD_GUIDE_TABS.map((item) => {
+              const active = tab === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => setTab(item.id)}
+                  className={`rounded-full px-3 py-1 ${
+                    active ? "bg-primary" : "border border-border bg-card"
+                  }`}
+                >
+                  <Text
+                    className={`text-xs ${
+                      active
+                        ? "font-sans-medium text-primary-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {tab === "explore" && showExploreTab ? (
+        <FieldGuideExploreTab />
+      ) : (
+        <>
       <View className="gap-3 px-4 pb-3 pt-3">
         <View className="flex-row items-center gap-2">
           <View className="flex-1 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
@@ -480,6 +529,8 @@ export default function FieldGuideScreen() {
           },
         ]}
       />
+        </>
+      )}
     </SafeAreaView>
   );
 }

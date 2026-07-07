@@ -9,10 +9,10 @@ export function HeaderActions() {
     <>
       <Pressable
         onPress={() => router.push("/audio-id")}
-        className="rounded-full p-2 active:bg-card"
+        className="rounded-full bg-primary p-2 active:opacity-90"
         accessibilityLabel="Identify bird by sound"
       >
-        <Mic size={18} color="#8a9e82" />
+        <Mic size={18} color="#f0ead6" />
       </Pressable>
       <Pressable
         onPress={() => router.push("/users")}

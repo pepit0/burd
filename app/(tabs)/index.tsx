@@ -35,7 +35,7 @@ import { getMyProfile } from "@/lib/sightings";
 
 const FEED_TABS = [
   { id: "for_you", label: "For you" },
-  { id: "following", label: "Following" },
+  { id: "following", label: "Friends" },
   { id: "new", label: "New" },
   { id: "activity", label: "Activity" },
 ] as const;
@@ -45,7 +45,7 @@ type Tab = (typeof FEED_TABS)[number]["id"];
 const EMPTY_COPY: Record<FeedFilter, string> = {
   for_you:
     "No suggestions yet. Explore New or find birders near you to get personalized picks.",
-  following: "Sightings from people you follow will appear here.",
+  following: "Posts from birders you’re friends with will appear here.",
   new: "No new sightings from around the world yet.",
 };
 
@@ -245,7 +245,7 @@ export default function FeedScreen() {
             <CenterMessage>{activityError}</CenterMessage>
           ) : activity.length === 0 ? (
             <CenterMessage>
-              No activity yet. Likes and follows will show up here.
+              No activity yet. Likes and friend requests will show up here.
             </CenterMessage>
           ) : (
             activity.map((event) => <ActivityRow key={event.id} event={event} />)
@@ -277,7 +277,7 @@ export default function FeedScreen() {
               activeFilterCount > 0 || search.trim()
                 ? undefined
                 : feedFilter === "following"
-                  ? { label: "Find birders to follow", onPress: () => router.push("/users") }
+                  ? { label: "Add birders", onPress: () => router.push("/users") }
                   : feedFilter === "for_you"
                     ? { label: "Find birders near you", onPress: () => router.push("/users") }
                     : undefined

@@ -1,6 +1,6 @@
 import { decode } from "base64-arraybuffer";
 import { getCommentCountsForSightings } from "@/lib/comments";
-import { getMyFollowingIds } from "@/lib/social";
+import { getMyFriendIds } from "@/lib/social";
 import { supabase } from "@/lib/supabase";
 import { observedDate } from "@/lib/sightingFormat";
 import type {
@@ -66,7 +66,7 @@ export async function getForYouFeed(
   lng: number | null,
   radiusKm: number,
 ): Promise<FeedSighting[]> {
-  const followingIds = await getMyFollowingIds(userId);
+  const friendIds = await getMyFriendIds(userId);
 
   const candidates =
     lat != null && lng != null
@@ -75,7 +75,7 @@ export async function getForYouFeed(
 
   const filtered = candidates
     .filter(
-      (row) => row.user_id !== userId && !followingIds.has(row.user_id),
+      (row) => row.user_id !== userId && !friendIds.has(row.user_id),
     )
     .sort((a, b) => forYouScore(b) - forYouScore(a))
     .slice(0, 100);

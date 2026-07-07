@@ -23,7 +23,8 @@
     "build:regional-priors:sample": "node scripts/run-python.mjs scripts/build-regional-priors.py --sample --all",
     "patch:regional-priors:prairies": "node scripts/run-python.mjs scripts/build-regional-priors.py --region na --merge --month-stratify --max-records 12000 --bbox 49,60,-115,-95",
     "build:ecozone-checklist": "node scripts/run-python.mjs scripts/build-ecozone-checklist.py",
-    "build:ecozone-checklist:prairies": "node scripts/run-python.mjs scripts/build-ecozone-checklist.py --zones canadian_prairies --max-records 800",
+    "build:ecozone-checklist:prairies": "node scripts/run-python.mjs scripts/build-ecozone-checklist.py --zones canadian_prairies --max-records 2400",
+    "derive:explore-checklist-freq": "node scripts/derive-explore-checklist-freq.mjs",
     "merge:regional-priors": "node scripts/run-python.mjs scripts/merge-community-priors.py"
   },
   "dependencies": {

@@ -9,6 +9,10 @@ import {
   neighborCellIds,
 } from "@/lib/cellId";
 import {
+  exploreChecklistPrior,
+  neighborDistanceWeight,
+} from "@/lib/exploreChecklist";
+import {
   checklistPrior,
   checklistSpeciesForCoords,
   hasChecklistData,
@@ -60,6 +64,7 @@ const globalBundle = globalPriors as PriorBundle;
 
 const cellCache = new Map<string, CellMonthMap>();
 const gbifFreqCache = new Map<string, number>();
+const gbifStrictFreqCache = new Map<string, number>();
 
 function cacheKey(region: "na" | "global", cellId: string, month: number): string {
   return `${region}:${cellId}:${month}`;
@@ -178,9 +183,62 @@ function gbifFrequency(
   return freq;
 }
 
+/** Month-matched GBIF only — no cross-month bleed (for Explore charts and lists). */
+function gbifFrequencyStrict(
+  ctx: RegionalContext,
+  scientificName: string,
+): number {
+  const key = normalizeScientificName(scientificName);
+  if (!key) return 0;
+
+  const cacheId = `strict:${ctx.bundleRegion}:${ctx.cellId}:${ctx.month}:${key}`;
+  const cached = gbifStrictFreqCache.get(cacheId);
+  if (cached !== undefined) return cached;
+
+  const priors = getCellMonthPriors(ctx.bundleRegion, ctx.cellId, ctx.month);
+  let freq = priors[key]?.f ?? 0;
+
+  if (freq === 0) {
+    const gridDeg = gridDegForRegion(ctx.bundleRegion);
+    for (const neighborId of neighborCellIds(ctx.cellId, gridDeg)) {
+      const neighborMonth = getCellMonthPriors(
+        ctx.bundleRegion,
+        neighborId,
+        ctx.month,
+      );
+      const neighborFreq = neighborMonth[key]?.f ?? 0;
+      if (neighborFreq > 0) {
+        const weighted =
+          neighborFreq *
+          neighborDistanceWeight(
+            ctx.lat,
+            ctx.lng,
+            neighborId,
+            ctx.bundleRegion,
+          );
+        if (weighted > freq) freq = weighted;
+      }
+    }
+  }
+
+  gbifStrictFreqCache.set(cacheId, freq);
+  return freq;
+}
+
 function geoPrior(ctx: RegionalContext, scientificName: string): number {
   const gbif = gbifFrequency(ctx, scientificName);
   const checklist = checklistPrior(ctx, scientificName);
+  const base = Math.max(gbif, checklist);
+  const boost = communityBoost(ctx, scientificName);
+  return base + boost * COMMUNITY_WEIGHT;
+}
+
+function geoPriorStrict(ctx: RegionalContext, scientificName: string): number {
+  const gbif = gbifFrequencyStrict(ctx, scientificName);
+  const checklist = exploreChecklistPrior(
+    { lat: ctx.lat, lng: ctx.lng, month: ctx.month },
+    scientificName,
+  );
   const base = Math.max(gbif, checklist);
   const boost = communityBoost(ctx, scientificName);
   return base + boost * COMMUNITY_WEIGHT;
@@ -231,6 +289,31 @@ export function lookupSpeciesScore(
   }
 
   const frequency = geoPrior(ctx, key);
+  const expected = frequency >= MIN_EXPECTED_FREQ;
+  return {
+    scientificName: key,
+    frequency,
+    expected,
+    rarity: rarityFromFrequency(frequency, expected),
+  };
+}
+
+/** Seasonal abundance score — month-matched GBIF, no cross-month bleed. */
+export function lookupSpeciesScoreStrict(
+  ctx: RegionalContext | null,
+  scientificName: string,
+): SpeciesRegionalScore {
+  const key = normalizeScientificName(scientificName);
+  if (!ctx || !key) {
+    return {
+      scientificName: key || scientificName,
+      frequency: 0,
+      expected: false,
+      rarity: "common",
+    };
+  }
+
+  const frequency = geoPriorStrict(ctx, key);
   const expected = frequency >= MIN_EXPECTED_FREQ;
   return {
     scientificName: key,
@@ -551,6 +634,64 @@ export function rankPredictions(
   return [...predictions]
     .filter((p) => shouldShowPrediction(ctx, p))
     .sort((a, b) => scorePrediction(ctx, b) - scorePrediction(ctx, a));
+}
+
+export interface MonthlyAbundance {
+  month: number;
+  frequency: number;
+  expected: boolean;
+}
+
+/** Geo/season abundance for each calendar month at a location. */
+export function getSpeciesMonthlyAbundance(
+  lat: number,
+  lng: number,
+  scientificName: string,
+  referenceYear = new Date().getFullYear(),
+): MonthlyAbundance[] {
+  const key = normalizeScientificName(scientificName);
+  if (!key) return [];
+
+  return Array.from({ length: 12 }, (_, index) => {
+    const month = index + 1;
+    const ctx = getRegionalContext(
+      lat,
+      lng,
+      new Date(referenceYear, month - 1, 15),
+    );
+    const score = lookupSpeciesScoreStrict(ctx, key);
+    return {
+      month,
+      frequency: score.frequency,
+      expected: score.expected,
+    };
+  });
+}
+
+/** Species keys from GBIF cell priors and ecozone checklist for a location/month. */
+export function collectRegionalSpeciesCandidates(
+  lat: number,
+  lng: number,
+  date: Date = new Date(),
+): string[] {
+  const ctx = getRegionalContext(lat, lng, date);
+  const candidates = new Set<string>();
+  const bundle = bundleForRegion(ctx.bundleRegion);
+  const gridDeg = gridDegForRegion(ctx.bundleRegion);
+  const cellIds = [ctx.cellId, ...neighborCellIds(ctx.cellId, gridDeg)];
+
+  for (const cell of cellIds) {
+    const monthMap = bundle.cells[cell]?.[String(ctx.month)] ?? {};
+    for (const key of Object.keys(monthMap)) {
+      candidates.add(key);
+    }
+  }
+
+  for (const key of checklistSpeciesForCoords(lat, lng, ctx.month)) {
+    candidates.add(key);
+  }
+
+  return [...candidates];
 }
 
 export function getDataAttribution(): string[] {

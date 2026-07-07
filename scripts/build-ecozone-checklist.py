@@ -144,6 +144,16 @@ def top_species(counts: dict[str, int], limit: int) -> list[str]:
     return [species for species, _ in ranked[:limit]]
 
 
+def freq_map(counts: dict[str, int], limit: int) -> dict[str, float]:
+    ranked = sorted(counts.items(), key=lambda item: item[1], reverse=True)[:limit]
+    if not ranked:
+        return {}
+    total = sum(count for _, count in ranked)
+    if total <= 0:
+        return {}
+    return {species: round(count / total, 6) for species, count in ranked}
+
+
 def build_checklist(
     zones: list[dict],
     catalog: set[str],
@@ -168,10 +178,16 @@ def build_checklist(
             species_list = top_species(counts, TOP_SPECIES_PER_ZONE_MONTH)
             if species_list:
                 zone_data["months"][str(month)] = species_list
+                zone_data["months"][f"{month}_freq"] = freq_map(
+                    counts, TOP_SPECIES_PER_ZONE_MONTH
+                )
             for species, count in counts.items():
                 all_counts[species] += count
 
         zone_data["months"]["all"] = top_species(all_counts, TOP_SPECIES_PER_ZONE_MONTH * 2)
+        zone_data["months"]["all_freq"] = freq_map(
+            all_counts, TOP_SPECIES_PER_ZONE_MONTH * 2
+        )
         output["zones"][zone_id] = zone_data
         print(f"  -> {len(zone_data['months']['all'])} species (all-month union)")
 

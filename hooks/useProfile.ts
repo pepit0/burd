@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  getFollowCounts,
   getMyProfile,
   updateProfileAvatarUrl,
   updateProfileDetails,
@@ -8,13 +7,14 @@ import {
   uploadAvatarPhoto,
   type ProfileDetailsUpdate,
 } from "@/lib/sightings";
+import { getFriendCounts } from "@/lib/social";
 import { getErrorMessage } from "@/lib/errors";
 import type { Profile } from "@/types";
 
 interface UseProfile {
   profile: Profile | null;
-  followers: number;
-  following: number;
+  friends: number;
+  incomingRequests: number;
   /** First load only — does not drive pull-to-refresh. */
   loading: boolean;
   /** User-initiated pull-to-refresh only. */
@@ -30,8 +30,8 @@ interface UseProfile {
 
 export function useProfile(userId: string | null): UseProfile {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [followers, setFollowers] = useState(0);
-  const [following, setFollowing] = useState(0);
+  const [friends, setFriends] = useState(0);
+  const [incomingRequests, setIncomingRequests] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,13 +49,10 @@ export function useProfile(userId: string | null): UseProfile {
 
       setError(null);
       try {
-        const [p, counts] = await Promise.all([
-          getMyProfile(userId),
-          getFollowCounts(userId),
-        ]);
+        const [p, counts] = await Promise.all([getMyProfile(userId), getFriendCounts(userId)]);
         setProfile(p);
-        setFollowers(counts.followers);
-        setFollowing(counts.following);
+        setFriends(counts.friends);
+        setIncomingRequests(counts.incoming);
         hasLoaded.current = true;
       } catch (e) {
         setError(getErrorMessage(e));
@@ -127,8 +124,8 @@ export function useProfile(userId: string | null): UseProfile {
 
   return {
     profile,
-    followers,
-    following,
+    friends,
+    incomingRequests,
     loading,
     refreshing,
     error,

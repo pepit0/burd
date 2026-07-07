@@ -139,6 +139,17 @@ export async function revokeAdmin(userId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function adminUpdateUsername(
+  userId: string,
+  newUsername: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_update_username", {
+    p_user_id: userId,
+    p_new_username: newUsername,
+  });
+  if (error) throw error;
+}
+
 export async function getPendingReports(limit = 50): Promise<PostReport[]> {
   const { data: reports, error } = await supabase
     .from("post_reports")

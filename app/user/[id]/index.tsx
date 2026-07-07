@@ -11,11 +11,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, Grid3X3, ShieldAlert } from "lucide-react-native";
 import { FollowButton } from "@/components/FollowButton";
+import { DisplayNameText } from "@/components/DisplayNameText";
 import { ProfileBadges } from "@/components/ProfileBadges";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
 import {
   filterProfileSightings,
-  ProfilePostsFilterBar,
   type ProfilePostsFilter,
 } from "@/components/ProfilePostsFilter";
 import { ProfileStatsRow } from "@/components/ProfileStatsRow";
@@ -26,6 +26,7 @@ import { useAdmin } from "@/hooks/useAdmin";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { buildProfileBadges } from "@/lib/profileBadges";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
+import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 
 export default function UserProfileScreen() {
   const router = useRouter();
@@ -38,14 +39,14 @@ export default function UserProfileScreen() {
 
   const {
     profile,
-    followers,
-    following,
+    friends,
     sightings,
-    followingThem,
+    status,
     isSelf,
     loading,
     error,
-    toggleFollow,
+    toggleFriend,
+    declineRequest,
     refresh,
   } = useUserProfile(id ?? null, currentUserId);
 
@@ -74,9 +75,9 @@ export default function UserProfileScreen() {
         sightingsCount: sightings.length,
         photoCount,
         rareCount,
-        following,
+        following: friends,
       }),
-    [sightings.length, photoCount, rareCount, following],
+    [sightings.length, photoCount, rareCount, friends],
   );
 
   const filteredSightings = useMemo(
@@ -92,6 +93,7 @@ export default function UserProfileScreen() {
         : "No sightings yet.";
 
   const displayName = profile?.full_name || profile?.username || "Birder";
+  const displayNamePlain = stripDisplayNameColorCodes(displayName);
   const profileId = id ?? "";
 
   const stats: {
@@ -100,7 +102,7 @@ export default function UserProfileScreen() {
     onPress: () => void;
   }[] = [
     {
-      label: "Sightings",
+      label: "Posts",
       value: sightings.length,
       onPress: () => router.push(`/user/${profileId}/journal`),
     },
@@ -113,23 +115,20 @@ export default function UserProfileScreen() {
       },
     },
     {
-      label: "Followers",
-      value: followers,
+      label: "Friends",
+      value: friends,
       onPress: () =>
         router.push({
           pathname: "/follows",
-          params: { tab: "followers", profileId },
+          params: { tab: "friends", profileId },
         }),
     },
-    {
-      label: "Following",
-      value: following,
-      onPress: () =>
-        router.push({
-          pathname: "/follows",
-          params: { tab: "following", profileId },
-        }),
-    },
+  ];
+
+  const filterOptions: { id: ProfilePostsFilter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "photos", label: "Photos" },
+    { id: "audio", label: "Audio" },
   ];
 
   return (
@@ -162,65 +161,101 @@ export default function UserProfileScreen() {
           <ProfileCoverBanner coverUrl={profile.cover_url} />
 
           <View className="-mt-9 px-4">
-            <View className="flex-row items-end justify-between">
-              <View
-                className="mb-3 h-[72px] w-[72px] overflow-hidden rounded-full border-[3px] border-background"
-                style={{ backgroundColor: profile.avatar_color }}
-              >
-                {profile.avatar_url ? (
-                  <Image
-                    source={{ uri: profile.avatar_url }}
-                    className="h-full w-full"
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View className="h-full w-full items-center justify-center">
-                    <Text className="font-serif-semibold text-2xl text-primary-foreground">
-                      {displayName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              {!isSelf ? (
-                <View className="mb-3 flex-row gap-2">
-                  <FollowButton following={followingThem} onPress={toggleFollow} size="md" />
-                  {isAdmin ? (
-                    <Pressable
-                      onPress={() => setModerationOpen(true)}
-                      className="flex-row items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-2 active:opacity-90"
-                    >
-                      <ShieldAlert size={14} color="#f87171" />
-                      <Text className="font-sans-medium text-xs text-foreground">Moderate</Text>
-                    </Pressable>
-                  ) : null}
+            <View
+              className="mb-3 h-[72px] w-[72px] overflow-hidden rounded-full border-[3px] border-background"
+              style={{ backgroundColor: profile.avatar_color }}
+            >
+              {profile.avatar_url ? (
+                <Image
+                  source={{ uri: profile.avatar_url }}
+                  className="h-full w-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <View className="h-full w-full items-center justify-center">
+                  <Text className="font-serif-semibold text-2xl text-primary-foreground">
+                    {displayNamePlain.charAt(0).toUpperCase()}
+                  </Text>
                 </View>
-              ) : null}
+              )}
             </View>
 
-            <Text className="font-serif-semibold text-xl text-foreground">
-              {displayName}
-            </Text>
-            <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
-              @{profile.username}
-              {profile.location_name ? ` · ${profile.location_name}` : ""}
-            </Text>
+            {!isSelf ? (
+              <View className="absolute right-6 top-4 z-10 flex-row gap-2">
+                {isAdmin ? (
+                  <Pressable
+                    onPress={() => setModerationOpen(true)}
+                    className="flex-row items-center gap-1 rounded-full border border-destructive/40 bg-destructive/20 px-3 py-2 active:opacity-90"
+                  >
+                    <ShieldAlert size={14} color="#f87171" />
+                    <Text className="font-sans-medium text-xs text-foreground">Moderate</Text>
+                  </Pressable>
+                ) : null}
+                <FollowButton
+                  status={status}
+                  onPress={toggleFriend}
+                  onSecondaryPress={declineRequest}
+                  size="md"
+                />
+              </View>
+            ) : null}
+
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="min-w-0 flex-1">
+                <DisplayNameText
+                  text={displayName}
+                  className="font-serif-semibold text-xl text-foreground"
+                />
+                <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
+                  @{profile.username}
+                  {profile.location_name ? ` · ${profile.location_name}` : ""}
+                </Text>
+              </View>
+              <View className="mr-2">
+                <ProfileStatsRow stats={stats} variant="inline" />
+              </View>
+            </View>
+
             {profile.bio ? (
               <Text className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
                 {profile.bio}
               </Text>
             ) : null}
-
-            <ProfileStatsRow stats={stats} />
           </View>
 
-          <View className="mt-5 border-t border-border">
-            <View className="flex-row items-center justify-center gap-2 border-b border-border py-2.5">
-              <Grid3X3 size={14} color="#c8893a" />
-              <Text className="font-sans-medium text-xs uppercase tracking-wider text-foreground">
-                Posts
-              </Text>
+          <View className="mt-6 border-t border-border">
+            <View className="flex-row items-center justify-between px-4 py-2.5">
+              <View className="flex-row items-center gap-2">
+                <Grid3X3 size={14} color="#c8893a" />
+                <Text className="font-sans-medium text-xs uppercase tracking-wider text-foreground">
+                  Posts
+                </Text>
+              </View>
+              <View className="flex-row items-center gap-2">
+                {filterOptions.map((option) => {
+                  const active = postsFilter === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => setPostsFilter(option.id)}
+                      className={`rounded-full px-3 py-1 ${
+                        active ? "bg-primary" : "border border-border bg-card"
+                      }`}
+                    >
+                      <Text
+                        className={`text-xs ${
+                          active
+                            ? "font-sans-medium text-primary-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
-            <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
 
             <View className="px-4 pt-2">
               <SightingPostsGrid

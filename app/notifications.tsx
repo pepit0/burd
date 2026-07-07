@@ -105,7 +105,7 @@ export default function NotificationsScreen() {
           <View className="items-center px-8 pt-20">
             <Bell size={28} color="#8a9e82" />
             <Text className="mt-4 text-center font-sans text-sm leading-relaxed text-muted-foreground">
-              No notifications yet. Likes, follows, and comments will show up here.
+              No notifications yet. Likes, friend requests, and comments will show up here.
             </Text>
           </View>
         ) : (

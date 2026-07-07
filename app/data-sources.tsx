@@ -1,11 +1,14 @@
-import { ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { Linking } from "react-native";
 import {
   getDataAttribution,
   getManifestVersion,
 } from "@/lib/regionalFrequency";
+
+const PRIVACY_POLICY_URL = "https://burdapp.com/privacy.html";
 
 export default function DataSourcesScreen() {
   const router = useRouter();
@@ -61,6 +64,21 @@ export default function DataSourcesScreen() {
             ML models: Google Perch (Apache-2.0), birder vision weights per
             project configuration.
           </Text>
+        </View>
+
+        <View className="rounded-xl border border-border bg-card p-4">
+          <Text className="font-sans-medium text-sm text-foreground">
+            Legal
+          </Text>
+          <Pressable
+            onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            className="mt-2 rounded-lg border border-border px-3 py-2.5 active:opacity-80"
+          >
+            <Text className="font-sans-medium text-sm text-foreground">Privacy Policy</Text>
+            <Text className="mt-1 font-sans text-xs text-muted-foreground">
+              Open the policy used for both the Burd app and website.
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>

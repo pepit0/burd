@@ -13,7 +13,8 @@ export type ModerationActionType =
   | "unsuspend_user"
   | "grant_admin"
   | "revoke_admin"
-  | "remove_field_guide_author";
+  | "remove_field_guide_author"
+  | "change_username";
 
 export interface Prediction {
   species: string;
