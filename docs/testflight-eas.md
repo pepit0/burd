@@ -23,6 +23,22 @@ Optional:
 
 `EXPO_PUBLIC_*` values are baked in at **build** time. Changing them requires a new build.
 
+## App icon (iOS / TestFlight)
+
+iOS requires a **1024×1024 opaque PNG** with **no alpha channel**. Icons with
+transparency show up as a **blank white square** on TestFlight and the home screen.
+
+`app.json` points at `./assets/icon.png` (and `ios.icon`). Regenerate from the logo:
+
+```bash
+npm ci --prefix website/scripts
+npm run generate:app-icons
+npm run verify:app-icons
+```
+
+Commit `assets/icon.png` and `assets/adaptive-icon.png` before building. EAS runs
+`verify:app-icons` automatically after install (`eas-build-post-install`).
+
 ## 2. Build from Expo website
 
 1. https://expo.dev → **burd** → **Builds** → **Create a build**

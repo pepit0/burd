@@ -17,16 +17,28 @@ async function renderLogoPng(size) {
   return resvg.render().asPng();
 }
 
+/**
+ * iOS rejects app icons with an alpha channel — TestFlight often shows a blank
+ * white icon. Build on an explicit opaque green square (no flatten workaround).
+ */
 async function writeOpaqueIcon(name, size) {
-  const png = await renderLogoPng(size);
+  const logoSize = Math.round(size * 0.92);
+  const logoPng = await renderLogoPng(logoSize);
   const outPath = path.join(assetsDir, name);
-  // iOS rejects app icons with transparency; the SVG's rounded rect leaves
-  // transparent corners that show up blank on TestFlight/home screen.
-  await sharp(png)
-    .flatten({ background: BRAND_GREEN })
+
+  await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 3,
+      background: BRAND_GREEN,
+    },
+  })
+    .composite([{ input: logoPng, gravity: "center" }])
     .removeAlpha()
     .png()
     .toFile(outPath);
+
   console.log(`Wrote ${outPath} (${size}x${size}, opaque)`);
 }
 

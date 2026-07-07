@@ -10,6 +10,8 @@
     "preview:website": "npx --yes serve website -l 4321",
     "generate:website-favicons": "npm run generate:favicons --prefix website/scripts",
     "generate:app-icons": "npm run generate:app-icons --prefix website/scripts",
+    "verify:app-icons": "node scripts/verify-app-icons.mjs",
+    "eas-build-post-install": "node scripts/verify-app-icons.mjs",
     "build:web-app": "node scripts/sync-web-app.mjs",
     "pages:build": "node scripts/pages-build.mjs",
     "deploy:website": "npm run build:web-app && npx --yes wrangler pages deploy website --project-name=burd --branch=main --commit-dirty=true && node scripts/purge-cloudflare-cache.mjs",
