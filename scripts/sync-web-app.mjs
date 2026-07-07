@@ -18,7 +18,7 @@ function emptyDir(dir) {
 }
 
 console.log("Exporting Expo web app (baseUrl /app)...");
-execSync("npx expo export --platform web", {
+execSync("node ./node_modules/expo/bin/cli export --platform web", {
   cwd: root,
   stdio: "inherit",
 });

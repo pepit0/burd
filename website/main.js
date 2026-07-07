@@ -209,12 +209,50 @@
 
   const waitlistForm = document.getElementById("waitlist-form");
   const waitlistSuccess = document.getElementById("waitlist-success");
+  const waitlistError = document.getElementById("waitlist-error");
 
-  waitlistForm?.addEventListener("submit", (e) => {
+  waitlistForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const emailInput = document.getElementById("waitlist-email");
     if (!(emailInput instanceof HTMLInputElement) || !emailInput.value) return;
-    waitlistForm.setAttribute("hidden", "");
-    waitlistSuccess?.removeAttribute("hidden");
+
+    const endpoint = waitlistForm.getAttribute("data-formspree-endpoint");
+    const submitButton = waitlistForm.querySelector('button[type="submit"]');
+    if (!(submitButton instanceof HTMLButtonElement)) return;
+
+    waitlistError?.setAttribute("hidden", "");
+    submitButton.disabled = true;
+    const originalButtonText = submitButton.textContent;
+    submitButton.textContent = "Submitting...";
+
+    try {
+      if (!endpoint || endpoint.includes("YOUR_FORM_ID")) {
+        throw new Error("Formspree endpoint is not configured");
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email: emailInput.value.trim(),
+          source: "burdapp.com waitlist",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Formspree request failed with status ${response.status}`);
+      }
+
+      waitlistForm.setAttribute("hidden", "");
+      waitlistSuccess?.removeAttribute("hidden");
+    } catch (_error) {
+      waitlistError?.removeAttribute("hidden");
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = originalButtonText;
+    }
   });
 })();

@@ -5,14 +5,19 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const appOutputDir = path.join(root, "website", "app");
+const nodeModulesDir = path.join(root, "node_modules");
 const requiredPaths = [
   path.join(appOutputDir, "index.html"),
   path.join(appOutputDir, "_expo"),
   path.join(appOutputDir, "assets"),
 ];
 
-console.log("Installing root dependencies...");
-execSync("npm ci", { cwd: root, stdio: "inherit" });
+if (!existsSync(nodeModulesDir)) {
+  console.log("Installing root dependencies...");
+  execSync("npm ci", { cwd: root, stdio: "inherit" });
+} else {
+  console.log("Using existing node_modules (skipping npm ci for local build).");
+}
 
 console.log("Building Expo web app into website/app/...");
 execSync("npm run build:web-app", {

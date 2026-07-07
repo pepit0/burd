@@ -1154,6 +1154,12 @@ button {
   gap: 0.75rem;
 }
 
+.waitlist__success[hidden],
+#waitlist-error[hidden],
+.waitlist__form[hidden] {
+  display: none !important;
+}
+
 .waitlist__success-icon {
   display: grid;
   place-items: center;

@@ -265,7 +265,7 @@
 
               <div class="web-btn-wrap">
                 <span class="web-btn__beta-tag">Join the beta!</span>
-                <a class="web-btn" href="/app/index.html">
+                <a class="web-btn" href="/app/">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" />
                     <path d="M2 12h20" />
@@ -940,11 +940,18 @@
           </div>
 
           <div class="waitlist__form-wrap reveal" style="--reveal-delay: 120ms">
-            <form class="waitlist__form" id="waitlist-form">
+            <form
+              class="waitlist__form"
+              id="waitlist-form"
+              data-formspree-endpoint="https://formspree.io/f/xeebdndo"
+            >
               <label class="visually-hidden" for="waitlist-email">Email address</label>
               <input type="email" id="waitlist-email" name="email" placeholder="your@email.com" required autocomplete="email" />
               <button type="submit" class="btn btn--primary">Notify Me</button>
             </form>
+            <p class="waitlist__success-note" id="waitlist-error" hidden>
+              Could not submit right now. Please try again.
+            </p>
             <div class="waitlist__success" id="waitlist-success" hidden>
               <span class="waitlist__success-icon">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
@@ -965,7 +972,7 @@
         </a>
 
         <nav class="site-footer__links" aria-label="Footer">
-          <a href="/app/index.html">Open web app</a>
+          <a href="/app/">Open web app</a>
           <a href="/privacy.html">Privacy</a>
           <a href="#">Terms</a>
           <a href="mailto:info@feath.xyz">Contact</a>

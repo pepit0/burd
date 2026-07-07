@@ -7,6 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "build": "npm run pages:build",
+    "build:local": "npm run pages:build && npm run preview:website",
     "preview:website": "npx --yes serve website -l 4321",
     "generate:website-favicons": "npm run generate:favicons --prefix website/scripts",
     "generate:app-icons": "npm run generate:app-icons --prefix website/scripts",
