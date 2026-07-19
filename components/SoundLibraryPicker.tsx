@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Mic, X } from "lucide-react-native";
 import { AudioPlayer } from "@/components/AudioPlayer";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage } from "@/lib/errors";
 import { getAttachableSoundLibrary } from "@/lib/soundLibrary";
 import {
   displayScientificName,
@@ -53,7 +53,7 @@ export function SoundLibraryPicker({
         if (!cancelled) setEntries(rows);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e));
+        if (!cancelled) setError(getLoadErrorMessage(e));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

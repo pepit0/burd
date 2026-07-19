@@ -39,10 +39,15 @@ import { maybeGenerateSpeciesProfileAfterSighting } from "@/lib/speciesProfileLo
 import { inferRegionalRarity } from "@/lib/rarity";
 import { applyGeocodeFields } from "@/lib/geocode";
 import { photoTakenAt } from "@/lib/photoMetadata";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
 import { soundReportSpecies } from "@/lib/heardSpecies";
 import { takePendingCapture, type PendingCapture, type SessionPhoto } from "@/lib/pendingCapture";
+import {
+  deleteCaptureDraft,
+  getCaptureDraft,
+  readPhotoBase64,
+} from "@/lib/captureDrafts";
 import type { DetectedBy, Prediction, Rarity, SoundLibraryEntry } from "@/types";
 
 function parseCount(value: string | undefined): number {
@@ -92,7 +97,10 @@ export default function NewSightingScreen() {
     audio_agreed?: string;
     sound_library_id?: string;
     audio_only?: string;
+    draftId?: string;
   }>();
+
+  const draftId = params.draftId?.trim() || null;
 
   const [species, setSpecies] = useState(() =>
     speciesFromParams(params.species, params.scientific_name),
@@ -140,29 +148,92 @@ export default function NewSightingScreen() {
   const photoSoundAgreed = params.audio_agreed === "1";
 
   useEffect(() => {
-    const capture = takePendingCapture();
-    if (!capture) return;
+    let cancelled = false;
 
-    setSessionPhotos(capture.photos);
-    const primary = capture.photos[capture.primaryIndex] ?? capture.photos[0];
-    if (primary) {
-      setPrimaryPhotoId(primary.id);
-      setPhotoUri(primary.uri);
-      setPhotoBase64(primary.base64);
-      if (primary.capturedAt) {
-        setObservedAt(new Date(primary.capturedAt));
+    (async () => {
+      const capture = takePendingCapture();
+      if (capture) {
+        if (cancelled) return;
+        setSessionPhotos(capture.photos);
+        const primary = capture.photos[capture.primaryIndex] ?? capture.photos[0];
+        if (primary) {
+          setPrimaryPhotoId(primary.id);
+          setPhotoUri(primary.uri);
+          setPhotoBase64(primary.base64);
+          if (primary.capturedAt) {
+            setObservedAt(new Date(primary.capturedAt));
+          }
+        }
+        if (capture.count != null) {
+          setCount(capture.count);
+          setCountFromPhoto(true);
+        }
+        setSessionAudio(capture.audio ?? null);
+        setHeardSpecies(soundReportSpecies(capture.analysis));
+        if (capture.soundLibraryId) {
+          setSoundLibraryId(capture.soundLibraryId);
+        }
+        return;
       }
-    }
-    if (capture.count != null) {
-      setCount(capture.count);
-      setCountFromPhoto(true);
-    }
-    setSessionAudio(capture.audio ?? null);
-    setHeardSpecies(soundReportSpecies(capture.analysis));
-    if (capture.soundLibraryId) {
-      setSoundLibraryId(capture.soundLibraryId);
-    }
-  }, []);
+
+      if (!draftId) return;
+      const draft = await getCaptureDraft(draftId);
+      if (cancelled || !draft) return;
+
+      setSessionPhotos(draft.photos);
+      const primary = draft.photos[draft.primaryIndex] ?? draft.photos[0];
+      if (primary) {
+        setPrimaryPhotoId(primary.id);
+        setPhotoUri(primary.uri);
+        setPhotoBase64(primary.base64);
+        if (primary.capturedAt) {
+          setObservedAt(new Date(primary.capturedAt));
+        }
+      }
+      if (draft.geo) {
+        setCoords({
+          latitude: draft.geo.lat,
+          longitude: draft.geo.lng,
+        });
+        setObservedAt(new Date(draft.geo.observedAt));
+      }
+
+      // Retry identify when resuming a draft without species params
+      if (!params.species?.trim() && primary?.uri) {
+        try {
+          const identified = await identifyImage(primary.uri, {
+            skipAuthenticity: true,
+            base64: primary.base64,
+            geo: draft.geo
+              ? {
+                  lat: draft.geo.lat,
+                  lng: draft.geo.lng,
+                  observedAt: draft.geo.observedAt,
+                }
+              : undefined,
+          });
+          if (cancelled) return;
+          const top = identified.predictions[0]
+            ? enrichPrediction(identified.predictions[0])
+            : null;
+          if (top) {
+            setSpecies(top.species);
+            setScientific(top.scientific_name ?? "");
+          }
+          if (identified.count) {
+            setCount(identified.count);
+            setCountFromPhoto(true);
+          }
+        } catch {
+          // User can enter species manually
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftId, params.species]);
 
   useEffect(() => {
     const id = soundLibraryId ?? params.sound_library_id?.trim();
@@ -413,8 +484,14 @@ export default function NewSightingScreen() {
       }
 
       let photoUrl: string | null = null;
-      if (photoBase64 && !(audioOnly || detectedBy === "audio")) {
-        photoUrl = await uploadSightingPhoto(userId, photoBase64);
+      if (!(audioOnly || detectedBy === "audio")) {
+        let base64 = photoBase64;
+        if (!base64 && photoUri) {
+          base64 = await readPhotoBase64(photoUri);
+        }
+        if (base64) {
+          photoUrl = await uploadSightingPhoto(userId, base64);
+        }
       }
 
       let audioUrl: string | null = libraryEntry?.audio_url ?? null;
@@ -449,6 +526,9 @@ export default function NewSightingScreen() {
       if (soundLibraryId) {
         await linkSoundToSighting(soundLibraryId, sightingId);
       }
+      if (draftId) {
+        await deleteCaptureDraft(draftId);
+      }
       void maybeGenerateSpeciesProfileAfterSighting(
         species.trim(),
         scientific.trim() || null,
@@ -463,7 +543,7 @@ export default function NewSightingScreen() {
         );
         return;
       }
-      Alert.alert("Could not save", getErrorMessage(e));
+      Alert.alert("Could not save", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }

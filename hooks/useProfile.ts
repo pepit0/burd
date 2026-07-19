@@ -8,7 +8,8 @@ import {
   type ProfileDetailsUpdate,
 } from "@/lib/sightings";
 import { getFriendCounts } from "@/lib/social";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage } from "@/lib/errors";
+import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { Profile } from "@/types";
 
 interface UseProfile {
@@ -47,15 +48,19 @@ export function useProfile(userId: string | null): UseProfile {
         setLoading(true);
       }
 
-      setError(null);
+      if (mode !== "silent") {
+        setError(null);
+      }
+
       try {
         const [p, counts] = await Promise.all([getMyProfile(userId), getFriendCounts(userId)]);
         setProfile(p);
         setFriends(counts.friends);
         setIncomingRequests(counts.incoming);
         hasLoaded.current = true;
+        setError(null);
       } catch (e) {
-        setError(getErrorMessage(e));
+        setError(getLoadErrorMessage(e));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -121,6 +126,8 @@ export function useProfile(userId: string | null): UseProfile {
 
   const refresh = useCallback(() => load("refresh"), [load]);
   const silentRefresh = useCallback(() => load("silent"), [load]);
+
+  useRetryOnRecover(error, silentRefresh);
 
   return {
     profile,

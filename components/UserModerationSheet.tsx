@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { X } from "lucide-react-native";
 import { ModerationReasonModal } from "@/components/ModerationReasonModal";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import {
   formatSuspensionExpiry,
   isProfileSuspended,
@@ -65,7 +65,7 @@ export function UserModerationSheet({
       onUpdated();
       handleClose();
     } catch (e) {
-      Alert.alert("Could not suspend", getErrorMessage(e));
+      Alert.alert("Could not suspend", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -80,7 +80,7 @@ export function UserModerationSheet({
       onUpdated();
       handleClose();
     } catch (e) {
-      Alert.alert("Could not lift suspension", getErrorMessage(e));
+      Alert.alert("Could not lift suspension", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }

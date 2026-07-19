@@ -4,7 +4,7 @@ import { Audio } from "expo-av";
 import { Pause, Play } from "lucide-react-native";
 import type { AudioPlaybackState } from "@/hooks/useAudioPlayback";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 
 interface AudioPlayerProps {
   uri: string;
@@ -63,7 +63,7 @@ export function AudioPlayer({
         await soundRef.current.pauseAsync();
         setPlaying(false);
       } catch (e) {
-        setError(getErrorMessage(e));
+        setError(getUserFacingMessage(e, "Couldn't play this audio."));
       }
       return;
     }
@@ -110,7 +110,7 @@ export function AudioPlayer({
       await soundRef.current.playAsync();
       setPlaying(true);
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(getUserFacingMessage(e, "Couldn't play this audio."));
       setPlaying(false);
       void soundRef.current?.unloadAsync().catch(() => undefined);
       soundRef.current = null;

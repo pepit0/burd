@@ -4,7 +4,8 @@ import {
   getMySightings,
 } from "@/lib/sightings";
 import { getFriendCounts } from "@/lib/social";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage } from "@/lib/errors";
+import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { Profile, Sighting } from "@/types";
 
 interface UseUserProfile {
@@ -36,7 +37,6 @@ export function useUserProfile(
   const load = useCallback(async () => {
     if (!targetId) return;
     setLoading(true);
-    setError(null);
     try {
       const [p, counts, s, rel] = await Promise.all([
         getMyProfile(targetId),
@@ -50,8 +50,9 @@ export function useUserProfile(
       setFriends(counts.friends);
       setSightings(s.filter((row) => !row.removed_at));
       setStatus(rel);
+      setError(null);
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(getLoadErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -60,6 +61,8 @@ export function useUserProfile(
   useEffect(() => {
     load();
   }, [load]);
+
+  useRetryOnRecover(error, load);
 
   const toggleFriend = useCallback(async () => {
     if (!currentUserId || !targetId || isSelf) return;

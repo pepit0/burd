@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CatalogSpecies } from "@/lib/speciesCatalog";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage, getUserFacingMessage } from "@/lib/errors";
 import {
   fetchCachedSpeciesProfile,
   generateSpeciesProfile,
@@ -49,7 +49,9 @@ export function useSpeciesProfile(
       const generated = await generateSpeciesProfile(species);
       setProfile(generated);
     } catch (err) {
-      setError(getErrorMessage(err));
+      setError(
+        getUserFacingMessage(err, "Couldn't generate this field guide. Please try again."),
+      );
     } finally {
       setGenerating(false);
     }
@@ -106,7 +108,7 @@ export function useSpeciesProfile(
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(getErrorMessage(err));
+          setError(getLoadErrorMessage(err));
           setLoading(false);
         }
       });

@@ -68,7 +68,7 @@ function formatInferenceError(error: unknown): string {
 
 /** True when a live-chunk failure reason is likely connection-related. */
 export function isInferenceConnectionIssue(reason: string): boolean {
-  return /timed out|check your connection|could not reach|network request failed|failed to fetch|networkerror/i.test(
+  return /timed out|check your connection|could not reach|network request failed|failed to fetch|networkerror|you're offline|you are offline/i.test(
     reason,
   );
 }

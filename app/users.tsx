@@ -26,7 +26,7 @@ import {
   unfriendUser,
   type UserListItem,
 } from "@/lib/social";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage } from "@/lib/errors";
 
 type DiscoverMode = "nearby" | "all";
 
@@ -84,7 +84,7 @@ export default function UsersScreen() {
           setError(null);
         }
       } catch (e) {
-        if (!cancelled) setError(getErrorMessage(e));
+        if (!cancelled) setError(getLoadErrorMessage(e));
       } finally {
         if (!cancelled) setLoading(false);
       }

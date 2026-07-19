@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { getUnreadActivityCount } from "@/lib/activity";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
 
 interface NotificationBadgeContextValue {
@@ -40,7 +40,7 @@ export function NotificationBadgeProvider({
     try {
       setUnreadCount(await getUnreadActivityCount());
     } catch (e) {
-      console.warn("Failed to load unread count:", getErrorMessage(e));
+      console.warn("Failed to load unread count:", getUserFacingMessage(e));
     }
   }, []);
 

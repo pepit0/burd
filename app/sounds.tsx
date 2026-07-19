@@ -14,7 +14,8 @@ import { ChevronRight, Mic, Plus, Trash2 } from "lucide-react-native";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useAuth } from "@/hooks/useAuth";
-import { getErrorMessage } from "@/lib/errors";
+import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
+import { getLoadErrorMessage, getUserFacingMessage } from "@/lib/errors";
 import {
   deleteSoundLibraryEntry,
   getMySoundLibrary,
@@ -53,14 +54,16 @@ export default function SoundLibraryScreen() {
 
   const load = useCallback(async () => {
     if (!userId) return;
-    setError(null);
     try {
       const rows = await getMySoundLibrary(userId);
       setEntries(rows);
+      setError(null);
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(getLoadErrorMessage(e));
     }
   }, [userId]);
+
+  useRetryOnRecover(error, load);
 
   useFocusEffect(
     useCallback(() => {
@@ -105,7 +108,7 @@ export default function SoundLibraryScreen() {
               await deleteSoundLibraryEntry(entry.id);
               setEntries((rows) => rows.filter((row) => row.id !== entry.id));
             } catch (e) {
-              Alert.alert("Could not delete", getErrorMessage(e));
+              Alert.alert("Could not delete", getUserFacingMessage(e));
             }
           },
         },

@@ -15,7 +15,7 @@ import { ModerationReasonModal } from "@/components/ModerationReasonModal";
 import { DisplayNameText } from "@/components/DisplayNameText";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import {
   getPendingReports,
   getRecentModerationLog,
@@ -64,7 +64,7 @@ export default function AdminHubScreen() {
       setLog(logRows);
       setAdmins(adminRows);
     } catch (e) {
-      Alert.alert("Could not load admin data", getErrorMessage(e));
+      Alert.alert("Could not load admin data", getUserFacingMessage(e));
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export default function AdminHubScreen() {
                 setAdminQuery("");
                 await load();
               } catch (e) {
-                Alert.alert("Could not grant admin", getErrorMessage(e));
+                Alert.alert("Could not grant admin", getUserFacingMessage(e));
               }
             })();
           },
@@ -180,7 +180,7 @@ export default function AdminHubScreen() {
       setUsernameResults([]);
       await load();
     } catch (e) {
-      Alert.alert("Could not update username", getErrorMessage(e));
+      Alert.alert("Could not update username", getUserFacingMessage(e));
     } finally {
       setRenaming(false);
     }
@@ -202,7 +202,7 @@ export default function AdminHubScreen() {
                 await revokeAdmin(target.id);
                 await load();
               } catch (e) {
-                Alert.alert("Could not revoke admin", getErrorMessage(e));
+                Alert.alert("Could not revoke admin", getUserFacingMessage(e));
               }
             })();
           },
@@ -219,7 +219,7 @@ export default function AdminHubScreen() {
       setRemoveReport(null);
       await load();
     } catch (e) {
-      Alert.alert("Could not remove post", getErrorMessage(e));
+      Alert.alert("Could not remove post", getUserFacingMessage(e));
     } finally {
       setRemoving(false);
     }

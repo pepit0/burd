@@ -35,6 +35,7 @@ import {
   ZapOff,
 } from "lucide-react-native";
 import { identifySession, identificationFromLivePhoto } from "@/lib/identifySession";
+import { isInferenceConnectionIssue } from "@/lib/identify";
 import {
   PHOTO_AUTHENTICITY_ENABLED,
   validatePhotoAuthenticity,
@@ -48,9 +49,16 @@ import {
   type SessionPhoto,
   type PendingCapture,
 } from "@/lib/pendingCapture";
+import {
+  IDENTIFY_DONE_BUDGET_MS,
+  createCaptureDraftId,
+  deleteCaptureDraft,
+  persistSessionPhoto,
+  upsertCaptureDraft,
+} from "@/lib/captureDrafts";
 import { enrichPrediction } from "@/lib/predictionLabels";
 import { soundConfirmsPhoto } from "@/lib/speciesMatch";
-import { getUserFacingMessage } from "@/lib/errors";
+import { getErrorMessage, getUserFacingMessage } from "@/lib/errors";
 import { canReuseLivePhotoDetection } from "@/lib/livePhotoSession";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
 import { LivePhotoOverlay } from "@/components/LivePhotoOverlay";
@@ -70,6 +78,29 @@ function newPhotoId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+class IdentifyBudgetTimeoutError extends Error {
+  constructor() {
+    super("Identification timed out. Check your connection and try again.");
+    this.name = "IdentifyBudgetTimeoutError";
+  }
+}
+
+function raceWithBudget<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new IdentifyBudgetTimeoutError()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export default function CameraScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -84,6 +115,7 @@ export default function CameraScreen() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const draftIdRef = useRef<string | null>(null);
 
   const {
     permission: locationPermission,
@@ -172,6 +204,34 @@ export default function CameraScreen() {
     await liveSound.toggle();
   }
 
+  async function syncInProgressDraft(
+    photos: SessionPhoto[],
+    nextPrimaryId: string | null,
+  ) {
+    if (photos.length === 0) {
+      if (draftIdRef.current) {
+        await deleteCaptureDraft(draftIdRef.current);
+        draftIdRef.current = null;
+      }
+      return;
+    }
+    if (!draftIdRef.current) {
+      draftIdRef.current = await createCaptureDraftId();
+    }
+    const primaryIndex = Math.max(
+      0,
+      photos.findIndex((p) => p.id === nextPrimaryId),
+    );
+    await upsertCaptureDraft({
+      id: draftIdRef.current,
+      createdAt: photos[0]?.capturedAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      photos,
+      primaryIndex: primaryIndex >= 0 ? primaryIndex : 0,
+      inProgress: true,
+    });
+  }
+
   async function capture() {
     if (busy || finishing) return;
     setBusy(true);
@@ -181,16 +241,39 @@ export default function CameraScreen() {
         base64: true,
       });
       triggerFlashAnim();
-      if (photo?.uri) {
-        const entry: SessionPhoto = {
-          id: newPhotoId(),
-          uri: photo.uri,
-          base64: photo.base64 ?? null,
-          capturedAt: new Date().toISOString(),
-        };
-        setSession((prev) => [...prev, entry]);
-        setPrimaryId((current) => current ?? entry.id);
+      if (!photo?.uri) return;
+
+      if (!draftIdRef.current) {
+        draftIdRef.current = await createCaptureDraftId();
       }
+      const draftId = draftIdRef.current;
+      const temp: SessionPhoto = {
+        id: newPhotoId(),
+        uri: photo.uri,
+        base64: photo.base64 ?? null,
+        capturedAt: new Date().toISOString(),
+      };
+      const durable = await persistSessionPhoto(draftId, temp);
+      // Keep base64 for authenticity / upload until new-sighting; URI is durable.
+      const entry: SessionPhoto = {
+        ...durable,
+        base64: temp.base64,
+      };
+
+      setSession((prev) => {
+        const next = [...prev, entry];
+        setPrimaryId((current) => {
+          const nextPrimary = current ?? entry.id;
+          void syncInProgressDraft(next, nextPrimary);
+          return nextPrimary;
+        });
+        return next;
+      });
+    } catch (e) {
+      Alert.alert(
+        "Could not save photo",
+        getUserFacingMessage(e, "The photo could not be saved on this device."),
+      );
     } finally {
       setBusy(false);
     }
@@ -199,16 +282,31 @@ export default function CameraScreen() {
   function removePhoto(id: string) {
     setSession((prev) => {
       const next = prev.filter((p) => p.id !== id);
+      let nextPrimary: string | null = null;
       setPrimaryId((current) => {
-        if (current !== id) return current;
-        return next[0]?.id ?? null;
+        if (current !== id) {
+          nextPrimary = current;
+          return current;
+        }
+        nextPrimary = next[0]?.id ?? null;
+        return nextPrimary;
       });
       if (next.length === 0) setLibraryOpen(false);
+      void syncInProgressDraft(next, nextPrimary);
       return next;
     });
   }
 
   const canFinish = session.length > 0;
+
+  async function discardSessionAndLeave() {
+    void liveSound.stop();
+    if (draftIdRef.current) {
+      await deleteCaptureDraft(draftIdRef.current);
+      draftIdRef.current = null;
+    }
+    router.back();
+  }
 
   function confirmClose() {
     if (!canFinish) {
@@ -227,12 +325,49 @@ export default function CameraScreen() {
           text: "Discard",
           style: "destructive",
           onPress: () => {
-            void liveSound.stop();
-            router.back();
+            void discardSessionAndLeave();
           },
         },
       ],
     );
+  }
+
+  async function saveDraftForLater(options?: {
+    geo?: { lat: number; lng: number; observedAt: string };
+    reason?: string;
+  }) {
+    if (!draftIdRef.current) {
+      draftIdRef.current = await createCaptureDraftId();
+    }
+    const idx = primaryIndex();
+    await upsertCaptureDraft({
+      id: draftIdRef.current,
+      createdAt: session[0]?.capturedAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      photos: session.map((p) => ({ ...p, base64: null })),
+      primaryIndex: idx,
+      geo: options?.geo ?? null,
+      inProgress: false,
+    });
+    const draftId = draftIdRef.current;
+    draftIdRef.current = null;
+    void liveSound.stop();
+    Alert.alert(
+      "Saved for later",
+      options?.reason ??
+        "Identification is taking too long or you’re offline. Open Drafts in My Journal when you’re ready.",
+      [
+        {
+          text: "View drafts",
+          onPress: () =>
+            router.replace({
+              pathname: "/(tabs)/journal",
+              params: { tab: "drafts" },
+            }),
+        },
+      ],
+    );
+    return draftId;
   }
 
   async function finishSession() {
@@ -285,12 +420,15 @@ export default function CameraScreen() {
         );
       } else {
         try {
-          result = await identifySession({
-            photoUri: primary.uri,
-            skipPhotoAuthenticity: true,
-            photoBase64: primary.base64,
-            geo,
-          });
+          result = await raceWithBudget(
+            identifySession({
+              photoUri: primary.uri,
+              skipPhotoAuthenticity: true,
+              photoBase64: primary.base64,
+              geo,
+            }),
+            IDENTIFY_DONE_BUDGET_MS,
+          );
         } catch (e) {
           if (isPhotoValidationError(e)) {
             Alert.alert(
@@ -299,7 +437,27 @@ export default function CameraScreen() {
             );
             return;
           }
+          const message = getErrorMessage(e);
+          if (
+            e instanceof IdentifyBudgetTimeoutError ||
+            isInferenceConnectionIssue(message)
+          ) {
+            await saveDraftForLater({ geo });
+            return;
+          }
+          // Other identify failures: still save draft so photos are not lost
+          await saveDraftForLater({
+            geo,
+            reason:
+              "We couldn’t identify this right now. Your photos were saved in Drafts.",
+          });
+          return;
         }
+      }
+
+      if (!result) {
+        await saveDraftForLater({ geo });
+        return;
       }
 
       const soundTop = soundSnapshot.primary
@@ -308,26 +466,29 @@ export default function CameraScreen() {
             confidence: soundSnapshot.primary.peakConfidence,
           })
         : null;
-      const agreed = soundConfirmsPhoto(result?.top ?? null, soundTop);
+      const agreed = soundConfirmsPhoto(result.top ?? null, soundTop);
 
-      const top = result?.top;
+      const top = result.top;
       const pending: PendingCapture = {
         photos: session,
         primaryIndex: idx,
-        count: result?.count ?? 1,
-        analysis: result
-          ? {
-              detectedBy: "image",
-              top,
-              agreed,
-              imagePredictions: result.imagePredictions,
-              audioPredictions: soundSnapshot.predictions,
-              heardSpecies: soundSnapshot.predictions,
-              count: result.count,
-            }
-          : undefined,
+        count: result.count ?? 1,
+        analysis: {
+          detectedBy: "image",
+          top,
+          agreed,
+          imagePredictions: result.imagePredictions,
+          audioPredictions: soundSnapshot.predictions,
+          heardSpecies: soundSnapshot.predictions,
+          count: result.count,
+        },
       };
       setPendingCapture(pending);
+
+      if (draftIdRef.current) {
+        await deleteCaptureDraft(draftIdRef.current);
+        draftIdRef.current = null;
+      }
 
       router.replace({
         pathname: "/new-sighting",
@@ -336,7 +497,7 @@ export default function CameraScreen() {
           species: top?.species ?? "",
           scientific_name: top?.scientific_name ?? "",
           confidence: top ? String(top.confidence) : "",
-          count: String(result?.count ?? 1),
+          count: String(result.count ?? 1),
           audio_agreed: agreed ? "1" : "0",
         },
       });

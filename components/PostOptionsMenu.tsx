@@ -9,7 +9,7 @@ import {
 import { useRouter } from "expo-router";
 import { Edit3, Flag, ShieldAlert, Trash2, UserX, X } from "lucide-react-native";
 import { ModerationReasonModal } from "@/components/ModerationReasonModal";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import { removePostAsAdmin, removePostAuthorAsAdmin } from "@/lib/moderation";
 import { reportPost } from "@/lib/reports";
 import { deleteMySighting } from "@/lib/sightings";
@@ -74,7 +74,7 @@ export function PostOptionsMenu({
       onPostRemoved?.();
       Alert.alert("Deleted", "Your post was removed.");
     } catch (e) {
-      Alert.alert("Could not delete", getErrorMessage(e));
+      Alert.alert("Could not delete", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +114,7 @@ export function PostOptionsMenu({
       await reportPost(userId, sightingId);
       Alert.alert("Report submitted", "Thanks — we'll take a look.");
     } catch (e) {
-      Alert.alert("Could not report", getErrorMessage(e));
+      Alert.alert("Could not report", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -147,7 +147,7 @@ export function PostOptionsMenu({
         "The field guide text stays published. Credit goes to the next eligible photo sighting, or is open for the next birder.",
       );
     } catch (e) {
-      Alert.alert("Could not remove author credit", getErrorMessage(e));
+      Alert.alert("Could not remove author credit", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -162,7 +162,7 @@ export function PostOptionsMenu({
       onPostRemoved?.();
       Alert.alert("Post removed", "The user will be notified with your reason.");
     } catch (e) {
-      Alert.alert("Could not remove post", getErrorMessage(e));
+      Alert.alert("Could not remove post", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }

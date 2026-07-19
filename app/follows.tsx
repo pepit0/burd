@@ -14,7 +14,8 @@ import { DisplayNameText } from "@/components/DisplayNameText";
 import { FollowButton } from "@/components/FollowButton";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
-import { getErrorMessage } from "@/lib/errors";
+import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
+import { getLoadErrorMessage } from "@/lib/errors";
 import { getMyProfile } from "@/lib/sightings";
 import {
   acceptFriendRequest,
@@ -60,9 +61,9 @@ export default function FollowsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!userId || !profileUserId) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     try {
       const listPromise =
         mode === "requests"
@@ -82,15 +83,17 @@ export default function FollowsScreen() {
       setOwnerProfile(owner);
       setError(null);
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(getLoadErrorMessage(e));
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [isOwnList, mode, profileUserId, userId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRetryOnRecover(error, () => load({ silent: true }));
 
   const visible = useMemo(
     () => rows.filter((row) => matchesQuery(row, query)),

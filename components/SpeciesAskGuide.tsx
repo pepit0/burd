@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { Send } from "lucide-react-native";
 import { askSpeciesGuide, type SpeciesChatMessage } from "@/lib/speciesAsk";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 
 interface SpeciesAskGuideProps {
   commonName: string;
@@ -46,7 +46,7 @@ export function SpeciesAskGuide({
     } catch (e) {
       setMessages(priorMessages);
       setInput(question);
-      setError(getErrorMessage(e));
+      setError(getUserFacingMessage(e));
     } finally {
       setLoading(false);
     }

@@ -6,7 +6,8 @@ import {
   getMyLikedIds,
   setLike,
 } from "@/lib/sightings";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage } from "@/lib/errors";
+import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { FeedSighting } from "@/types";
 import type { Coords } from "@/hooks/useCurrentLocation";
 
@@ -63,7 +64,10 @@ export function useFeed({
         setLoading(true);
       }
 
-      setError(null);
+      if (mode !== "silent") {
+        setError(null);
+      }
+
       try {
         let rows: FeedSighting[] = [];
         if (filter === "for_you") {
@@ -82,8 +86,9 @@ export function useFeed({
         setSightings(rows);
         setLikedIds(liked);
         hasLoaded.current = true;
+        setError(null);
       } catch (e) {
-        setError(getErrorMessage(e));
+        setError(getLoadErrorMessage(e));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -138,6 +143,8 @@ export function useFeed({
 
   const refresh = useCallback(() => load("refresh"), [load]);
   const silentRefresh = useCallback(() => load("silent"), [load]);
+
+  useRetryOnRecover(error, silentRefresh);
 
   return {
     sightings,

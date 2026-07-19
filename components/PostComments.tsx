@@ -17,7 +17,8 @@ import {
   getCommentsForSighting,
   setCommentLike,
 } from "@/lib/comments";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage, getUserFacingMessage } from "@/lib/errors";
+import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import { timeAgo } from "@/lib/time";
 import type { Comment } from "@/types";
 
@@ -151,7 +152,7 @@ export function PostComments({
       setComments(rows);
       onCommentCountChange?.(countComments(rows));
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(getLoadErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -160,6 +161,8 @@ export function PostComments({
   useEffect(() => {
     loadComments();
   }, [loadComments]);
+
+  useRetryOnRecover(error, loadComments);
 
   async function handleSubmit() {
     if (!userId || submitting) return;
@@ -174,7 +177,7 @@ export function PostComments({
       setReplyTo(null);
       await loadComments();
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -217,7 +220,7 @@ export function PostComments({
             like_count: Math.max(0, comment.like_count + (willLike ? -1 : 1)),
           })),
         );
-        Alert.alert("Could not update like", getErrorMessage(e));
+        Alert.alert("Could not update like", getUserFacingMessage(e));
       });
     },
     [router, userId],

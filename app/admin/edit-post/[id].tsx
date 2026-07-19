@@ -14,7 +14,7 @@ import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import { updatePostAsAdmin } from "@/lib/moderation";
 import { getSightingById } from "@/lib/sightings";
 import type { Rarity, Sighting } from "@/types";
@@ -62,7 +62,7 @@ export default function AdminEditPostScreen() {
         setRarity(row.rarity);
         setCount(row.count);
       } catch (e) {
-        if (!cancelled) Alert.alert("Could not load post", getErrorMessage(e));
+        if (!cancelled) Alert.alert("Could not load post", getUserFacingMessage(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -90,7 +90,7 @@ export default function AdminEditPostScreen() {
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (e) {
-      Alert.alert("Could not save", getErrorMessage(e));
+      Alert.alert("Could not save", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }

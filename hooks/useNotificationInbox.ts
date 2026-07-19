@@ -6,7 +6,8 @@ import {
   markActivityRead,
   markAllActivityRead,
 } from "@/lib/activity";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage } from "@/lib/errors";
+import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { ActivityItem } from "@/types";
 
 interface UseNotificationInbox {
@@ -41,12 +42,12 @@ export function useNotificationInbox(
         setLoading(true);
       }
 
-      setError(null);
       try {
         setNotifications(await getActivity(userId));
         hasLoaded.current = true;
+        setError(null);
       } catch (e) {
-        setError(getErrorMessage(e));
+        setError(getLoadErrorMessage(e));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -65,6 +66,8 @@ export function useNotificationInbox(
   }, [load, enabled]);
 
   const refresh = useCallback(() => load("refresh"), [load]);
+
+  useRetryOnRecover(error, refresh);
 
   const markRead = useCallback(async (id: string) => {
     await markActivityRead(id);

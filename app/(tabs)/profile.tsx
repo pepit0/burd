@@ -44,7 +44,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useProfile } from "@/hooks/useProfile";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { supabase } from "@/lib/supabase";
@@ -194,7 +194,7 @@ export default function ProfileScreen() {
       });
       setDetailsEditOpen(false);
     } catch (e) {
-      Alert.alert("Could not update profile", getErrorMessage(e));
+      Alert.alert("Could not update profile", getUserFacingMessage(e));
     } finally {
       setProfileSaving(false);
     }
@@ -210,7 +210,7 @@ export default function ProfileScreen() {
       await updateDetails({ cover_url: presetId });
       setBannerPickerOpen(false);
     } catch (e) {
-      Alert.alert("Could not update banner", getErrorMessage(e));
+      Alert.alert("Could not update banner", getUserFacingMessage(e));
     } finally {
       setProfileSaving(false);
     }
@@ -242,7 +242,7 @@ export default function ProfileScreen() {
     try {
       await updateAvatar(result.assets[0].base64, "jpg");
     } catch (e) {
-      Alert.alert("Could not update photo", getErrorMessage(e));
+      Alert.alert("Could not update photo", getUserFacingMessage(e));
     } finally {
       setAvatarUploading(false);
     }

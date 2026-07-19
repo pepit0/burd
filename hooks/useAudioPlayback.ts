@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { Audio } from "expo-av";
 import { loadAudioPeaks, seededFallbackPeaks, synthesizeLiveLevels } from "@/lib/audioPeaks";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import { WebAudioPlaybackEngine } from "@/lib/webAudioPlayback";
 
 export const PLAYBACK_BAR_COUNT = 24;
@@ -159,7 +159,7 @@ export function useAudioPlayback(
         .catch((e) => {
           if (!cancelled) {
             setPeaks(seededFallbackPeaks(uri, PLAYBACK_BAR_COUNT));
-            setError(getErrorMessage(e));
+            setError(getUserFacingMessage(e, "Couldn't play this audio."));
           }
         })
         .finally(() => {
@@ -213,7 +213,7 @@ export function useAudioPlayback(
         setLoadedDurationMs(engine.getDurationMs() || loadedDurationMs);
         startWebAnimation();
       } catch (e) {
-        setError(getErrorMessage(e));
+        setError(getUserFacingMessage(e, "Couldn't play this audio."));
         setPlaying(false);
         resetPlaybackVisual();
       } finally {
@@ -237,7 +237,7 @@ export function useAudioPlayback(
         stopNativeAnimationLoop();
         setPlaying(false);
       } catch (e) {
-        setError(getErrorMessage(e));
+        setError(getUserFacingMessage(e, "Couldn't play this audio."));
       }
       return;
     }
@@ -296,7 +296,7 @@ export function useAudioPlayback(
       setPlaying(true);
       startNativeAnimation();
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(getUserFacingMessage(e, "Couldn't play this audio."));
       setPlaying(false);
       resetPlaybackVisual();
       void soundRef.current?.unloadAsync().catch(() => undefined);

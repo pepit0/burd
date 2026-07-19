@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getMySightings } from "@/lib/sightings";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage } from "@/lib/errors";
+import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { Sighting } from "@/types";
 
 interface UseMySightings {
@@ -32,12 +33,16 @@ export function useMySightings(userId: string | null): UseMySightings {
         setLoading(true);
       }
 
-      setError(null);
+      if (mode !== "silent") {
+        setError(null);
+      }
+
       try {
         setSightings(await getMySightings(userId));
         hasLoaded.current = true;
+        setError(null);
       } catch (e) {
-        setError(getErrorMessage(e));
+        setError(getLoadErrorMessage(e));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -54,6 +59,8 @@ export function useMySightings(userId: string | null): UseMySightings {
 
   const refresh = useCallback(() => load("refresh"), [load]);
   const silentRefresh = useCallback(() => load("silent"), [load]);
+
+  useRetryOnRecover(error, silentRefresh);
 
   return { sightings, loading, refreshing, error, refresh, silentRefresh };
 }

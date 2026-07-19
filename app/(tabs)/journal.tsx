@@ -11,12 +11,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Camera,
   ChevronRight,
   Clock,
   Feather,
+  FileImage,
   MapPin,
   Plus,
   Search,
@@ -30,17 +31,20 @@ import { AudioPostThumb } from "@/components/AudioPostThumb";
 import { useAuth } from "@/hooks/useAuth";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useResolvedCities } from "@/hooks/useResolvedCities";
-import { getErrorMessage } from "@/lib/errors";
+import { useCaptureDrafts } from "@/hooks/useCaptureDrafts";
+import { getUserFacingMessage } from "@/lib/errors";
 import { deleteMySighting } from "@/lib/sightings";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
+import { setPendingCapture } from "@/lib/pendingCapture";
 import {
   formatJournalWhen,
   observedDate,
   sightingCity,
 } from "@/lib/sightingFormat";
 import type { Sighting } from "@/types";
+import type { CaptureDraft } from "@/lib/captureDrafts";
 
-type JournalMediaTab = "photos" | "sounds";
+type JournalMediaTab = "photos" | "sounds" | "drafts";
 
 const STAT_ICONS: Record<string, LucideIcon> = {
   camera: Camera,
@@ -51,6 +55,7 @@ const STAT_ICONS: Record<string, LucideIcon> = {
 const MEDIA_TABS: { id: JournalMediaTab; label: string }[] = [
   { id: "photos", label: "Photos" },
   { id: "sounds", label: "Sounds" },
+  { id: "drafts", label: "Drafts" },
 ];
 
 function groupLabel(dateString: string): string {
@@ -84,6 +89,7 @@ function matchesSearch(sighting: Sighting, query: string): boolean {
 }
 
 function matchesMediaTab(sighting: Sighting, tab: JournalMediaTab): boolean {
+  if (tab === "drafts") return false;
   if (tab === "sounds") return isAudioSighting(sighting);
   // Photos tab: photo sightings + manual logs (anything that isn't a sound entry)
   return !isAudioSighting(sighting);
@@ -91,13 +97,30 @@ function matchesMediaTab(sighting: Sighting, tab: JournalMediaTab): boolean {
 
 export default function JournalScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { sightings, loading, refreshing, error, refresh, silentRefresh } =
     useMySightings(userId);
+  const {
+    drafts,
+    loading: draftsLoading,
+    refresh: refreshDrafts,
+    remove: removeDraft,
+  } = useCaptureDrafts();
   const cityFor = useResolvedCities(sightings);
   const [search, setSearch] = useState("");
-  const [mediaTab, setMediaTab] = useState<JournalMediaTab>("photos");
+  const [mediaTab, setMediaTab] = useState<JournalMediaTab>(() =>
+    params.tab === "drafts" ? "drafts" : "photos",
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (params.tab === "drafts") {
+        setMediaTab("drafts");
+      }
+    }, [params.tab]),
+  );
 
   const firstFocus = useRef(true);
   useFocusEffect(
@@ -107,7 +130,8 @@ export default function JournalScreen() {
         return;
       }
       silentRefresh();
-    }, [silentRefresh]),
+      void refreshDrafts();
+    }, [silentRefresh, refreshDrafts]),
   );
 
   const stats = useMemo(
@@ -129,11 +153,22 @@ export default function JournalScreen() {
 
   const filteredSightings = useMemo(
     () =>
-      sightings.filter(
-        (s) => matchesSearch(s, search) && matchesMediaTab(s, mediaTab),
-      ),
+      mediaTab === "drafts"
+        ? []
+        : sightings.filter(
+            (s) => matchesSearch(s, search) && matchesMediaTab(s, mediaTab),
+          ),
     [sightings, search, mediaTab],
   );
+
+  const filteredDrafts = useMemo(() => {
+    if (mediaTab !== "drafts") return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return drafts;
+    return drafts.filter((d) =>
+      d.photos.some((p) => p.capturedAt.toLowerCase().includes(q) || d.id.includes(q)),
+    );
+  }, [drafts, mediaTab, search]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Sighting[]>();
@@ -145,6 +180,37 @@ export default function JournalScreen() {
     }
     return Array.from(map, ([date, entries]) => ({ date, entries }));
   }, [filteredSightings]);
+
+  function openDraft(draft: CaptureDraft) {
+    setPendingCapture({
+      photos: draft.photos,
+      primaryIndex: draft.primaryIndex,
+    });
+    router.push({
+      pathname: "/new-sighting",
+      params: {
+        source: "image",
+        draftId: draft.id,
+      },
+    });
+  }
+
+  function confirmDeleteDraft(draft: CaptureDraft) {
+    Alert.alert(
+      "Delete draft?",
+      "This removes the saved photos from this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void removeDraft(draft.id);
+          },
+        },
+      ],
+    );
+  }
 
   function confirmDeleteSighting(sighting: Sighting) {
     if (!userId) return;
@@ -164,7 +230,7 @@ export default function JournalScreen() {
                 await deleteMySighting(userId, sighting.id);
                 await refresh();
               } catch (e) {
-                Alert.alert("Could not delete", getErrorMessage(e));
+                Alert.alert("Could not delete", getUserFacingMessage(e));
               }
             })();
           },
@@ -176,7 +242,17 @@ export default function JournalScreen() {
   const emptyTabCopy =
     mediaTab === "sounds"
       ? "No sound sightings yet. Use Sound ID or the camera mic to log one."
-      : "No photo sightings yet. Tap the + to log your first bird.";
+      : mediaTab === "drafts"
+        ? "No drafts yet. Photos saved offline or when ID is slow will show up here."
+        : "No photo sightings yet. Tap the + to log your first bird.";
+
+  async function onRefresh() {
+    if (mediaTab === "drafts") {
+      await refreshDrafts();
+      return;
+    }
+    await refresh();
+  }
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -217,6 +293,10 @@ export default function JournalScreen() {
         <View className="flex-row items-center justify-start gap-2">
           {MEDIA_TABS.map((tab) => {
             const active = mediaTab === tab.id;
+            const label =
+              tab.id === "drafts" && drafts.length > 0
+                ? `Drafts (${drafts.length})`
+                : tab.label;
             return (
               <Pressable
                 key={tab.id}
@@ -232,7 +312,7 @@ export default function JournalScreen() {
                       : "text-muted-foreground"
                   }`}
                 >
-                  {tab.label}
+                  {label}
                 </Text>
               </Pressable>
             );
@@ -245,10 +325,76 @@ export default function JournalScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pb-28"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#5f9470" />
+          <RefreshControl
+            refreshing={mediaTab === "drafts" ? false : refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor="#5f9470"
+          />
         }
       >
-        {loading && sightings.length === 0 ? (
+        {mediaTab === "drafts" ? (
+          draftsLoading && drafts.length === 0 ? (
+            <ActivityIndicator className="mt-16" color="#5f9470" />
+          ) : filteredDrafts.length === 0 ? (
+            <Text className="mt-16 px-8 text-center font-sans text-sm leading-relaxed text-muted-foreground">
+              {emptyTabCopy}
+            </Text>
+          ) : (
+            <View className="gap-2 px-4">
+              {filteredDrafts.map((draft) => {
+                const primary =
+                  draft.photos[draft.primaryIndex] ?? draft.photos[0];
+                const when = new Date(draft.updatedAt || draft.createdAt);
+                return (
+                  <Pressable
+                    key={draft.id}
+                    onPress={() => openDraft(draft)}
+                    className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3 active:opacity-90"
+                  >
+                    <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                      {primary?.uri ? (
+                        <Image
+                          source={{ uri: primary.uri }}
+                          className="h-full w-full"
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <FileImage size={16} color="#3a4e35" />
+                      )}
+                    </View>
+                    <View className="min-w-0 flex-1">
+                      <Text className="font-serif text-sm text-foreground">
+                        Needs ID
+                      </Text>
+                      <Text className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
+                        {draft.inProgress ? "In progress" : "Saved offline"}
+                      </Text>
+                      <View className="mt-0.5 flex-row items-center gap-1">
+                        <Clock size={9} color="#8a9e82" />
+                        <Text className="text-[10px] text-muted-foreground/80">
+                          {formatJournalWhen(when)}
+                        </Text>
+                      </View>
+                      <Text className="mt-0.5 text-[11px] text-muted-foreground">
+                        {draft.photos.length} photo
+                        {draft.photos.length === 1 ? "" : "s"}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => confirmDeleteDraft(draft)}
+                      hitSlop={8}
+                      className="rounded-full p-2 active:bg-card"
+                      accessibilityLabel="Delete draft"
+                    >
+                      <Trash2 size={14} color="#8a9e82" />
+                    </Pressable>
+                    <ChevronRight size={13} color="#8a9e82" />
+                  </Pressable>
+                );
+              })}
+            </View>
+          )
+        ) : loading && sightings.length === 0 ? (
           <ActivityIndicator className="mt-16" color="#5f9470" />
         ) : error ? (
           <Text className="mt-16 px-8 text-center font-sans text-sm text-muted-foreground">

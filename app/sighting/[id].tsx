@@ -25,7 +25,7 @@ import { RarityBadge } from "@/components/RarityBadge";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { useAuth } from "@/hooks/useAuth";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage, getUserFacingMessage } from "@/lib/errors";
 import { deleteMySighting, getSightingById, publishSighting } from "@/lib/sightings";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
 import {
@@ -101,7 +101,7 @@ export default function SightingDetailScreen() {
           if (!row) setError("Sighting not found.");
         }
       } catch (e) {
-        if (!cancelled) setError(getErrorMessage(e));
+        if (!cancelled) setError(getLoadErrorMessage(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -156,7 +156,7 @@ export default function SightingDetailScreen() {
         ],
       );
     } catch (e) {
-      Alert.alert("Could not post", getErrorMessage(e));
+      Alert.alert("Could not post", getUserFacingMessage(e));
     } finally {
       setPublishing(false);
     }
@@ -180,7 +180,7 @@ export default function SightingDetailScreen() {
                 await deleteMySighting(userId, sighting.id);
                 router.back();
               } catch (e) {
-                Alert.alert("Could not delete", getErrorMessage(e));
+                Alert.alert("Could not delete", getUserFacingMessage(e));
               }
             })();
           },

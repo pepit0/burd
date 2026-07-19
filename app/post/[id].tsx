@@ -29,7 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { getCommentCountForSighting } from "@/lib/comments";
-import { getErrorMessage } from "@/lib/errors";
+import { getLoadErrorMessage } from "@/lib/errors";
 import {
   getFeedPostById,
   getMyLikedIds,
@@ -126,7 +126,7 @@ export default function PostScreen() {
           if (!cancelled) setLiked(likedIds.has(row.id));
         }
       } catch (e) {
-        if (!cancelled) setError(getErrorMessage(e));
+        if (!cancelled) setError(getLoadErrorMessage(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
