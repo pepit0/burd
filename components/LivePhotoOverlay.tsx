@@ -17,6 +17,10 @@ interface LivePhotoOverlayProps {
   isProcessing: boolean;
   primaryDetection: LivePhotoDetection | null;
   spottedInFrame: boolean;
+  /** Connection warning or slow-connection hint from the live photo hook. */
+  statusMessage?: string | null;
+  /** Framing tip shown under Scanning when there is no connection warning. */
+  coachMessage?: string | null;
   bannerTop: number;
   reticleTop: number;
   reticleBottom: number;
@@ -110,6 +114,8 @@ export function LivePhotoOverlay({
   isProcessing,
   primaryDetection,
   spottedInFrame,
+  statusMessage = null,
+  coachMessage = null,
   bannerTop,
   reticleTop,
   reticleBottom,
@@ -150,6 +156,9 @@ export function LivePhotoOverlay({
     primaryDetection?.catalogId ??
     catalogIdFromScientific(scientificForImage);
 
+  const showScanningPill =
+    !primaryDetection && isProcessing && !statusMessage;
+
   return (
     <>
       <ScanReticle
@@ -163,12 +172,39 @@ export function LivePhotoOverlay({
         className="absolute inset-x-4 z-10"
         style={{ top: bannerTop }}
       >
-        {enabled && !primaryDetection && isProcessing ? (
+        {showScanningPill ? (
           <View className="items-center">
             <View className="flex-row items-center gap-2 rounded-full bg-background/70 px-3 py-1.5">
               <ActivityIndicator size="small" color="#5f9470" />
               <Text className="font-sans text-xs text-foreground/80">Scanning…</Text>
             </View>
+            {coachMessage ? (
+              <Text className="mt-2 text-center font-sans text-xs leading-relaxed text-foreground/65">
+                {coachMessage}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {!showScanningPill && coachMessage && !primaryDetection && !statusMessage ? (
+          <Text className="text-center font-sans text-xs leading-relaxed text-foreground/65">
+            {coachMessage}
+          </Text>
+        ) : null}
+
+        {statusMessage && !primaryDetection ? (
+          <View className="rounded-2xl border border-amber-400/35 bg-black/70 px-3.5 py-2.5">
+            {isProcessing ? (
+              <View className="mb-1.5 flex-row items-center gap-2">
+                <ActivityIndicator size="small" color="#fbbf24" />
+                <Text className="font-sans text-xs text-amber-100/90">
+                  Scanning…
+                </Text>
+              </View>
+            ) : null}
+            <Text className="font-sans text-xs leading-relaxed text-amber-100/90">
+              {statusMessage}
+            </Text>
           </View>
         ) : null}
 

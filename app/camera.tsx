@@ -34,7 +34,7 @@ import {
   Zap,
   ZapOff,
 } from "lucide-react-native";
-import { identifySession } from "@/lib/identifySession";
+import { identifySession, identificationFromLivePhoto } from "@/lib/identifySession";
 import {
   PHOTO_AUTHENTICITY_ENABLED,
   validatePhotoAuthenticity,
@@ -50,7 +50,8 @@ import {
 } from "@/lib/pendingCapture";
 import { enrichPrediction } from "@/lib/predictionLabels";
 import { soundConfirmsPhoto } from "@/lib/speciesMatch";
-import { getErrorMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
+import { canReuseLivePhotoDetection } from "@/lib/livePhotoSession";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
 import { LivePhotoOverlay } from "@/components/LivePhotoOverlay";
 import { LiveSoundConfirmationOverlay } from "@/components/LiveSoundConfirmationOverlay";
@@ -59,6 +60,11 @@ import { useIdentificationLocation } from "@/hooks/useIdentificationLocation";
 import { useLivePhotoId } from "@/hooks/useLivePhotoId";
 import { useLiveSoundConfirmation } from "@/hooks/useLiveSoundConfirmation";
 import { useCameraZoom } from "@/hooks/useCameraZoom";
+import {
+  IDENTIFY_FINISH_SLOW_HINT,
+  IDENTIFY_FINISH_SLOW_HINT_MS,
+  useSlowRequestHint,
+} from "@/hooks/useSlowRequestHint";
 
 function newPhotoId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -95,6 +101,11 @@ export default function CameraScreen() {
   const liveSound = useLiveSoundConfirmation();
 
   const cameraZoom = useCameraZoom(cameraRef, { facing });
+
+  const showFinishSlowHint = useSlowRequestHint(
+    finishing,
+    IDENTIFY_FINISH_SLOW_HINT_MS,
+  );
 
   const flashAnim = useRef(new Animated.Value(0)).current;
 
@@ -249,7 +260,7 @@ export default function CameraScreen() {
             "Photo not accepted",
             isPhotoValidationError(e)
               ? validationFailureMessage(e.validation) || e.message
-              : getErrorMessage(e),
+              : getUserFacingMessage(e),
           );
           return;
         }
@@ -266,20 +277,28 @@ export default function CameraScreen() {
         : undefined;
 
       let result: Awaited<ReturnType<typeof identifySession>> | null = null;
-      try {
-        result = await identifySession({
-          photoUri: primary.uri,
-          skipPhotoAuthenticity: true,
-          photoBase64: primary.base64,
-          geo,
-        });
-      } catch (e) {
-        if (isPhotoValidationError(e)) {
-          Alert.alert(
-            "Photo not accepted",
-            validationFailureMessage(e.validation) || e.message,
-          );
-          return;
+      const livePrimary = livePhoto.primaryDetection;
+      if (canReuseLivePhotoDetection(livePrimary)) {
+        result = identificationFromLivePhoto(
+          livePrimary,
+          livePhoto.displayRows,
+        );
+      } else {
+        try {
+          result = await identifySession({
+            photoUri: primary.uri,
+            skipPhotoAuthenticity: true,
+            photoBase64: primary.base64,
+            geo,
+          });
+        } catch (e) {
+          if (isPhotoValidationError(e)) {
+            Alert.alert(
+              "Photo not accepted",
+              validationFailureMessage(e.validation) || e.message,
+            );
+            return;
+          }
         }
       }
 
@@ -322,7 +341,7 @@ export default function CameraScreen() {
         },
       });
     } catch (e) {
-      Alert.alert("Something went wrong", getErrorMessage(e));
+      Alert.alert("Something went wrong", getUserFacingMessage(e));
     } finally {
       setFinishing(false);
     }
@@ -387,11 +406,16 @@ export default function CameraScreen() {
       />
 
       {finishing && (
-        <View className="absolute inset-0 z-20 items-center justify-center bg-black/60">
+        <View className="absolute inset-0 z-20 items-center justify-center bg-black/60 px-8">
           <ActivityIndicator size="large" color="#5f9470" />
-          <Text className="mt-3 font-sans text-sm text-foreground/80">
+          <Text className="mt-3 text-center font-sans text-sm text-foreground/80">
             Identifying from photo...
           </Text>
+          {showFinishSlowHint ? (
+            <Text className="mt-2 text-center font-sans text-xs leading-relaxed text-amber-100/90">
+              {IDENTIFY_FINISH_SLOW_HINT}
+            </Text>
+          ) : null}
         </View>
       )}
 
@@ -400,6 +424,8 @@ export default function CameraScreen() {
         isProcessing={livePhoto.isProcessing}
         primaryDetection={livePhoto.primaryDetection}
         spottedInFrame={livePhoto.spottedInFrame}
+        statusMessage={livePhoto.statusMessage}
+        coachMessage={livePhoto.coachMessage}
         bannerTop={liveBannerTop}
         reticleTop={reticleTop}
         reticleBottom={reticleBottom}

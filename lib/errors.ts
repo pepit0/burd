@@ -42,6 +42,10 @@ const TECHNICAL_MESSAGE_PATTERNS = [
 function looksTechnical(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed) return true;
+  // Keep connection-oriented identify messages for the UI.
+  if (/check your connection|could not reach the identification server|identification timed out/i.test(trimmed)) {
+    return false;
+  }
   return TECHNICAL_MESSAGE_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 

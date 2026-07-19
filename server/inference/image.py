@@ -93,7 +93,12 @@ class ImageClassifier:
         image = Image.open(buf).convert("RGB")
         infer_image(self._net, image, self._transform, device=self._device)
 
-    def predict(self, image_bytes: bytes) -> tuple[list[Prediction], int]:
+    def predict(
+        self,
+        image_bytes: bytes,
+        *,
+        count_instances: bool = True,
+    ) -> tuple[list[Prediction], int]:
         if self.mock:
             rows = mock_predictions(settings.top_k)
             preds = [
@@ -104,7 +109,9 @@ class ImageClassifier:
         if not self.loaded or self._net is None or self._transform is None:
             raise RuntimeError("Image model is not loaded")
         preds, top_idx = self._predict(image_bytes)
-        count = self._count_instances(image_bytes, top_idx) if top_idx is not None else 1
+        if not count_instances or top_idx is None:
+            return preds, 1
+        count = self._count_instances(image_bytes, top_idx)
         return preds, count
 
     def _count_instances(self, image_bytes: bytes, class_idx: int) -> int:

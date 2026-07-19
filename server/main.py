@@ -164,13 +164,18 @@ async def identify_image(
         raise HTTPException(status_code=400, detail="Empty image upload")
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="Image too large")
+    is_live = _parse_form_bool(live_photo)
     try:
         async with _inference_lock:
-            preds, count = await asyncio.to_thread(image_classifier.predict, data)
+            preds, count = await asyncio.to_thread(
+                lambda: image_classifier.predict(
+                    data, count_instances=not is_live
+                )
+            )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     validation = validate_image(data, preds)
-    bypass_validation = _parse_form_bool(live_photo) or _parse_form_bool(skip_validation)
+    bypass_validation = is_live or _parse_form_bool(skip_validation)
     if validation.enabled and not validation.passed and not bypass_validation:
         failed = [c.message for c in validation.checks if not c.passed]
         raise HTTPException(

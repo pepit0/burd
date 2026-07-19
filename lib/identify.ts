@@ -38,14 +38,39 @@ function inferencePostTimeoutMs(): number {
   return isRemoteInference() ? 120_000 : 0;
 }
 
+function connectionUnreachableMessage(): string {
+  if (isRemoteInference()) {
+    return "Could not reach the identification server. Check your connection and try again.";
+  }
+  return `Could not reach the identification server. ${inferenceReachabilityHint()}`;
+}
+
+function isNetworkFailureMessage(message: string): boolean {
+  return (
+    message === "Network request failed" ||
+    message.includes("Failed to fetch") ||
+    message.includes("NetworkError")
+  );
+}
+
 function formatInferenceError(error: unknown): string {
   if (error instanceof Error) {
     if (error.name === "AbortError" || /abort/i.test(error.message)) {
-      return "Identification timed out";
+      return "Identification timed out. Check your connection and try again.";
+    }
+    if (isNetworkFailureMessage(error.message)) {
+      return connectionUnreachableMessage();
     }
     return error.message;
   }
   return "Request failed";
+}
+
+/** True when a live-chunk failure reason is likely connection-related. */
+export function isInferenceConnectionIssue(reason: string): boolean {
+  return /timed out|check your connection|could not reach|network request failed|failed to fetch|networkerror/i.test(
+    reason,
+  );
 }
 
 export interface IdentifyGeoOptions {
@@ -88,14 +113,8 @@ function inferenceReachabilityHint(): string {
 
 function wrapInferenceNetworkError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
-  if (
-    message === "Network request failed" ||
-    message.includes("Failed to fetch") ||
-    message.includes("NetworkError")
-  ) {
-    return new Error(
-      `Could not reach the identification server. ${inferenceReachabilityHint()}`,
-    );
+  if (isNetworkFailureMessage(message)) {
+    return new Error(connectionUnreachableMessage());
   }
   return error instanceof Error ? error : new Error(message);
 }

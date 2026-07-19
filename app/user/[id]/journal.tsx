@@ -19,13 +19,16 @@ import {
   Feather,
   MapPin,
   Search,
+  Volume2,
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
+import { AudioPostThumb } from "@/components/AudioPostThumb";
 import { useAuth } from "@/hooks/useAuth";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useResolvedCities } from "@/hooks/useResolvedCities";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import {
   formatJournalWhen,
   observedDate,
@@ -33,11 +36,18 @@ import {
 } from "@/lib/sightingFormat";
 import type { Sighting } from "@/types";
 
+type JournalMediaTab = "photos" | "sounds";
+
 const STAT_ICONS: Record<string, LucideIcon> = {
-  feather: Feather,
   camera: Camera,
+  volume: Volume2,
   zap: Zap,
 };
+
+const MEDIA_TABS: { id: JournalMediaTab; label: string }[] = [
+  { id: "photos", label: "Photos" },
+  { id: "sounds", label: "Sounds" },
+];
 
 function groupLabel(dateString: string): string {
   const d = new Date(dateString);
@@ -69,6 +79,11 @@ function matchesSearch(sighting: Sighting, query: string): boolean {
   );
 }
 
+function matchesMediaTab(sighting: Sighting, tab: JournalMediaTab): boolean {
+  if (tab === "sounds") return isAudioSighting(sighting);
+  return !isAudioSighting(sighting);
+}
+
 export default function UserJournalScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -80,27 +95,31 @@ export default function UserJournalScreen() {
   const { sightings, loading, refreshing, error, refresh } = useMySightings(targetId);
   const cityFor = useResolvedCities(sightings);
   const [search, setSearch] = useState("");
-
-  const filteredSightings = useMemo(
-    () => sightings.filter((s) => matchesSearch(s, search)),
-    [sightings, search],
-  );
+  const [mediaTab, setMediaTab] = useState<JournalMediaTab>("photos");
 
   const stats = useMemo(
     () => [
       {
-        icon: "feather",
-        label: "Species",
-        value: new Set(sightings.map((s) => s.species.toLowerCase())).size,
-      },
-      {
         icon: "camera",
         label: "Photos",
-        value: sightings.filter((s) => s.photo_url).length,
+        value: sightings.filter((s) => isPhotoSighting(s)).length,
+      },
+      {
+        icon: "volume",
+        label: "Sounds",
+        value: sightings.filter((s) => isAudioSighting(s)).length,
       },
       { icon: "zap", label: "Logged", value: sightings.length },
     ],
     [sightings],
+  );
+
+  const filteredSightings = useMemo(
+    () =>
+      sightings.filter(
+        (s) => matchesSearch(s, search) && matchesMediaTab(s, mediaTab),
+      ),
+    [sightings, search, mediaTab],
   );
 
   const groups = useMemo(() => {
@@ -116,11 +135,22 @@ export default function UserJournalScreen() {
 
   const title = profile?.username ? `@${profile.username}'s Journal` : "Journal";
 
-  const emptyCopy = search.trim()
-    ? "No journal entries match your search."
-    : profile?.username
-      ? `@${profile.username} has not logged any sightings yet.`
-      : "No sightings logged yet.";
+  const emptyCopy = (() => {
+    if (search.trim()) return "No journal entries match your search.";
+    if (sightings.length === 0) {
+      return profile?.username
+        ? `@${profile.username} has not logged any sightings yet.`
+        : "No sightings logged yet.";
+    }
+    if (mediaTab === "sounds") {
+      return profile?.username
+        ? `@${profile.username} has no sound sightings yet.`
+        : "No sound sightings yet.";
+    }
+    return profile?.username
+      ? `@${profile.username} has no photo sightings yet.`
+      : "No photo sightings yet.";
+  })();
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -134,17 +164,6 @@ export default function UserJournalScreen() {
       </View>
 
       <View className="gap-3 px-4 pb-3 pt-3">
-        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-          <Search size={14} color="#8a9e82" />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search species, locations..."
-            placeholderTextColor="#8a9e82"
-            className="flex-1 font-sans text-sm text-foreground"
-          />
-        </View>
-
         <View className="flex-row gap-3">
           {stats.map((stat) => {
             const Icon = STAT_ICONS[stat.icon];
@@ -161,6 +180,42 @@ export default function UserJournalScreen() {
                   {stat.label}
                 </Text>
               </View>
+            );
+          })}
+        </View>
+
+        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
+          <Search size={14} color="#8a9e82" />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search species, locations..."
+            placeholderTextColor="#8a9e82"
+            className="flex-1 font-sans text-sm text-foreground"
+          />
+        </View>
+
+        <View className="flex-row items-center justify-start gap-2">
+          {MEDIA_TABS.map((tab) => {
+            const active = mediaTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setMediaTab(tab.id)}
+                className={`rounded-full px-3 py-1 ${
+                  active ? "bg-primary" : "border border-border bg-card"
+                }`}
+              >
+                <Text
+                  className={`text-xs ${
+                    active
+                      ? "font-sans-medium text-primary-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
             );
           })}
         </View>
@@ -210,12 +265,14 @@ export default function UserJournalScreen() {
                           className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3 active:opacity-90"
                         >
                           <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-muted">
-                            {e.photo_url ? (
+                            {isPhotoSighting(e) ? (
                               <Image
-                                source={{ uri: e.photo_url }}
+                                source={{ uri: e.photo_url! }}
                                 className="h-full w-full"
                                 resizeMode="cover"
                               />
+                            ) : isAudioSighting(e) ? (
+                              <AudioPostThumb size="sm" className="h-full w-full" />
                             ) : (
                               <Feather size={16} color="#3a4e35" />
                             )}

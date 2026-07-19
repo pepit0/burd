@@ -40,11 +40,18 @@ import {
 } from "@/lib/sightingFormat";
 import type { Sighting } from "@/types";
 
+type JournalMediaTab = "photos" | "sounds";
+
 const STAT_ICONS: Record<string, LucideIcon> = {
-  feather: Feather,
   camera: Camera,
+  volume: Volume2,
   zap: Zap,
 };
+
+const MEDIA_TABS: { id: JournalMediaTab; label: string }[] = [
+  { id: "photos", label: "Photos" },
+  { id: "sounds", label: "Sounds" },
+];
 
 function groupLabel(dateString: string): string {
   const d = new Date(dateString);
@@ -76,6 +83,12 @@ function matchesSearch(sighting: Sighting, query: string): boolean {
   );
 }
 
+function matchesMediaTab(sighting: Sighting, tab: JournalMediaTab): boolean {
+  if (tab === "sounds") return isAudioSighting(sighting);
+  // Photos tab: photo sightings + manual logs (anything that isn't a sound entry)
+  return !isAudioSighting(sighting);
+}
+
 export default function JournalScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -84,6 +97,7 @@ export default function JournalScreen() {
     useMySightings(userId);
   const cityFor = useResolvedCities(sightings);
   const [search, setSearch] = useState("");
+  const [mediaTab, setMediaTab] = useState<JournalMediaTab>("photos");
 
   const firstFocus = useRef(true);
   useFocusEffect(
@@ -96,26 +110,29 @@ export default function JournalScreen() {
     }, [silentRefresh]),
   );
 
-  const filteredSightings = useMemo(
-    () => sightings.filter((s) => matchesSearch(s, search)),
-    [sightings, search],
-  );
-
   const stats = useMemo(
     () => [
       {
-        icon: "feather",
-        label: "Species",
-        value: new Set(sightings.map((s) => s.species.toLowerCase())).size,
-      },
-      {
         icon: "camera",
         label: "Photos",
-        value: sightings.filter((s) => s.photo_url).length,
+        value: sightings.filter((s) => isPhotoSighting(s)).length,
+      },
+      {
+        icon: "volume",
+        label: "Sounds",
+        value: sightings.filter((s) => isAudioSighting(s)).length,
       },
       { icon: "zap", label: "Logged", value: sightings.length },
     ],
     [sightings],
+  );
+
+  const filteredSightings = useMemo(
+    () =>
+      sightings.filter(
+        (s) => matchesSearch(s, search) && matchesMediaTab(s, mediaTab),
+      ),
+    [sightings, search, mediaTab],
   );
 
   const groups = useMemo(() => {
@@ -156,22 +173,16 @@ export default function JournalScreen() {
     );
   }
 
+  const emptyTabCopy =
+    mediaTab === "sounds"
+      ? "No sound sightings yet. Use Sound ID or the camera mic to log one."
+      : "No photo sightings yet. Tap the + to log your first bird.";
+
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <ScreenHeader title="My Journal" />
 
       <View className="gap-3 px-4 pb-3 pt-3">
-        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-          <Search size={14} color="#8a9e82" />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search species, locations..."
-            placeholderTextColor="#8a9e82"
-            className="flex-1 font-sans text-sm text-foreground"
-          />
-        </View>
-
         <View className="flex-row gap-3">
           {stats.map((stat) => {
             const Icon = STAT_ICONS[stat.icon];
@@ -192,23 +203,41 @@ export default function JournalScreen() {
           })}
         </View>
 
-        <Pressable
-          onPress={() => router.push("/sounds")}
-          className="flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 active:opacity-90"
-        >
-          <View className="h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Volume2 size={18} color="#5f9470" />
-          </View>
-          <View className="min-w-0 flex-1">
-            <Text className="font-sans-medium text-sm text-foreground">
-              Sound library
-            </Text>
-            <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
-              Saved recordings from Sound ID and the camera
-            </Text>
-          </View>
-          <ChevronRight size={16} color="#8a9e82" />
-        </Pressable>
+        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
+          <Search size={14} color="#8a9e82" />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search species, locations..."
+            placeholderTextColor="#8a9e82"
+            className="flex-1 font-sans text-sm text-foreground"
+          />
+        </View>
+
+        <View className="flex-row items-center justify-start gap-2">
+          {MEDIA_TABS.map((tab) => {
+            const active = mediaTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setMediaTab(tab.id)}
+                className={`rounded-full px-3 py-1 ${
+                  active ? "bg-primary" : "border border-border bg-card"
+                }`}
+              >
+                <Text
+                  className={`text-xs ${
+                    active
+                      ? "font-sans-medium text-primary-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
       <ScrollView
@@ -231,7 +260,9 @@ export default function JournalScreen() {
           </Text>
         ) : filteredSightings.length === 0 ? (
           <Text className="mt-16 px-8 text-center font-sans text-sm leading-relaxed text-muted-foreground">
-            No journal entries match your search.
+            {search.trim()
+              ? "No journal entries match your search."
+              : emptyTabCopy}
           </Text>
         ) : (
           <View className="gap-6 px-4">

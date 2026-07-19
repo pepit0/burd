@@ -61,15 +61,18 @@ stick. Worse, editing memory in the Fly UI can **regenerate the app config and
 strip `swap_size_mb` / `[rootfs]`**, which reintroduces the OOM crash loop.
 Change memory only in `server/fly.toml`, then redeploy via the GitHub Action.
 
-### Memory (current: 4GB)
+### Memory / CPU (current: 4GB, 2 performance CPUs)
 
-`server/fly.toml` runs the machine at **4gb / 4 shared CPUs**, which comfortably
-holds birder (PyTorch) + Perch (TensorFlow) together. `AUDIO_WARMUP=1` pre-compiles
-Perch at startup so the first sound request is fast.
+`server/fly.toml` runs the machine at **4gb / 2 performance CPUs**, which comfortably
+holds birder (PyTorch) + Perch (TensorFlow) together. Performance CPUs avoid
+shared-CPU steal so Live Photo ID stays closer to single-model latency.
+`Dockerfile.fly` sets `OMP/MKL/OPENBLAS_NUM_THREADS=2` to match. `AUDIO_WARMUP=1`
+pre-compiles Perch at startup so the first sound request is fast.
 
 Going above `2gb` requires the Fly **org** memory cap to be lifted (add a payment
 method / upgrade off the trial plan). If a deploy ever fails with
-`cannot exceed 2048 MiB`, the cap is back on — check org billing.
+`cannot exceed 2048 MiB`, the cap is back on — check org billing. Performance
+CPUs also require a paid org plan.
 
 ### 5. Verify (wait ~5 minutes after deploy)
 

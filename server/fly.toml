@@ -38,9 +38,10 @@ swap_size_mb = 2048
     path = '/health'
     timeout = '60s'
 
-# 4GB comfortably holds birder (PyTorch) + Perch (TensorFlow) together.
-# Requires the Fly org memory cap to be lifted (add a payment method).
+# 4GB holds birder (PyTorch) + Perch (TensorFlow). Performance CPUs avoid
+# shared-CPU steal so Live Photo ID stays closer to 1-model latency.
+# Requires the Fly org memory/CPU caps to allow this (paid org).
 [[vm]]
   memory = '4gb'
-  cpu_kind = 'shared'
-  cpus = 4
+  cpu_kind = 'performance'
+  cpus = 2

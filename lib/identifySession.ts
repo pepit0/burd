@@ -5,6 +5,11 @@ import {
   identifyImage,
   type IdentifyGeoOptions,
 } from "@/lib/identify";
+import { enrichPrediction } from "@/lib/predictionLabels";
+import type {
+  LivePhotoDetection,
+  LivePhotoDisplayRow,
+} from "@/lib/livePhotoSession";
 import type { Prediction } from "@/types";
 
 export interface SessionIdentification extends FusedIdentification {
@@ -12,6 +17,47 @@ export interface SessionIdentification extends FusedIdentification {
   imagePredictions: Prediction[];
   audioPredictions: Prediction[];
   heardSpecies: Prediction[];
+}
+
+/** Build a session result from a locked Live Photo ID (skips network identify). */
+export function identificationFromLivePhoto(
+  primary: LivePhotoDetection,
+  displayRows: LivePhotoDisplayRow[],
+): SessionIdentification {
+  const fromRows = displayRows
+    .filter((row) => !row.isExpiring)
+    .map((row) =>
+      enrichPrediction({
+        ...row.detection.prediction,
+        confidence: row.detection.peakConfidence,
+      }),
+    );
+
+  const primaryPrediction = enrichPrediction({
+    ...primary.prediction,
+    confidence: primary.peakConfidence,
+  });
+
+  const imagePredictions: Prediction[] = [
+    primaryPrediction,
+    ...fromRows.filter((p) => {
+      const a =
+        p.scientific_name?.trim().toLowerCase() || p.species.trim().toLowerCase();
+      const b =
+        primaryPrediction.scientific_name?.trim().toLowerCase() ||
+        primaryPrediction.species.trim().toLowerCase();
+      return a !== b;
+    }),
+  ];
+
+  const fused = fusePredictions(imagePredictions, []);
+  return {
+    ...fused,
+    count: 1,
+    imagePredictions,
+    audioPredictions: [],
+    heardSpecies: [],
+  };
 }
 
 /** Run photo and/or sound ID in parallel, then fuse the results. */

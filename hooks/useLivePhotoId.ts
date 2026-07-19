@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { CameraView } from "expo-camera";
-import { identifyImageChunkSafe } from "@/lib/identify";
+import {
+  identifyImageChunkSafe,
+  isInferenceConnectionIssue,
+} from "@/lib/identify";
 import { useIdentificationLocation } from "@/hooks/useIdentificationLocation";
+import {
+  LIVE_PHOTO_COACH_HINT,
+  LIVE_PHOTO_COACH_HINT_MS,
+  LIVE_PHOTO_SLOW_HINT,
+  LIVE_PHOTO_SLOW_HINT_MS,
+  useSlowRequestHint,
+} from "@/hooks/useSlowRequestHint";
 import {
   displayPhotoDetections,
   highlightKeysFromPhotoFrame,
@@ -26,7 +36,17 @@ export interface UseLivePhotoIdResult {
   isProcessing: boolean;
   displayRows: LivePhotoDisplayRow[];
   primaryDetection: LivePhotoDetection | null;
+  spottedInFrame: boolean;
   scanError: string | null;
+  /** Connection/timeout failure message for the live overlay. */
+  chunkWarning: string | null;
+  /**
+   * Prefer failure warning; otherwise slow-connection hint while a frame
+   * is in flight with no primary detection yet.
+   */
+  statusMessage: string | null;
+  /** Framing tip when scanning without a result (muted; not a connection warning). */
+  coachMessage: string | null;
 }
 
 export function useLivePhotoId(
@@ -39,6 +59,7 @@ export function useLivePhotoId(
   const [isProcessing, setIsProcessing] = useState(false);
   const [displayRows, setDisplayRows] = useState<LivePhotoDisplayRow[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [chunkWarning, setChunkWarning] = useState<string | null>(null);
 
   const sessionRef = useRef<LivePhotoSession | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,7 +125,7 @@ export function useLivePhotoId(
 
     try {
       const photo = await camera.takePictureAsync({
-        quality: 0.35,
+        quality: 0.55,
         base64: false,
         shutterSound: false,
         skipProcessing: true,
@@ -127,6 +148,7 @@ export function useLivePhotoId(
       if (!enabledRef.current || !sessionRef.current) return;
 
       if (outcome.ok) {
+        setChunkWarning(null);
         const now = Date.now();
         sessionRef.current.detections = mergePhotoFramePredictions(
           sessionRef.current.detections,
@@ -137,8 +159,13 @@ export function useLivePhotoId(
           outcome.result,
         );
         refreshDisplay();
-      } else if (__DEV__) {
-        setScanError(outcome.reason);
+      } else {
+        if (isInferenceConnectionIssue(outcome.reason)) {
+          setChunkWarning(outcome.reason);
+        }
+        if (__DEV__) {
+          setScanError(outcome.reason);
+        }
       }
     } catch {
       // Frame capture can fail if the camera is busy — skip quietly.
@@ -163,6 +190,7 @@ export function useLivePhotoId(
     setIsProcessing(false);
     setDisplayRows([]);
     setScanError(null);
+    setChunkWarning(null);
   }, [clearPruneTimer, clearScanTimer]);
 
   const startScanning = useCallback(async () => {
@@ -206,6 +234,23 @@ export function useLivePhotoId(
     (row) => row.isInFrame && !row.isExpiring,
   );
 
+  const showSlowHint = useSlowRequestHint(isProcessing, LIVE_PHOTO_SLOW_HINT_MS);
+  const showCoachHint = useSlowRequestHint(
+    enabled && cameraActive && !primaryDetection,
+    LIVE_PHOTO_COACH_HINT_MS,
+  );
+
+  const statusMessage =
+    chunkWarning ??
+    (showSlowHint && isProcessing && !primaryDetection
+      ? LIVE_PHOTO_SLOW_HINT
+      : null);
+
+  const coachMessage =
+    !statusMessage && showCoachHint && !primaryDetection
+      ? LIVE_PHOTO_COACH_HINT
+      : null;
+
   return {
     enabled,
     setEnabled,
@@ -215,5 +260,8 @@ export function useLivePhotoId(
     primaryDetection,
     spottedInFrame,
     scanError,
+    chunkWarning,
+    statusMessage,
+    coachMessage,
   };
 }

@@ -72,6 +72,17 @@ function passesDisplayThreshold(detection: LivePhotoDetection): boolean {
   return detection.hitCount >= LIVE_PHOTO_MIN_HITS;
 }
 
+/** Strong enough Live ID to skip a full Done re-identify. */
+export function canReuseLivePhotoDetection(
+  detection: LivePhotoDetection | null | undefined,
+): detection is LivePhotoDetection {
+  if (!detection) return false;
+  return (
+    detection.peakConfidence >= LIVE_PHOTO_STRONG_CONFIDENCE &&
+    detection.hitCount >= LIVE_PHOTO_MIN_HITS
+  );
+}
+
 function sortDetections(
   detections: LivePhotoDetection[],
   ctx: RegionalContext | null,
