@@ -32,6 +32,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { nativewindColorVars } from "@/lib/colorTheme";
 import { getMyAccountStatus } from "@/lib/moderation";
 import { initRegionalCommunity } from "@/lib/regionalCommunity";
+import { resolveUsernameSetup } from "@/lib/signup";
 import type { AccountStatus } from "@/types";
 
 function AppShell() {
@@ -93,6 +94,11 @@ function RootLayoutInner() {
   const router = useRouter();
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [usernameGate, setUsernameGate] = useState<{
+    userId: string | null;
+    needsUsername: boolean;
+    ready: boolean;
+  }>({ userId: null, needsUsername: false, ready: false });
 
   const [fontsLoaded, fontError] = useFonts({
     Lora_400Regular,
@@ -114,18 +120,73 @@ function RootLayoutInner() {
   }, []);
 
   useEffect(() => {
-    if (loading) {
+    if (loading) return;
+
+    if (!session?.user) {
+      setUsernameGate({ userId: null, needsUsername: false, ready: true });
+      return;
+    }
+
+    const userId = session.user.id;
+    let cancelled = false;
+
+    // Keep previous ready gate for the same user to avoid a loading flash /
+    // double navigation when metadata lightly changes after sign-in.
+    setUsernameGate((prev) => {
+      if (prev.userId === userId && prev.ready) return prev;
+      return { userId, needsUsername: false, ready: false };
+    });
+
+    void resolveUsernameSetup(session.user)
+      .then((needsUsername) => {
+        if (cancelled) return;
+        setUsernameGate({
+          userId,
+          needsUsername,
+          ready: true,
+        });
+      })
+      .catch((err) => {
+        console.warn("username gate failed:", err);
+        if (!cancelled) {
+          // Fail open so a transient error doesn't require a second sign-in.
+          setUsernameGate({
+            userId,
+            needsUsername: false,
+            ready: true,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    session?.user?.id,
+    loading,
+    user?.user_metadata?.username_chosen,
+    user?.user_metadata?.username,
+  ]);
+
+  useEffect(() => {
+    if (loading || !usernameGate.ready) {
       return;
     }
 
     const inAuthGroup = segments[0] === "(auth)";
+    const onChooseUsername =
+      inAuthGroup && segments[1] === "choose-username";
 
-    if (!session && !inAuthGroup) {
-      router.replace("/(auth)/login");
-    } else if (session && inAuthGroup) {
+    if (!session) {
+      if (!inAuthGroup || onChooseUsername) {
+        router.replace("/(auth)/login");
+      }
+    } else if (usernameGate.needsUsername && !onChooseUsername) {
+      router.replace("/(auth)/choose-username");
+    } else if (!usernameGate.needsUsername && inAuthGroup) {
       router.replace("/(tabs)/");
     }
-  }, [session, loading, segments, router]);
+  }, [session, loading, segments, router, usernameGate]);
 
   useEffect(() => {
     if (!user?.id || !session) {
@@ -160,7 +221,7 @@ function RootLayoutInner() {
     };
   }, [user?.id, session]);
 
-  if (loading || !fontsReady || (session && statusLoading && !accountStatus)) {
+  if (loading || !fontsReady) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
         <ActivityIndicator size="large" color={palette.primary} />
@@ -179,9 +240,21 @@ function RootLayoutInner() {
     );
   }
 
+  // Keep the navigator mounted through username/status checks. Unmounting it
+  // after sign-in made the first router.replace race (console warnings +
+  // needing a second sign-in).
+  const gating =
+    Boolean(session) &&
+    (!usernameGate.ready || (statusLoading && !accountStatus));
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeKeyboardProvider>
+        {gating ? (
+          <View className="absolute inset-0 z-50 items-center justify-center bg-background">
+            <ActivityIndicator size="large" color={palette.primary} />
+          </View>
+        ) : null}
         <AppShell />
       </SafeKeyboardProvider>
     </GestureHandlerRootView>

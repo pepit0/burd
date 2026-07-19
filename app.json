@@ -17,12 +17,15 @@
       "icon": "./assets/icon.png",
       "supportsTablet": true,
       "bundleIdentifier": "com.burd.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         },
         "NSMicrophoneUsageDescription": "Burd uses the microphone so you can record bird calls while photographing.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -45,6 +48,7 @@
       "expo-router",
       "expo-asset",
       "expo-font",
+      "expo-apple-authentication",
       [
         "expo-location",
         {
@@ -85,7 +89,8 @@
         {
           "color": "#5f9470"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -10,28 +10,71 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Link } from "expo-router";
 import { Feather } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
+import { SocialAuthButtons } from "@/components/SocialAuthButtons";
+import { AUTH_EMAIL_REDIRECT_TO } from "@/lib/authRedirect";
+import { getUserFacingMessage } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
+
+function isEmailNotConfirmed(message: string): boolean {
+  return /email not confirmed|confirm your email|email_not_confirmed/i.test(
+    message,
+  );
+}
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendNote, setResendNote] = useState<string | null>(null);
 
   async function handleSignIn() {
     setError(null);
+    setResendNote(null);
+    setNeedsConfirmation(false);
     setLoading(true);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    if (signInError) {
-      setError(signInError.message);
+      if (signInError) {
+        const message = getUserFacingMessage(signInError, signInError.message);
+        setError(message);
+        setNeedsConfirmation(isEmailNotConfirmed(signInError.message));
+      }
+      // On success, root layout reacts to the session — don't navigate here.
+    } catch (e) {
+      setError(getUserFacingMessage(e, "Could not sign in. Please try again."));
+    } finally {
+      setLoading(false);
     }
+  }
 
-    setLoading(false);
+  async function handleResendConfirmation() {
+    const trimmed = email.trim();
+    if (!trimmed || resending) return;
+    setResending(true);
+    setResendNote(null);
+    setError(null);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: trimmed,
+        options: { emailRedirectTo: AUTH_EMAIL_REDIRECT_TO },
+      });
+      if (resendError) {
+        setError(getUserFacingMessage(resendError));
+        return;
+      }
+      setResendNote("Confirmation email sent. Check your inbox.");
+    } finally {
+      setResending(false);
+    }
   }
 
   return (
@@ -81,25 +124,49 @@ export default function LoginScreen() {
         />
 
         {error ? (
-          <Text className="mb-4 font-sans text-sm text-destructive">{error}</Text>
+          <Text className="mb-3 font-sans text-sm text-destructive">{error}</Text>
+        ) : null}
+        {resendNote ? (
+          <Text className="mb-3 font-sans text-sm text-primary">{resendNote}</Text>
+        ) : null}
+
+        {needsConfirmation ? (
+          <Pressable
+            className="mb-4 items-center rounded-xl border border-border bg-card py-3 active:opacity-90"
+            disabled={resending}
+            onPress={() => void handleResendConfirmation()}
+          >
+            {resending ? (
+              <ActivityIndicator color="#5f9470" />
+            ) : (
+              <Text className="font-sans-medium text-sm text-foreground">
+                Resend confirmation email
+              </Text>
+            )}
+          </Pressable>
         ) : null}
 
         <Pressable
-          className="mb-6 items-center rounded-xl bg-primary py-3.5 active:opacity-90"
+          className="mb-4 items-center rounded-xl bg-primary py-3.5 active:opacity-90"
           disabled={loading}
           onPress={handleSignIn}
         >
           {loading ? (
             <ActivityIndicator color="#f0ead6" />
           ) : (
-            <Text className="font-sans-bold text-base text-primary-foreground">Sign in</Text>
+            <Text className="font-sans-bold text-base text-primary-foreground">
+              Sign in
+            </Text>
           )}
         </Pressable>
+
+        <SocialAuthButtons onError={setError} className="mb-6" />
 
         <Link href="/(auth)/register" asChild>
           <Pressable>
             <Text className="text-center font-sans text-base text-muted-foreground">
-              Need an account? <Text className="text-primary">Register</Text>
+              Don't have an account?{" "}
+              <Text className="text-primary">Sign up here!</Text>
             </Text>
           </Pressable>
         </Link>
