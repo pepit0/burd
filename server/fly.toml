@@ -20,9 +20,6 @@ swap_size_mb = 2048
 # Pre-compile Perch at startup now that we have 4GB — first sound request is fast.
 [env]
   AUDIO_WARMUP = '1'
-  # Diagnostic logging only (no behavior change): logs raw Perch, watch-species
-  # logits (jay/robin/crow/raven), and the final filtered result per request.
-  AUDIO_DEBUG = '1'
 
 [http_service]
   internal_port = 8000

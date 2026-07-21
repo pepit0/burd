@@ -21,6 +21,12 @@ Optional:
 |------|--------|
 | `EXPO_PUBLIC_SOUND_DEBUG` | `true` (only while diagnosing sound ID) |
 
+Deploy the account-deletion Edge Function before App Store submission:
+
+```bash
+supabase functions deploy delete-account
+```
+
 `EXPO_PUBLIC_*` values are baked in at **build** time. Changing them requires a new build.
 
 ## App icon (iOS / TestFlight)

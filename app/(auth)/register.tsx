@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { Feather, Mail } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
+import { AuthLegalNotice } from "@/components/AuthLegalNotice";
 import { AUTH_EMAIL_REDIRECT_TO } from "@/lib/authRedirect";
 import {
   checkEmailAvailable,
@@ -186,8 +187,8 @@ export default function RegisterScreen() {
           Create account
         </Text>
         <Text className="mb-8 font-sans text-base text-muted-foreground">
-          Sign up with email, Apple, or Google. You'll choose an @username
-          after you're signed in.
+          Sign up with email or Apple. You'll choose an @username after you're
+          signed in.
         </Text>
 
         <Text className="mb-1 font-sans-medium text-sm text-foreground/80">Email</Text>
@@ -231,7 +232,9 @@ export default function RegisterScreen() {
           )}
         </Pressable>
 
-        <SocialAuthButtons onError={setError} className="mb-6" />
+        <SocialAuthButtons onError={setError} className="mb-4" />
+
+        <AuthLegalNotice className="mb-6" />
 
         <Pressable onPress={() => router.replace("/(auth)/login")}>
           <Text className="text-center font-sans text-base text-muted-foreground">

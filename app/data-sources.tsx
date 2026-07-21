@@ -7,8 +7,10 @@ import {
   getDataAttribution,
   getManifestVersion,
 } from "@/lib/regionalFrequency";
-
-const PRIVACY_POLICY_URL = "https://burdapp.com/privacy.html";
+import {
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+} from "@/lib/legalUrls";
 
 export default function DataSourcesScreen() {
   const router = useRouter();
@@ -70,6 +72,15 @@ export default function DataSourcesScreen() {
           <Text className="font-sans-medium text-sm text-foreground">
             Legal
           </Text>
+          <Pressable
+            onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
+            className="mt-2 rounded-lg border border-border px-3 py-2.5 active:opacity-80"
+          >
+            <Text className="font-sans-medium text-sm text-foreground">Terms of Service</Text>
+            <Text className="mt-1 font-sans text-xs text-muted-foreground">
+              Rules for using the Burd app and website.
+            </Text>
+          </Pressable>
           <Pressable
             onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
             className="mt-2 rounded-lg border border-border px-3 py-2.5 active:opacity-80"

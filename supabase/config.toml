@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.photo-authenticity]
 verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true

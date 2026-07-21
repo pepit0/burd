@@ -1,10 +1,20 @@
-import { Text, View, Pressable, ActivityIndicator } from "react-native";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Trash2 } from "lucide-react-native";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useColorTheme } from "@/components/ColorThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
+import { deleteAccount } from "@/lib/accountDeletion";
+import { getUserFacingMessage } from "@/lib/errors";
 
 const RADIUS_OPTIONS = [5, 10, 25, 50, 100];
 
@@ -15,6 +25,51 @@ export default function ProfileSettingsScreen() {
   const { profile, loading, setRadius } = useProfile(userId);
   const { mode, setMode, palette } = useColorTheme();
   const colorblindEnabled = mode === "colorblind";
+  const [deleting, setDeleting] = useState(false);
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      "Delete account?",
+      "This permanently deletes your profile, sightings, photos, audio, and other data. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete account",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Are you sure?",
+              "Your account and all associated content will be permanently removed.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete forever",
+                  style: "destructive",
+                  onPress: () => void handleDeleteAccount(),
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleDeleteAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      router.replace("/(auth)/login");
+    } catch (e) {
+      Alert.alert(
+        "Could not delete account",
+        getUserFacingMessage(e, "Please try again or contact support."),
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -82,6 +137,29 @@ export default function ProfileSettingsScreen() {
             })}
           </View>
         )}
+
+        <Text className="mb-1 mt-8 font-serif-semibold text-base text-foreground">
+          Account
+        </Text>
+        <Text className="mb-3 font-sans text-xs text-muted-foreground">
+          Permanently remove your Burd account and all associated data.
+        </Text>
+        <Pressable
+          onPress={confirmDeleteAccount}
+          disabled={deleting}
+          className="flex-row items-center justify-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3.5 active:opacity-85"
+        >
+          {deleting ? (
+            <ActivityIndicator color="#c8693a" />
+          ) : (
+            <>
+              <Trash2 size={16} color="#c8693a" />
+              <Text className="font-sans-medium text-sm text-destructive">
+                Delete account
+              </Text>
+            </>
+          )}
+        </Pressable>
       </View>
     </SafeAreaView>
   );

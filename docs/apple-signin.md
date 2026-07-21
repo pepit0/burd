@@ -59,6 +59,24 @@ Install the build on a device, then tap **Sign in with Apple** on the login or r
 |---------|------------|
 | Button missing | Only shown on iOS; Android/web hide it by design |
 | “Not available” / no sheet | Need a custom build with `usesAppleSignIn`, not Expo Go |
+| EAS: provisioning profile doesn’t support Sign in with Apple | Enable **Sign in with Apple** on App ID `com.burd.app`, then regenerate the EAS App Store profile (see below) |
 | Supabase rejects token | Add `com.burd.app` to Apple provider Client IDs |
 | No email on user | Expected when user hides email; Apple provides a private relay address on first auth |
 | Name missing later | Apple only sends full name on the **first** authorization |
+
+### EAS build fails: profile missing `applesignin`
+
+`usesAppleSignIn` adds the `com.apple.developer.applesignin` entitlement. Expo’s existing App Store profile (often named `*[expo] com.burd.app AppStore …`) was created **before** that capability existed, so archive fails.
+
+1. [Apple Developer → Identifiers](https://developer.apple.com/account/resources/identifiers/list) → **`com.burd.app`** → enable **Sign in with Apple** → Save.
+2. Regenerate the Expo-managed profile so it picks up the new capability:
+   ```bash
+   npx eas credentials -p ios
+   ```
+   Choose the **production** (App Store) profile → remove / regenerate the **Provisioning Profile** (keep the distribution cert unless you need a full reset).
+3. Rebuild:
+   ```bash
+   npx eas build --profile production --platform ios
+   ```
+
+You can also delete the iOS App Store provisioning profile in the [Expo dashboard → Credentials](https://expo.dev) for the project; the next EAS build will create a fresh one.

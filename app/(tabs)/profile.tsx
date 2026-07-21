@@ -19,6 +19,7 @@ import {
   Database,
   FileText,
   LogOut,
+  Mail,
   Pencil,
   Settings,
   ShieldAlert,
@@ -49,8 +50,12 @@ import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCo
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { supabase } from "@/lib/supabase";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
+import {
+  PRIVACY_POLICY_URL,
+  SUPPORT_MAILTO,
+  TERMS_OF_SERVICE_URL,
+} from "@/lib/legalUrls";
 
-const PRIVACY_POLICY_URL = "https://burdapp.com/privacy.html";
 
 function SettingsRow({
   icon: Icon,
@@ -92,6 +97,37 @@ function SettingsRow({
       </View>
       <ChevronRight size={15} color="#8a9e82" />
     </Pressable>
+  );
+}
+
+function LegalLinksRow({
+  onTerms,
+  onPrivacy,
+  onDataSources,
+}: {
+  onTerms: () => void;
+  onPrivacy: () => void;
+  onDataSources: () => void;
+}) {
+  const links = [
+    { label: "Terms", icon: FileText, onPress: onTerms },
+    { label: "Privacy", icon: FileText, onPress: onPrivacy },
+    { label: "Data", icon: Database, onPress: onDataSources },
+  ] as const;
+
+  return (
+    <View className="flex-row gap-2 border-t border-border px-3 py-3">
+      {links.map(({ label, icon: Icon, onPress }) => (
+        <Pressable
+          key={label}
+          onPress={onPress}
+          className="min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/50 px-2 py-2.5 active:bg-card/80"
+        >
+          <Icon size={14} color="#8a9e82" />
+          <Text className="font-sans-medium text-[11px] text-foreground">{label}</Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
@@ -437,22 +473,18 @@ export default function ProfileScreen() {
               />
             ) : null}
             <SettingsRow
-              icon={FileText}
-              iconColor="#8a9e82"
-              iconBg="rgba(138,158,130,0.15)"
-              label="Privacy Policy"
-              description="How Burd collects and uses data"
-              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+              icon={Mail}
+              iconColor="#5f9470"
+              iconBg="rgba(95,148,112,0.15)"
+              label="Support"
+              description="Questions, bugs, or account help"
+              onPress={() => Linking.openURL(SUPPORT_MAILTO)}
               borderTop
             />
-            <SettingsRow
-              icon={Database}
-              iconColor="#8a9e82"
-              iconBg="rgba(138,158,130,0.15)"
-              label="Data sources"
-              description="Regional frequency and attribution"
-              onPress={() => router.push("/data-sources" as never)}
-              borderTop
+            <LegalLinksRow
+              onTerms={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
+              onPrivacy={() => Linking.openURL(PRIVACY_POLICY_URL)}
+              onDataSources={() => router.push("/data-sources" as never)}
             />
             <Pressable
               onPress={() => supabase.auth.signOut()}
