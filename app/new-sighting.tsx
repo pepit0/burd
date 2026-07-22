@@ -138,13 +138,16 @@ export default function NewSightingScreen() {
   const [photoAuthStatus, setPhotoAuthStatus] = useState<PhotoAuthStatus>("idle");
   const [photoAuthMessage, setPhotoAuthMessage] = useState<string | null>(null);
 
-  const detectedBy: DetectedBy =
+  const [detectedBy, setDetectedBy] = useState<DetectedBy>(() =>
     params.source === "image" ||
     params.source === "audio" ||
     params.source === "both"
       ? params.source
-      : "manual";
-  const confidence = params.confidence ? Number(params.confidence) : null;
+      : "manual",
+  );
+  const [confidence, setConfidence] = useState<number | null>(() =>
+    params.confidence ? Number(params.confidence) : null,
+  );
   const photoSoundAgreed = params.audio_agreed === "1";
 
   useEffect(() => {
@@ -219,6 +222,8 @@ export default function NewSightingScreen() {
           if (top) {
             setSpecies(top.species);
             setScientific(top.scientific_name ?? "");
+            setDetectedBy("image");
+            setConfidence(top.confidence);
           }
           if (identified.count) {
             setCount(identified.count);
@@ -322,7 +327,7 @@ export default function NewSightingScreen() {
     if (photo.capturedAt) {
       setObservedAt(new Date(photo.capturedAt));
     }
-    analyzePhotoCount(photo.uri);
+    analyzePhoto(photo.uri, photo.base64);
   }
 
   async function resolveLocation(
@@ -390,10 +395,10 @@ export default function NewSightingScreen() {
     };
   }, [species, scientific, coords, userId, observedAt]);
 
-  async function analyzePhotoCount(uri: string, base64?: string | null) {
+  async function analyzePhoto(uri: string, base64?: string | null) {
     setCountLoading(true);
     try {
-      const { count: detected } = await identifyImage(uri, {
+      const identified = await identifyImage(uri, {
         base64,
         geo: coords
           ? {
@@ -403,8 +408,19 @@ export default function NewSightingScreen() {
             }
           : undefined,
       });
-      setCount(detected);
-      setCountFromPhoto(true);
+      const top = identified.predictions[0]
+        ? enrichPrediction(identified.predictions[0])
+        : null;
+      if (top) {
+        setSpecies(top.species);
+        setScientific(top.scientific_name ?? "");
+        setDetectedBy("image");
+        setConfidence(top.confidence);
+      }
+      if (identified.count) {
+        setCount(identified.count);
+        setCountFromPhoto(true);
+      }
     } catch (e) {
       if (e instanceof PhotoValidationError || isPhotoValidationError(e)) {
         Alert.alert(
@@ -416,6 +432,8 @@ export default function NewSightingScreen() {
         setSessionPhotos([]);
         setPrimaryPhotoId(null);
         setCountFromPhoto(false);
+        setDetectedBy("manual");
+        setConfidence(null);
       }
       // keep the current count if analysis fails for other reasons
     } finally {
@@ -439,9 +457,14 @@ export default function NewSightingScreen() {
       setPhotoBase64(asset.base64 ?? null);
       setPhotoAuthStatus("checking");
       setPhotoAuthMessage(null);
+      setSpecies("");
+      setScientific("");
+      setDetectedBy("manual");
+      setConfidence(null);
+      setCountFromPhoto(false);
       const takenAt = await photoTakenAt(asset);
       if (takenAt) setObservedAt(takenAt);
-      await analyzePhotoCount(asset.uri, asset.base64 ?? null);
+      await analyzePhoto(asset.uri, asset.base64 ?? null);
     }
   }
 
@@ -694,13 +717,22 @@ export default function NewSightingScreen() {
 
         <View>
           <Text className="mb-1 font-sans-medium text-sm text-foreground/80">Species</Text>
-          <TextInput
-            value={species}
-            onChangeText={setSpecies}
-            placeholder="e.g. Cedar Waxwing"
-            placeholderTextColor="#8a9e82"
-            className="rounded-xl border border-border bg-card px-4 py-3 font-sans text-base text-foreground"
-          />
+          {countLoading && !species.trim() ? (
+            <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+              <ActivityIndicator size="small" color="#5f9470" />
+              <Text className="font-sans text-sm text-muted-foreground">
+                Identifying species from photo…
+              </Text>
+            </View>
+          ) : (
+            <TextInput
+              value={species}
+              onChangeText={setSpecies}
+              placeholder="e.g. Cedar Waxwing"
+              placeholderTextColor="#8a9e82"
+              className="rounded-xl border border-border bg-card px-4 py-3 font-sans text-base text-foreground"
+            />
+          )}
         </View>
 
         <View>
@@ -762,7 +794,7 @@ export default function NewSightingScreen() {
           </View>
           <Text className="mt-1.5 font-sans text-xs text-muted-foreground">
             {countLoading
-              ? "Counting birds in your photo..."
+              ? "Identifying birds in your photo..."
               : countFromPhoto
                 ? "From your photo · adjust if needed."
                 : photoUri
