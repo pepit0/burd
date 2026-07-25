@@ -116,7 +116,19 @@ export async function sendFriendRequest(targetId: string): Promise<void> {
   const { error } = await supabase.rpc("send_friend_request", {
     target_id: targetId,
   });
-  if (error) throw error;
+  if (!error) return;
+
+  // Fallback when RPC grants are missing: direct insert is allowed by follows RLS.
+  const authRes = await supabase.auth.getUser();
+  const currentUserId = authRes.data.user?.id ?? null;
+  if (!currentUserId) throw error;
+
+  const direct = await supabase.from("follows").insert({
+    follower_id: currentUserId,
+    following_id: targetId,
+  });
+
+  if (direct.error && direct.error.code !== "23505") throw error;
 }
 
 export async function cancelFriendRequest(targetId: string): Promise<void> {
@@ -143,7 +155,27 @@ export async function acceptFriendRequest(requesterId: string): Promise<void> {
   const { error } = await supabase.rpc("accept_friend_request", {
     requester_id: requesterId,
   });
-  if (error) throw error;
+  if (!error) return;
+
+  const authRes = await supabase.auth.getUser();
+  const currentUserId = authRes.data.user?.id ?? null;
+  if (!currentUserId) throw error;
+
+  const { data: incoming } = await supabase
+    .from("follows")
+    .select("follower_id")
+    .eq("follower_id", requesterId)
+    .eq("following_id", currentUserId)
+    .maybeSingle();
+
+  if (!incoming) throw error;
+
+  const direct = await supabase.from("follows").insert({
+    follower_id: currentUserId,
+    following_id: requesterId,
+  });
+
+  if (direct.error && direct.error.code !== "23505") throw error;
 }
 
 export async function declineFriendRequest(requesterId: string): Promise<void> {

@@ -26,7 +26,9 @@ import {
 import { SuspensionScreen } from "@/components/SuspensionScreen";
 import { NotificationBadgeProvider } from "@/components/NotificationBadgeProvider";
 import { SafeKeyboardProvider } from "@/components/SafeKeyboardProvider";
+import { WebDesktopFrame } from "@/components/WebDesktopFrame";
 import { ColorThemeProvider, useColorTheme } from "@/components/ColorThemeProvider";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { nativewindColorVars } from "@/lib/colorTheme";
@@ -89,6 +91,7 @@ export default function RootLayout() {
 
 function RootLayoutInner() {
   const { session, loading, user } = useAuth();
+  useAnalytics(session, loading);
   const { palette } = useColorTheme();
   const segments = useSegments();
   const router = useRouter();
@@ -223,20 +226,24 @@ function RootLayoutInner() {
 
   if (loading || !fontsReady) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator size="large" color={palette.primary} />
-      </View>
+      <WebDesktopFrame>
+        <View className="flex-1 items-center justify-center bg-background">
+          <ActivityIndicator size="large" color={palette.primary} />
+        </View>
+      </WebDesktopFrame>
     );
   }
 
   if (session && accountStatus?.isSuspended) {
     return (
-      <SafeKeyboardProvider>
-        <SuspensionScreen
-          reason={accountStatus.suspensionReason}
-          suspendedUntil={accountStatus.suspendedUntil}
-        />
-      </SafeKeyboardProvider>
+      <WebDesktopFrame>
+        <SafeKeyboardProvider>
+          <SuspensionScreen
+            reason={accountStatus.suspensionReason}
+            suspendedUntil={accountStatus.suspendedUntil}
+          />
+        </SafeKeyboardProvider>
+      </WebDesktopFrame>
     );
   }
 
@@ -249,14 +256,16 @@ function RootLayoutInner() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeKeyboardProvider>
-        {gating ? (
-          <View className="absolute inset-0 z-50 items-center justify-center bg-background">
-            <ActivityIndicator size="large" color={palette.primary} />
-          </View>
-        ) : null}
-        <AppShell />
-      </SafeKeyboardProvider>
+      <WebDesktopFrame>
+        <SafeKeyboardProvider>
+          {gating ? (
+            <View className="absolute inset-0 z-50 items-center justify-center bg-background">
+              <ActivityIndicator size="large" color={palette.primary} />
+            </View>
+          ) : null}
+          <AppShell />
+        </SafeKeyboardProvider>
+      </WebDesktopFrame>
     </GestureHandlerRootView>
   );
 }

@@ -10,9 +10,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
+import { trackForUser } from "@/lib/analytics";
 import { getUserFacingMessage } from "@/lib/errors";
 import {
   claimUsername,
+  normalizeUsername,
   validateUsername,
 } from "@/lib/signup";
 
@@ -38,6 +40,9 @@ export default function ChooseUsernameScreen() {
     setLoading(true);
     try {
       await claimUsername(user.id, username);
+      trackForUser(user.id, "username_claimed", {
+        username: normalizeUsername(username),
+      });
       // Root layout watches user_metadata.username and routes to tabs.
     } catch (e) {
       setError(getUserFacingMessage(e, "Could not save username."));

@@ -13,6 +13,7 @@ import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { AuthLegalNotice } from "@/components/AuthLegalNotice";
 import { AUTH_EMAIL_REDIRECT_TO } from "@/lib/authRedirect";
+import { getSignupPlatform, track } from "@/lib/analytics";
 import {
   checkEmailAvailable,
   mapSignUpError,
@@ -46,6 +47,7 @@ export default function RegisterScreen() {
     }
 
     setLoading(true);
+    track("signup_started", { signup_method: "email" });
 
     try {
       const emailOk = await checkEmailAvailable(trimmedEmail);
@@ -61,6 +63,8 @@ export default function RegisterScreen() {
           emailRedirectTo: AUTH_EMAIL_REDIRECT_TO,
           data: {
             username_chosen: false,
+            signup_platform: getSignupPlatform(),
+            signup_method: "email",
           },
         },
       });
@@ -72,9 +76,14 @@ export default function RegisterScreen() {
 
       // Session present → root layout sends them to choose-username.
       if (data.session) {
+        track("signup_completed", {
+          signup_method: "email",
+          email_confirmation_required: false,
+        });
         return;
       }
 
+      track("signup_email_confirmation_sent", { signup_method: "email" });
       setPendingEmail(trimmedEmail);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create account.");

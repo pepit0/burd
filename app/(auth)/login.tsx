@@ -12,6 +12,7 @@ import { Feather } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { AUTH_EMAIL_REDIRECT_TO } from "@/lib/authRedirect";
+import { track } from "@/lib/analytics";
 import { getUserFacingMessage } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
 
@@ -35,6 +36,7 @@ export default function LoginScreen() {
     setResendNote(null);
     setNeedsConfirmation(false);
     setLoading(true);
+    track("sign_in_started", { sign_in_method: "email" });
 
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({

@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
+import { getSignupPlatform, track } from "@/lib/analytics";
 import { getUserFacingMessage } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
 
@@ -47,6 +48,7 @@ export async function signInWithApple(): Promise<{ cancelled: boolean }> {
   }
 
   try {
+    track("sign_in_started", { sign_in_method: "apple" });
     const { raw: nonce, hashed: hashedNonce } = await createAppleNonce();
 
     const credential = await AppleAuthentication.signInAsync({
@@ -98,17 +100,39 @@ export async function signInWithApple(): Promise<{ cancelled: boolean }> {
         const {
           data: { user: signedIn },
         } = await supabase.auth.getUser();
-        if (
-          signedIn &&
-          signedIn.user_metadata?.username_chosen !== true &&
-          !(
-            typeof signedIn.user_metadata?.username === "string" &&
-            signedIn.user_metadata.username.trim().length >= 3
-          )
-        ) {
-          await supabase.auth.updateUser({
-            data: { username_chosen: false },
-          });
+        if (signedIn) {
+          const createdMs = new Date(signedIn.created_at).getTime();
+          const isNewUser = Date.now() - createdMs < 5 * 60 * 1000;
+          const metadata: Record<string, string | boolean> = {};
+
+          if (
+            signedIn.user_metadata?.username_chosen !== true &&
+            !(
+              typeof signedIn.user_metadata?.username === "string" &&
+              signedIn.user_metadata.username.trim().length >= 3
+            )
+          ) {
+            metadata.username_chosen = false;
+          }
+
+          if (isNewUser && !signedIn.user_metadata?.signup_platform) {
+            metadata.signup_platform = getSignupPlatform();
+            metadata.signup_method = "apple";
+          }
+
+          if (Object.keys(metadata).length > 0) {
+            await supabase.auth.updateUser({ data: metadata });
+          }
+
+          if (isNewUser) {
+            await supabase
+              .from("profiles")
+              .update({
+                signup_platform: getSignupPlatform(),
+                signup_method: "apple",
+              })
+              .eq("id", signedIn.id);
+          }
         }
       } catch (metaErr) {
         console.warn("Apple post-sign-in sync skipped:", metaErr);

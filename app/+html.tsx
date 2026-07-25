@@ -49,6 +49,16 @@ export default function Root({ children }: PropsWithChildren) {
           }}
         />
         <ScrollViewStyleReset />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+html, body, #root { height: 100%; }
+@media (min-width: 768px) {
+  body { background-color: #0f120e; }
+}
+`,
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>
