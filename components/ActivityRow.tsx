@@ -5,6 +5,7 @@ import {
   Heart,
   MessageCircle,
   MoreHorizontal,
+  Repeat2,
   ShieldAlert,
   Star,
   User,
@@ -19,6 +20,7 @@ import type { ActivityItem } from "@/types";
 
 function ActivityIcon({ type }: { type: ActivityItem["type"] }) {
   if (type === "like") return <Heart size={12} color="#f87171" fill="rgba(248,113,113,0.4)" />;
+  if (type === "repost") return <Repeat2 size={12} color="#5f9470" />;
   if (type === "follow") return <User size={12} color="#5f9470" />;
   if (type === "comment") return <MessageCircle size={12} color="#8a9e82" />;
   if (type === "log") return <Feather size={12} color="#c8893a" />;
@@ -90,8 +92,8 @@ export function ActivityRow({
 
   return (
     <View
-      className={`flex-row items-start gap-3 border-b border-border/40 py-3 ${
-        unread ? "bg-primary/5" : ""
+      className={`flex-row items-start gap-3 py-4 ${
+        unread ? "bg-primary/5 rounded-2xl px-3 -mx-3" : ""
       }`}
     >
       <Pressable onPress={goToActor} className="relative active:opacity-80">

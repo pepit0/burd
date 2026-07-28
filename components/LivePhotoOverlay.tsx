@@ -7,6 +7,8 @@ import {
   displayScientificName,
   displaySpeciesName,
 } from "@/lib/predictionLabels";
+import { CameraOriented } from "@/components/CameraOriented";
+import type { CameraUiRotation } from "@/hooks/useCameraDeviceOrientation";
 import type { LivePhotoDetection } from "@/lib/livePhotoSession";
 
 const RETICLE_GREEN = "#5f9470";
@@ -24,6 +26,7 @@ interface LivePhotoOverlayProps {
   bannerTop: number;
   reticleTop: number;
   reticleBottom: number;
+  uiRotation?: CameraUiRotation;
 }
 
 function ScanReticle({
@@ -119,6 +122,7 @@ export function LivePhotoOverlay({
   bannerTop,
   reticleTop,
   reticleBottom,
+  uiRotation = 0,
 }: LivePhotoOverlayProps) {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -174,38 +178,46 @@ export function LivePhotoOverlay({
       >
         {showScanningPill ? (
           <View className="items-center">
-            <View className="flex-row items-center gap-2 rounded-full bg-background/70 px-3 py-1.5">
-              <ActivityIndicator size="small" color="#5f9470" />
-              <Text className="font-sans text-xs text-foreground/80">Scanning…</Text>
-            </View>
+            <CameraOriented rotation={uiRotation} align="center">
+              <View className="flex-row items-center gap-2 rounded-full bg-background/70 px-3 py-1.5">
+                <ActivityIndicator size="small" color="#5f9470" />
+                <Text className="font-sans text-xs text-foreground/80">Scanning…</Text>
+              </View>
+            </CameraOriented>
             {coachMessage ? (
-              <Text className="mt-2 text-center font-sans text-xs leading-relaxed text-foreground/65">
-                {coachMessage}
-              </Text>
+              <CameraOriented rotation={uiRotation} align="center">
+                <Text className="mt-2 text-center font-sans text-xs leading-relaxed text-foreground/65">
+                  {coachMessage}
+                </Text>
+              </CameraOriented>
             ) : null}
           </View>
         ) : null}
 
         {!showScanningPill && coachMessage && !primaryDetection && !statusMessage ? (
-          <Text className="text-center font-sans text-xs leading-relaxed text-foreground/65">
-            {coachMessage}
-          </Text>
+          <CameraOriented rotation={uiRotation} align="center">
+            <Text className="text-center font-sans text-xs leading-relaxed text-foreground/65">
+              {coachMessage}
+            </Text>
+          </CameraOriented>
         ) : null}
 
         {statusMessage && !primaryDetection ? (
-          <View className="rounded-2xl border border-amber-400/35 bg-black/70 px-3.5 py-2.5">
-            {isProcessing ? (
-              <View className="mb-1.5 flex-row items-center gap-2">
-                <ActivityIndicator size="small" color="#fbbf24" />
-                <Text className="font-sans text-xs text-amber-100/90">
-                  Scanning…
-                </Text>
-              </View>
-            ) : null}
-            <Text className="font-sans text-xs leading-relaxed text-amber-100/90">
-              {statusMessage}
-            </Text>
-          </View>
+          <CameraOriented rotation={uiRotation} align="center">
+            <View className="rounded-2xl border border-amber-400/35 bg-black/70 px-3.5 py-2.5">
+              {isProcessing ? (
+                <View className="mb-1.5 flex-row items-center gap-2">
+                  <ActivityIndicator size="small" color="#fbbf24" />
+                  <Text className="font-sans text-xs text-amber-100/90">
+                    Scanning…
+                  </Text>
+                </View>
+              ) : null}
+              <Text className="font-sans text-xs leading-relaxed text-amber-100/90">
+                {statusMessage}
+              </Text>
+            </View>
+          </CameraOriented>
         ) : null}
 
         <Animated.View

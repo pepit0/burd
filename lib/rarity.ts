@@ -1,76 +1,88 @@
-import { getNearbyFeed } from "@/lib/sightings";
-import {
-  computeCommunityRarity,
-  lookupBaselineRarity,
-  maxRarity,
-} from "@/lib/speciesBaselines";
+import { lookupBaselineRarity } from "@/lib/speciesBaselines";
 import {
   getRegionalContext,
-  inferRarityFromFrequency,
+  lookupSpeciesScoreStrict,
 } from "@/lib/regionalFrequency";
-import type { Rarity } from "@/types";
+import { normalizeScientificName } from "@/lib/taxonomy";
+import type { Rarity, Sighting } from "@/types";
 
-const WINDOW_DAYS = 90;
-const MIN_REGIONAL_SIGHTINGS = 5;
+export interface RegionalRarityInput {
+  species: string;
+  scientificName: string | null;
+  lat: number | null;
+  lng: number | null;
+  observedAt?: string | Date | null;
+}
+
+function resolveObservedDate(observedAt?: string | Date | null): Date {
+  if (observedAt instanceof Date) return observedAt;
+  if (observedAt) {
+    const parsed = new Date(observedAt);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date();
+}
 
 /**
- * Estimate rarity from geo/season frequency priors, community sightings,
- * and hardcoded baselines (GPS missing only).
+ * Regional rarity from strict month-matched GBIF + checklist priors —
+ * same model as Field Guide Explore abundance.
  */
+export function lookupRegionalRarity(input: RegionalRarityInput): Rarity {
+  const species = input.species.trim();
+  const scientific = input.scientificName?.trim() || null;
+  const key =
+    normalizeScientificName(scientific) || normalizeScientificName(species);
+
+  if (!species || !key) {
+    return lookupBaselineRarity(species, scientific) ?? "common";
+  }
+
+  if (input.lat == null || input.lng == null) {
+    return lookupBaselineRarity(species, scientific) ?? "common";
+  }
+
+  const ctx = getRegionalContext(
+    input.lat,
+    input.lng,
+    resolveObservedDate(input.observedAt),
+  );
+  return lookupSpeciesScoreStrict(ctx, key).rarity;
+}
+
+export function rarityForSighting(
+  sighting: Pick<
+    Sighting,
+    | "species"
+    | "scientific_name"
+    | "latitude"
+    | "longitude"
+    | "observed_at"
+    | "created_at"
+  >,
+): Rarity {
+  return lookupRegionalRarity({
+    species: sighting.species,
+    scientificName: sighting.scientific_name,
+    lat: sighting.latitude,
+    lng: sighting.longitude,
+    observedAt: sighting.observed_at ?? sighting.created_at,
+  });
+}
+
+/** @deprecated Prefer lookupRegionalRarity — kept for async call sites. */
 export async function inferRegionalRarity(
   species: string,
   scientificName: string | null,
   lat: number | null,
   lng: number | null,
-  radiusKm: number,
+  _radiusKm: number,
   observedAt?: string | null,
 ): Promise<Rarity> {
-  const trimmed = species.trim();
-  const baseline = trimmed
-    ? lookupBaselineRarity(trimmed, scientificName?.trim() || null)
-    : null;
-
-  if (!trimmed) {
-    return baseline ?? "common";
-  }
-
-  let frequencyRarity: Rarity | null = null;
-  if (lat != null && lng != null) {
-    const ctx = getRegionalContext(
-      lat,
-      lng,
-      observedAt ? new Date(observedAt) : new Date(),
-    );
-    frequencyRarity = inferRarityFromFrequency(ctx, trimmed, scientificName);
-  }
-
-  if (lat == null || lng == null) {
-    return frequencyRarity ?? baseline ?? "common";
-  }
-
-  try {
-    const nearby = await getNearbyFeed(lat, lng, radiusKm);
-    const since = Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000;
-    const recent = nearby.filter(
-      (s) => new Date(s.created_at).getTime() >= since,
-    );
-
-    let community: Rarity | null = null;
-    if (recent.length >= MIN_REGIONAL_SIGHTINGS) {
-      community = computeCommunityRarity(
-        recent,
-        trimmed,
-        scientificName?.trim() || null,
-      );
-    }
-
-    const signals = [frequencyRarity, community, baseline].filter(
-      Boolean,
-    ) as Rarity[];
-
-    if (signals.length === 0) return "common";
-    return signals.reduce((best, next) => maxRarity(best, next));
-  } catch {
-    return frequencyRarity ?? baseline ?? "common";
-  }
+  return lookupRegionalRarity({
+    species,
+    scientificName,
+    lat,
+    lng,
+    observedAt,
+  });
 }

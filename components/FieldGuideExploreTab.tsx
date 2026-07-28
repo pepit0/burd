@@ -5,7 +5,12 @@ import {
   Pressable,
   Text,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
+import Animated, { type AnimatedStyle } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import { MapPin } from "lucide-react-native";
 import { SpeciesAbundanceChart } from "@/components/SpeciesAbundanceChart";
@@ -19,6 +24,15 @@ import {
 } from "@/lib/speciesAbundance";
 
 const ROW_HEIGHT = 96;
+
+interface FieldGuideExploreTabProps {
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollBeginDrag?: () => void;
+  onScrollEndDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onMomentumScrollEnd?: () => void;
+  listFrameStyle?: StyleProp<AnimatedStyle<StyleProp<ViewStyle>>>;
+  tabBarClearance?: number;
+}
 
 interface ExploreRowProps {
   entry: LikelySpeciesEntry;
@@ -70,7 +84,14 @@ const ExploreRow = memo(function ExploreRow({ entry, onPress }: ExploreRowProps)
   );
 });
 
-export function FieldGuideExploreTab() {
+export function FieldGuideExploreTab({
+  onScroll,
+  onScrollBeginDrag,
+  onScrollEndDrag,
+  onMomentumScrollEnd,
+  listFrameStyle,
+  tabBarClearance = 112,
+}: FieldGuideExploreTabProps) {
   const router = useRouter();
   const { coords, status: locStatus, refresh: refreshLocation } = useCurrentLocation();
   const { label, loading: labelLoading } = useRegionalLocationLabel(coords);
@@ -98,20 +119,25 @@ export function FieldGuideExploreTab() {
     ? "Finding your area…"
     : `${likelySpecies.length} Likely birds today near ${label?.display ?? "your area"}`;
 
+  const frameStyle = [
+    { position: "absolute" as const, left: 0, right: 0, bottom: 0 },
+    listFrameStyle,
+  ];
+
   if (locStatus === "loading") {
     return (
-      <View className="flex-1 items-center justify-center px-8">
+      <Animated.View style={frameStyle} className="items-center justify-center px-8">
         <ActivityIndicator color="#5f9470" />
         <Text className="mt-3 text-center font-sans text-sm text-muted-foreground">
           Getting your location…
         </Text>
-      </View>
+      </Animated.View>
     );
   }
 
   if (locStatus === "denied" || locStatus === "error" || !coords) {
     return (
-      <View className="flex-1 items-center justify-center px-8">
+      <Animated.View style={frameStyle} className="items-center justify-center px-8">
         <MapPin size={28} color="#8a9e82" />
         <Text className="mt-4 text-center font-sans text-sm leading-relaxed text-muted-foreground">
           Turn on location to see which birds are likely near you today.
@@ -124,12 +150,12 @@ export function FieldGuideExploreTab() {
             Enable location
           </Text>
         </Pressable>
-      </View>
+      </Animated.View>
     );
   }
 
   return (
-    <View className="flex-1">
+    <Animated.View style={frameStyle}>
       <View className="border-b border-border/60 px-4 py-3">
         <Text className="font-sans-medium text-sm text-foreground">{headerCopy}</Text>
         <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
@@ -147,13 +173,24 @@ export function FieldGuideExploreTab() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={likelySpecies}
           keyExtractor={(item) => item.id}
           renderItem={renderRow}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+          contentContainerStyle={{
+            flexGrow: likelySpecies.length === 0 ? 1 : undefined,
+            paddingHorizontal: 16,
+            paddingTop: 8,
+            paddingBottom: tabBarClearance,
+          }}
+          scrollEventThrottle={16}
+          onScroll={onScroll}
+          onScrollBeginDrag={onScrollBeginDrag}
+          onScrollEndDrag={onScrollEndDrag}
+          onMomentumScrollEnd={onMomentumScrollEnd}
           showsVerticalScrollIndicator={false}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }

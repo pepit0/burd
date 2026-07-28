@@ -1,5 +1,12 @@
-import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
+import { useEffect } from "react";
+import { View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 
 const BAR_COUNT = 16;
 const BAR_MAX_HEIGHT = 88;
@@ -7,58 +14,99 @@ const BAR_MAX_HEIGHT = 88;
 interface LiveSoundWaveformProps {
   active: boolean;
   level: number;
+  /** Gentle breathing wave when not actively listening. */
+  idleAnimate?: boolean;
+  compact?: boolean;
 }
 
 function WaveBar({
   active,
   level,
   index,
+  idleAnimate,
+  barMaxHeight,
+  barMinHeight,
 }: {
   active: boolean;
   level: number;
   index: number;
+  idleAnimate: boolean;
+  barMaxHeight: number;
+  barMinHeight: number;
 }) {
-  const height = useRef(new Animated.Value(12)).current;
+  const height = useSharedValue(barMinHeight);
 
   useEffect(() => {
-    const jitter = 0.35 + ((index * 7) % 11) / 20;
-    const target = active
-      ? Math.max(12, Math.min(BAR_MAX_HEIGHT, level * jitter * BAR_MAX_HEIGHT + 16))
-      : 12;
-    Animated.timing(height, {
-      toValue: target,
-      duration: 120,
-      useNativeDriver: false,
-    }).start();
-  }, [active, height, index, level]);
+    if (active) {
+      const jitter = 0.35 + ((index * 7) % 11) / 20;
+      const target = Math.max(
+        barMinHeight,
+        Math.min(barMaxHeight, level * jitter * barMaxHeight + barMinHeight + 4),
+      );
+      height.value = withTiming(target, { duration: 120 });
+      return;
+    }
 
-  const opacity = active
-    ? height.interpolate({
-        inputRange: [12, BAR_MAX_HEIGHT],
-        outputRange: [0.55, 1],
-        extrapolate: "clamp",
-      })
-    : 0.25;
+    if (!idleAnimate) {
+      height.value = withTiming(barMinHeight, { duration: 200 });
+      return;
+    }
+
+    height.value = withRepeat(
+      withTiming(barMaxHeight * (0.18 + ((index % 5) + 1) * 0.06), {
+        duration: 900 + (index % 4) * 120,
+        easing: Easing.inOut(Easing.sin),
+      }),
+      -1,
+      true,
+    );
+  }, [active, barMaxHeight, barMinHeight, height, idleAnimate, index, level]);
+
+  const barStyle = useAnimatedStyle(() => ({
+    height: height.value,
+    opacity: active ? 0.55 + (height.value / barMaxHeight) * 0.45 : 0.35,
+  }));
 
   return (
     <Animated.View
-      style={{
-        width: "100%",
-        height,
-        opacity,
-        borderRadius: 999,
-        backgroundColor: "#5f9470",
-      }}
+      style={[
+        {
+          width: "100%",
+          borderRadius: 999,
+          backgroundColor: active ? "#c8893a" : "#5f9470",
+        },
+        barStyle,
+      ]}
     />
   );
 }
 
-export function LiveSoundWaveform({ active, level }: LiveSoundWaveformProps) {
+export function LiveSoundWaveform({
+  active,
+  level,
+  idleAnimate = false,
+  compact = false,
+}: LiveSoundWaveformProps) {
+  const barCount = compact ? 12 : BAR_COUNT;
+  const barMaxHeight = compact ? 44 : BAR_MAX_HEIGHT;
+  const barMinHeight = compact ? 6 : 12;
+
   return (
-    <View className="h-28 w-full flex-row items-end justify-center gap-1.5 px-6">
-      {Array.from({ length: BAR_COUNT }, (_, index) => (
+    <View
+      className={`w-full flex-row items-end justify-center gap-1 ${
+        compact ? "h-14 px-1" : "h-28 gap-1.5 px-6"
+      }`}
+    >
+      {Array.from({ length: barCount }, (_, index) => (
         <View key={index} className="h-full flex-1 items-center justify-end">
-          <WaveBar active={active} level={level} index={index} />
+          <WaveBar
+            active={active}
+            level={level}
+            index={index}
+            idleAnimate={idleAnimate && !active}
+            barMaxHeight={barMaxHeight}
+            barMinHeight={barMinHeight}
+          />
         </View>
       ))}
     </View>

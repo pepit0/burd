@@ -16,6 +16,21 @@ export function validateUsername(raw: string): string | null {
   return null;
 }
 
+export const DISPLAY_NAME_MAX_LENGTH = 60;
+
+export function normalizeDisplayName(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ");
+}
+
+export function validateDisplayName(raw: string): string | null {
+  const name = normalizeDisplayName(raw);
+  if (!name) return "Choose a display name.";
+  if (name.length > DISPLAY_NAME_MAX_LENGTH) {
+    return `Display names must be ${DISPLAY_NAME_MAX_LENGTH} characters or fewer.`;
+  }
+  return null;
+}
+
 /**
  * Whether this signed-in user still needs the @username screen.
  * Does not call updateUser (that raced auth and caused flaky double sign-in).
@@ -99,19 +114,32 @@ export async function checkEmailAvailable(email: string): Promise<boolean> {
 export async function claimUsername(
   userId: string,
   rawUsername: string,
+  rawDisplayName?: string,
 ): Promise<void> {
   const username = normalizeUsername(rawUsername);
   const validationError = validateUsername(username);
   if (validationError) throw new Error(validationError);
+
+  const displayName =
+    rawDisplayName !== undefined ? normalizeDisplayName(rawDisplayName) : null;
+  if (displayName !== null) {
+    const displayNameError = validateDisplayName(displayName);
+    if (displayNameError) throw new Error(displayNameError);
+  }
 
   const availability = await checkSignupAvailability("", username);
   if (availability.usernameTaken) {
     throw new Error("This username is already taken. Try another.");
   }
 
+  const profileUpdate: { username: string; full_name?: string } = { username };
+  if (displayName) {
+    profileUpdate.full_name = displayName;
+  }
+
   const { error: profileError } = await supabase
     .from("profiles")
-    .update({ username })
+    .update(profileUpdate)
     .eq("id", userId);
 
   if (profileError) {
@@ -122,11 +150,16 @@ export async function claimUsername(
     throw profileError;
   }
 
+  const metaUpdate: Record<string, string | boolean> = {
+    username,
+    username_chosen: true,
+  };
+  if (displayName) {
+    metaUpdate.full_name = displayName;
+  }
+
   const { error: metaError } = await supabase.auth.updateUser({
-    data: {
-      username,
-      username_chosen: true,
-    },
+    data: metaUpdate,
   });
   if (metaError) throw metaError;
 }

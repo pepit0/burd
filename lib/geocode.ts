@@ -232,6 +232,76 @@ export function applyGeocodeFields(
   return { city, address, label };
 }
 
+/** Province/state from a comma-separated address (excludes country). */
+export function parseRegionFromAddressString(formatted: string): string | null {
+  const parts = formatted
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+
+  let end = parts.length;
+  while (end > 0 && isCountry(parts[end - 1])) {
+    end -= 1;
+  }
+  const slice = parts.slice(0, end);
+  if (slice.length === 0) return null;
+
+  for (let i = slice.length - 1; i >= 0; i--) {
+    const part = slice[i];
+    if (looksLikeStreet(part)) continue;
+
+    const regionCandidate = part.replace(/\s+\d{5}(-\d{4})?$/, "").trim();
+    if (!regionCandidate) continue;
+    if (/^[A-Z]{2}$/.test(regionCandidate)) return regionCandidate;
+    if (ADMIN_REGION_ABBREV[regionCandidate.toLowerCase()]) return regionCandidate;
+
+    const prev = slice[i - 1];
+    if (
+      prev &&
+      !looksLikeStreet(prev) &&
+      !isStateOrZip(prev) &&
+      !isCountry(prev) &&
+      i > 0
+    ) {
+      return regionCandidate;
+    }
+  }
+
+  return null;
+}
+
+/** City/town + province/state label with country stripped. */
+export function stripCountryFromPlaceString(formatted: string): string {
+  const trimmed = formatted.trim();
+  if (!trimmed) return trimmed;
+
+  const city = parseCityFromAddressString(trimmed);
+  const region = parseRegionFromAddressString(trimmed);
+  if (city && region) {
+    return `${city}, ${abbreviateAdministrativeRegion(region)}`;
+  }
+
+  const parts = trimmed
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .filter((p) => !isCountry(p));
+
+  if (parts.length === 0) return trimmed;
+  if (parts.length === 1) return parts[0];
+
+  if (looksLikeStreet(parts[0]) && parts.length >= 2) {
+    const cityPart = parts[1];
+    const regionPart = parseRegionFromAddressString(trimmed);
+    if (cityPart && regionPart) {
+      return `${cityPart}, ${abbreviateAdministrativeRegion(regionPart)}`;
+    }
+  }
+
+  return parts.join(", ");
+}
+
 export function isLikelyStreetAddress(text: string): boolean {
   if (!text.includes(",")) {
     return looksLikeStreet(text);

@@ -1,18 +1,20 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Calendar,
   Clock,
+  Edit3,
+  EyeOff,
   Feather,
   MapPin,
   Mic,
@@ -26,15 +28,15 @@ import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { useAuth } from "@/hooks/useAuth";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { getLoadErrorMessage, getUserFacingMessage } from "@/lib/errors";
-import { deleteMySighting, getSightingById, publishSighting } from "@/lib/sightings";
+import { deleteMySighting, getSightingById, publishSighting, unpublishSighting } from "@/lib/sightings";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
 import {
   displayScientificName,
   displaySpeciesName,
 } from "@/lib/predictionLabels";
 import {
-  formatDetailDate,
   formatDetailTime,
+  formatJournalEntryDate,
   observedDate,
   resolveSightingAddress,
   resolveSightingCity,
@@ -42,6 +44,7 @@ import {
   sightingCity,
 } from "@/lib/sightingFormat";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
+import { rarityForSighting } from "@/lib/rarity";
 import type { Sighting } from "@/types";
 
 function DetailRow({
@@ -79,9 +82,14 @@ export default function SightingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
   const [resolvedCity, setResolvedCity] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const audioPlayback = useAudioPlayback(sighting?.audio_url ?? null);
+  const rarity = useMemo(
+    () => (sighting ? rarityForSighting(sighting) : "common"),
+    [sighting],
+  );
 
   useEffect(() => {
     if (!id) {
@@ -112,6 +120,21 @@ export default function SightingDetailScreen() {
     };
   }, [id]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!id || loading) return;
+
+      let cancelled = false;
+      void getSightingById(id).then((row) => {
+        if (!cancelled && row) setSighting(row);
+      });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [id, loading]),
+  );
+
   useEffect(() => {
     if (!sighting) return;
 
@@ -139,6 +162,13 @@ export default function SightingDetailScreen() {
 
   const isOwner = Boolean(userId && sighting && sighting.user_id === userId);
   const isJournalOnly = Boolean(sighting && !sighting.published_at);
+  const isPosted = Boolean(sighting?.published_at);
+
+  useEffect(() => {
+    if (loading || !sighting) return;
+    if (userId && sighting.user_id === userId) return;
+    router.replace(`/post/${sighting.id}`);
+  }, [loading, router, sighting, userId]);
 
   async function handlePublish() {
     if (!userId || !sighting || sighting.published_at) return;
@@ -162,13 +192,42 @@ export default function SightingDetailScreen() {
     }
   }
 
+  async function handleUnpublish() {
+    if (!userId || !sighting || !sighting.published_at) return;
+
+    Alert.alert(
+      "Remove from profile?",
+      "This takes the post off your profile and the public feed. It stays in your journal so you can post it again later.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setUnpublishing(true);
+              try {
+                await unpublishSighting(userId, sighting.id);
+                setSighting({ ...sighting, published_at: null });
+              } catch (e) {
+                Alert.alert("Could not remove post", getUserFacingMessage(e));
+              } finally {
+                setUnpublishing(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }
+
   function handleDelete() {
     if (!userId || !sighting) return;
     Alert.alert(
-      "Delete this sighting?",
+      "Delete from journal?",
       sighting.published_at
-        ? "This removes it from your journal and profile."
-        : "This removes it from your journal.",
+        ? "This permanently deletes the sighting from your journal and profile. This cannot be undone."
+        : "This permanently deletes the sighting from your journal. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -196,7 +255,17 @@ export default function SightingDetailScreen() {
           <X size={22} color="#8a9e82" />
         </Pressable>
         <Text className="font-serif-semibold text-lg text-foreground">Sighting</Text>
-        <View className="w-7" />
+        {isOwner && isJournalOnly ? (
+          <Pressable
+            onPress={() => router.push(`/edit-journal-sighting/${id}` as never)}
+            className="rounded-full p-1.5 active:bg-card"
+            accessibilityLabel="Edit journal entry"
+          >
+            <Edit3 size={18} color="#5f9470" />
+          </Pressable>
+        ) : (
+          <View className="w-7" />
+        )}
       </View>
 
       {loading ? (
@@ -210,26 +279,29 @@ export default function SightingDetailScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerClassName="pb-12"
         >
-          <View className="h-56 bg-muted">
-            {isPhotoSighting(sighting) ? (
+          {isPhotoSighting(sighting) ? (
+            <View className="overflow-hidden bg-muted/40">
               <Image
                 source={{ uri: sighting.photo_url! }}
-                className="h-full w-full"
-                resizeMode="cover"
+                style={{ width: "100%", aspectRatio: 4 / 3 }}
+                contentFit="contain"
+                transition={200}
               />
-            ) : isAudioSighting(sighting) ? (
+            </View>
+          ) : isAudioSighting(sighting) ? (
+            <View className="h-56 bg-muted">
               <PlaybackWaveform
                 playback={audioPlayback}
                 className="h-full w-full"
                 variant="hero"
                 interactive
               />
-            ) : (
-              <View className="h-full w-full items-center justify-center">
-                <Feather size={36} color="#3a4e35" />
-              </View>
-            )}
-          </View>
+            </View>
+          ) : (
+            <View className="aspect-[4/3] items-center justify-center bg-muted">
+              <Feather size={36} color="#3a4e35" />
+            </View>
+          )}
 
           {(() => {
             const heard = sighting.audio_predictions ?? [];
@@ -295,7 +367,7 @@ export default function SightingDetailScreen() {
                 </Text>
               ) : null}
               <View className="mt-3 flex-row flex-wrap items-center gap-2">
-                <RarityBadge rarity={sighting.rarity} />
+                <RarityBadge rarity={rarity} />
                 <Text className="font-mono text-sm text-accent">×{sighting.count}</Text>
               </View>
             </View>
@@ -316,21 +388,63 @@ export default function SightingDetailScreen() {
                   Journal only
                 </Text>
                 <Text className="font-sans text-xs leading-relaxed text-muted-foreground">
-                  This sighting is private in your journal. Share it when you are
-                  ready for it to appear on your profile.
+                  This sighting is private in your journal. Edit it anytime before
+                  posting, or share it when you are ready for it to appear on your
+                  profile.
+                </Text>
+                <View className="flex-row gap-2">
+                  <Pressable
+                    onPress={() => router.push(`/edit-journal-sighting/${id}` as never)}
+                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl border border-border bg-background py-3 active:opacity-90"
+                  >
+                    <Edit3 size={16} color="#5f9470" />
+                    <Text className="font-sans-medium text-sm text-foreground">Edit entry</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void handlePublish()}
+                    disabled={publishing}
+                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-primary py-3 active:opacity-90 disabled:opacity-60"
+                  >
+                    {publishing ? (
+                      <ActivityIndicator color="#f0ead6" size="small" />
+                    ) : (
+                      <Share2 size={16} color="#f0ead6" />
+                    )}
+                    <Text className="font-sans-medium text-sm text-primary-foreground">
+                      Post to profile
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {isPosted && isOwner ? (
+              <View className="gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
+                <Text className="font-sans-medium text-sm text-foreground">Posted to profile</Text>
+                <Text className="font-sans text-xs leading-relaxed text-muted-foreground">
+                  This sighting is on your profile and in your journal. Remove it from your profile
+                  to hide it from the feed while keeping it here, or delete it from your journal to
+                  remove it permanently.
                 </Text>
                 <Pressable
-                  onPress={() => void handlePublish()}
-                  disabled={publishing}
-                  className="flex-row items-center justify-center gap-2 rounded-xl bg-primary py-3 active:opacity-90 disabled:opacity-60"
+                  onPress={() => router.push(`/post/${sighting.id}`)}
+                  className="flex-row items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 active:opacity-90"
                 >
-                  {publishing ? (
-                    <ActivityIndicator color="#f0ead6" size="small" />
+                  <Share2 size={16} color="#5f9470" />
+                  <Text className="font-sans-medium text-sm text-primary">View public post</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleUnpublish()}
+                  disabled={unpublishing}
+                  className="flex-row items-center justify-center gap-2 rounded-xl border border-border bg-background py-3 active:opacity-90 disabled:opacity-60"
+                >
+                  {unpublishing ? (
+                    <ActivityIndicator color="#5f9470" size="small" />
                   ) : (
-                    <Share2 size={16} color="#f0ead6" />
+                    <EyeOff size={16} color="#8a9e82" />
                   )}
-                  <Text className="font-sans-medium text-sm text-primary-foreground">
-                    Post to profile
+                  <Text className="font-sans-medium text-sm text-foreground">
+                    Remove from profile
                   </Text>
                 </Pressable>
               </View>
@@ -340,7 +454,7 @@ export default function SightingDetailScreen() {
               <DetailRow
                 icon={Calendar}
                 label="Date"
-                value={formatDetailDate(when)}
+                value={formatJournalEntryDate(when)}
               />
               <DetailRow icon={Clock} label="Time" value={formatDetailTime(when)} />
               <DetailRow icon={MapPin} label="City" value={displayCity} />
@@ -385,7 +499,7 @@ export default function SightingDetailScreen() {
                 className="flex-row items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 py-3 active:opacity-90"
               >
                 <Trash2 size={16} color="#f87171" />
-                <Text className="font-sans-medium text-sm text-foreground">Delete sighting</Text>
+                <Text className="font-sans-medium text-sm text-foreground">Delete from journal</Text>
               </Pressable>
             ) : null}
           </View>

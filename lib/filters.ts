@@ -1,5 +1,6 @@
 import type { FeedSighting, Rarity } from "@/types";
 import { kmBetween } from "@/lib/geo";
+import { rarityForSighting } from "@/lib/rarity";
 
 export type FeedRarityFilter = Rarity | "all";
 export type FeedNearbyFilter = "all" | "nearby";
@@ -32,7 +33,7 @@ export function applyFeedContentFilters(
   context: FeedFilterContext,
 ): FeedSighting[] {
   return sightings.filter((sighting) => {
-    if (filters.rarity !== "all" && sighting.rarity !== filters.rarity) {
+    if (filters.rarity !== "all" && rarityForSighting(sighting) !== filters.rarity) {
       return false;
     }
     if (filters.nearby === "nearby") {

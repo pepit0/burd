@@ -196,8 +196,7 @@ export default function RegisterScreen() {
           Create account
         </Text>
         <Text className="mb-8 font-sans text-base text-muted-foreground">
-          Sign up with email or Apple. You'll choose an @username after you're
-          signed in.
+          Sign up with email, Apple, or Google. You'll choose your profile next.
         </Text>
 
         <Text className="mb-1 font-sans-medium text-sm text-foreground/80">Email</Text>

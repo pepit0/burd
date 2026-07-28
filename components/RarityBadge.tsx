@@ -9,11 +9,23 @@ const STYLES: Record<Rarity, { box: string; text: string }> = {
 
 const FALLBACK_STYLE = STYLES.common;
 
-export function RarityBadge({ rarity }: { rarity: Rarity }) {
+const SIZE_STYLES = {
+  sm: { box: "rounded border px-1.5 py-0.5", text: "text-[9px]" },
+  lg: { box: "rounded-md border-2 px-3 py-1.5", text: "text-xs" },
+} as const;
+
+export function RarityBadge({
+  rarity,
+  size = "sm",
+}: {
+  rarity: Rarity;
+  size?: keyof typeof SIZE_STYLES;
+}) {
   const s = STYLES[rarity] ?? FALLBACK_STYLE;
+  const sizing = SIZE_STYLES[size];
   return (
-    <View className={`self-start rounded border px-1.5 py-0.5 ${s.box}`}>
-      <Text className={`font-mono text-[9px] uppercase tracking-widest ${s.text}`}>
+    <View className={`self-start ${sizing.box} ${s.box}`}>
+      <Text className={`font-mono uppercase tracking-widest ${sizing.text} ${s.text}`}>
         {rarity}
       </Text>
     </View>

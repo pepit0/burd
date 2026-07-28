@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -8,16 +7,12 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
-import {
-  Filter,
-  MapPin,
-  Search,
-} from "lucide-react-native";
+import { Filter, Search } from "lucide-react-native";
 import { ActivityRow } from "@/components/ActivityRow";
 import { FilterSheet } from "@/components/FilterSheet";
-import { ScreenHeader } from "@/components/ScreenHeader";
+import { ScrollScreen } from "@/components/ScrollScreen";
+import { TabEmptyState } from "@/components/TabEmptyState";
 import { SightingCard } from "@/components/SightingCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivity } from "@/hooks/useActivity";
@@ -33,49 +28,50 @@ import {
 } from "@/lib/filters";
 import { getMyProfile } from "@/lib/sightings";
 
-const FEED_TABS = [
+const HOME_TABS = [
   { id: "for_you", label: "For you" },
   { id: "following", label: "Friends" },
   { id: "new", label: "New" },
   { id: "activity", label: "Activity" },
 ] as const;
 
-type Tab = (typeof FEED_TABS)[number]["id"];
+type Tab = (typeof HOME_TABS)[number]["id"];
 
 const EMPTY_COPY: Record<FeedFilter, string> = {
   for_you:
     "No suggestions yet. Explore New or find birders near you to get personalized picks.",
-  following: "Posts from birders you’re friends with will appear here.",
+  following: "Posts from birders you're friends with will appear here.",
   new: "No new sightings from around the world yet.",
 };
 
-function CenterMessage({
-  children,
-  action,
+function TabChip({
+  label,
+  active,
+  onPress,
 }: {
-  children: React.ReactNode;
-  action?: { label: string; onPress: () => void };
+  label: string;
+  active: boolean;
+  onPress: () => void;
 }) {
   return (
-    <View className="items-center px-8 pt-16">
-      <Text className="text-center font-sans text-sm leading-relaxed text-muted-foreground">
-        {children}
+    <Pressable
+      onPress={onPress}
+      className={`rounded-full px-3 py-1 ${
+        active ? "bg-primary" : "border border-border bg-card"
+      }`}
+    >
+      <Text
+        className={`text-xs ${
+          active ? "font-sans-medium text-primary-foreground" : "text-muted-foreground"
+        }`}
+      >
+        {label}
       </Text>
-      {action ? (
-        <Pressable
-          onPress={action.onPress}
-          className="mt-4 rounded-xl bg-primary px-4 py-2.5 active:opacity-90"
-        >
-          <Text className="font-sans-medium text-sm text-primary-foreground">
-            {action.label}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
+    </Pressable>
   );
 }
 
-export default function FeedScreen() {
+export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -147,7 +143,11 @@ export default function FeedScreen() {
     );
   }, [sightings, search, contentFilters, coords, radiusKm]);
 
-  const refreshing = isActivity ? activityRefreshing : feedRefreshing;
+  const feedBusy = feedLoading && sightings.length === 0;
+  const activityBusy = activityLoading && activity.length === 0;
+  const refreshing = isActivity
+    ? activityRefreshing || activityBusy
+    : feedRefreshing || feedBusy;
   const onRefresh = isActivity ? refreshActivity : refreshFeed;
 
   const firstFocus = useRef(true);
@@ -165,114 +165,93 @@ export default function FeedScreen() {
     }, [isActivity, silentRefreshActivity, silentRefreshFeed]),
   );
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <ScreenHeader title="Burd" showLogo />
-
-      <View className="gap-3 px-4 pb-3 pt-3">
-        {!isActivity && (
-          <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-            <Search size={14} color="#8a9e82" />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search sightings, species, locations..."
-              placeholderTextColor="#8a9e82"
-              className="flex-1 font-sans text-sm text-foreground"
-            />
-          </View>
-        )}
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerClassName="flex-row items-center gap-2 pr-2"
-        >
-          {FEED_TABS.map((item) => {
-            const active = tab === item.id;
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => setTab(item.id)}
-                className={`rounded-full px-3 py-1 ${
-                  active ? "bg-primary" : "border border-border bg-card"
-                }`}
-              >
-                <Text
-                  className={`text-xs ${
-                    active ? "font-sans-medium text-primary-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-          {!isActivity && (
-            <Pressable
-              onPress={() => setFilterOpen(true)}
-              className={`ml-1 rounded-full border p-1.5 active:opacity-80 ${
-                activeFilterCount > 0
-                  ? "border-primary bg-primary/15"
-                  : "border-border bg-card"
-              }`}
-            >
-              <Filter
-                size={13}
-                color={activeFilterCount > 0 ? "#5f9470" : "#8a9e82"}
-              />
-            </Pressable>
-          )}
-        </ScrollView>
-      </View>
+  const toolbar = (
+    <View className="gap-3 px-4">
+      {!isActivity && (
+        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
+          <Search size={14} color="#8a9e82" />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search sightings, species, locations..."
+            placeholderTextColor="#8a9e82"
+            className="flex-1 font-sans text-sm text-foreground"
+          />
+        </View>
+      )}
 
       <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerClassName="px-4 pb-28 gap-4"
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#5f9470"
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerClassName="flex-row items-center gap-2 pr-2"
+      >
+        {HOME_TABS.map((item) => (
+          <TabChip
+            key={item.id}
+            label={item.label}
+            active={tab === item.id}
+            onPress={() => setTab(item.id)}
           />
+        ))}
+        {!isActivity && (
+          <Pressable
+            onPress={() => setFilterOpen(true)}
+            className={`ml-1 rounded-full border p-1.5 active:opacity-80 ${
+              activeFilterCount > 0
+                ? "border-primary bg-primary/15"
+                : "border-border bg-card"
+            }`}
+          >
+            <Filter
+              size={13}
+              color={activeFilterCount > 0 ? "#5f9470" : "#8a9e82"}
+            />
+          </Pressable>
+        )}
+      </ScrollView>
+    </View>
+  );
+
+  return (
+    <>
+      <ScrollScreen
+        title="Burd"
+        showLogo
+        hideHeaderOnScroll
+        toolbar={toolbar}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5f9470" />
         }
       >
         {isActivity ? (
-          activityLoading && activity.length === 0 ? (
-            <ActivityIndicator className="mt-16" color="#5f9470" />
-          ) : activityError ? (
-            <CenterMessage>{activityError}</CenterMessage>
-          ) : activity.length === 0 ? (
-            <CenterMessage>
+          activityError ? (
+            <TabEmptyState>{activityError}</TabEmptyState>
+          ) : activity.length === 0 && !activityBusy ? (
+            <TabEmptyState>
               No activity yet. Likes and friend requests will show up here.
-            </CenterMessage>
+            </TabEmptyState>
           ) : (
-            activity.map((event) => <ActivityRow key={event.id} event={event} />)
+            <View className="gap-1">
+              {activity.map((event) => (
+                <ActivityRow key={event.id} event={event} />
+              ))}
+            </View>
           )
         ) : needsNearbyLocation ? (
-          <View className="items-center px-8 pt-16">
-            <MapPin size={28} color="#8a9e82" />
-            <Text className="mt-3 text-center font-sans text-sm leading-relaxed text-muted-foreground">
-              {locStatus === "denied"
-                ? "Location permission is needed for the nearby filter."
-                : "Finding your location…"}
-            </Text>
-            <Pressable
-              onPress={refreshLocation}
-              className="mt-4 rounded-xl bg-primary px-4 py-2.5"
-            >
-              <Text className="font-sans-medium text-sm text-primary-foreground">
-                {locStatus === "denied" ? "Enable location" : "Retry"}
-              </Text>
-            </Pressable>
-          </View>
-        ) : feedLoading && sightings.length === 0 ? (
-          <ActivityIndicator className="mt-16" color="#5f9470" />
+          <TabEmptyState
+            action={{
+              label: locStatus === "denied" ? "Enable location" : "Retry",
+              onPress: refreshLocation,
+            }}
+          >
+            {locStatus === "denied"
+              ? "Location permission is needed for the nearby filter."
+              : "Finding your location…"}
+          </TabEmptyState>
         ) : feedError ? (
-          <CenterMessage>{feedError}</CenterMessage>
-        ) : visibleSightings.length === 0 ? (
-          <CenterMessage
+          <TabEmptyState>{feedError}</TabEmptyState>
+        ) : visibleSightings.length === 0 && !feedBusy ? (
+          <TabEmptyState
             action={
               activeFilterCount > 0 || search.trim()
                 ? undefined
@@ -286,7 +265,7 @@ export default function FeedScreen() {
             {activeFilterCount > 0 || search.trim()
               ? "No sightings match your search or filters."
               : EMPTY_COPY[feedFilter]}
-          </CenterMessage>
+          </TabEmptyState>
         ) : (
           visibleSightings.map((s) => (
             <SightingCard
@@ -297,11 +276,11 @@ export default function FeedScreen() {
             />
           ))
         )}
-      </ScrollView>
+      </ScrollScreen>
 
       <FilterSheet
         visible={filterOpen}
-        title="Filter feed"
+        title="Filter home"
         onClose={() => setFilterOpen(false)}
         onReset={() => setContentFilters(DEFAULT_FEED_CONTENT_FILTERS)}
         sections={[
@@ -335,6 +314,6 @@ export default function FeedScreen() {
           },
         ]}
       />
-    </SafeAreaView>
+    </>
   );
 }

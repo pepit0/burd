@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   ScrollView,
   Switch,
@@ -10,6 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -17,9 +17,11 @@ import * as Location from "expo-location";
 import { Camera, Mic, Minus, Plus, Sparkles, Volume2, X } from "lucide-react-native";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { SoundLibraryPicker } from "@/components/SoundLibraryPicker";
+import { PostSendOffOverlay } from "@/components/PostSendOffOverlay";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { useAuth } from "@/hooks/useAuth";
+import { usePostSendOff } from "@/hooks/usePostSendOff";
 import { identifyImage, isPhotoValidationError, PhotoValidationError } from "@/lib/identify";
 import {
   checkPhotoAuthenticity,
@@ -28,7 +30,7 @@ import {
   validatePhotoAuthenticity,
 } from "@/lib/photoAuthenticity";
 import { validationFailureMessage } from "@/lib/photoValidation";
-import { createSighting, getMyProfile, uploadSightingPhoto } from "@/lib/sightings";
+import { createSighting, uploadSightingPhoto } from "@/lib/sightings";
 import { linkSoundToSighting, getSoundLibraryEntry, uploadSoundClip } from "@/lib/soundLibrary";
 import {
   displayScientificName,
@@ -36,13 +38,13 @@ import {
   enrichPrediction,
 } from "@/lib/predictionLabels";
 import { maybeGenerateSpeciesProfileAfterSighting } from "@/lib/speciesProfileLoad";
-import { inferRegionalRarity } from "@/lib/rarity";
+import { lookupRegionalRarity } from "@/lib/rarity";
 import { applyGeocodeFields } from "@/lib/geocode";
 import { photoTakenAt } from "@/lib/photoMetadata";
 import { getUserFacingMessage } from "@/lib/errors";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
 import { soundReportSpecies } from "@/lib/heardSpecies";
-import { takePendingCapture, type PendingCapture, type SessionPhoto } from "@/lib/pendingCapture";
+import { claimPendingCaptureForSighting, clearPendingCapture, type PendingCapture, type SessionPhoto } from "@/lib/pendingCapture";
 import {
   deleteCaptureDraft,
   getCaptureDraft,
@@ -56,13 +58,40 @@ function parseCount(value: string | undefined): number {
   return Math.min(Math.round(n), 99);
 }
 
+function normalizeSightingPhotoUri(
+  uri: string | null | undefined,
+  base64: string | null | undefined,
+): string | null {
+  if (uri?.trim()) {
+    const trimmed = uri.trim();
+    if (
+      trimmed.startsWith("file://") ||
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("data:") ||
+      trimmed.startsWith("blob:")
+    ) {
+      return trimmed;
+    }
+    if (trimmed.startsWith("/")) {
+      return `file://${trimmed}`;
+    }
+    return trimmed;
+  }
+  if (base64?.trim()) {
+    return `data:image/jpeg;base64,${base64.trim()}`;
+  }
+  return null;
+}
+
 function speciesFromParams(
   species: string | undefined,
   scientificName: string | undefined,
 ): string {
-  if (!species?.trim()) return "";
+  const label = species?.trim() || scientificName?.trim() || "";
+  if (!label) return "";
   return displaySpeciesName({
-    species,
+    species: label,
     scientific_name: scientificName?.trim() || null,
     confidence: 0,
   });
@@ -72,9 +101,11 @@ function scientificFromParams(
   species: string | undefined,
   scientificName: string | undefined,
 ): string {
+  const label = species?.trim() || scientificName?.trim() || "";
+  if (!label) return "";
   return (
     displayScientificName({
-      species: species ?? "",
+      species: label,
       scientific_name: scientificName?.trim() || null,
       confidence: 0,
     }) ??
@@ -83,50 +114,129 @@ function scientificFromParams(
   );
 }
 
+type SightingParams = {
+  source?: string;
+  species?: string;
+  scientific_name?: string;
+  confidence?: string;
+  count?: string;
+  audio_agreed?: string;
+  sound_library_id?: string;
+  audio_only?: string;
+  draftId?: string;
+};
+
+interface SightingBootstrap {
+  capture: PendingCapture | null;
+  draftId: string | null;
+  species: string;
+  scientific: string;
+  count: number;
+  countFromPhoto: boolean;
+  photoUri: string | null;
+  photoBase64: string | null;
+  sessionPhotos: SessionPhoto[];
+  primaryPhotoId: string | null;
+  sessionAudio: PendingCapture["audio"];
+  heardSpecies: Prediction[];
+  detectedBy: DetectedBy;
+  confidence: number | null;
+  photoSoundAgreed: boolean;
+  observedAt: Date;
+}
+
+function buildSightingBootstrap(params: SightingParams): SightingBootstrap {
+  const capture = claimPendingCaptureForSighting();
+  const primary = capture
+    ? (capture.photos[capture.primaryIndex] ?? capture.photos[0] ?? null)
+    : null;
+  const analysisTop = capture?.analysis?.top
+    ? enrichPrediction(capture.analysis.top)
+    : null;
+  const paramSpecies = speciesFromParams(params.species, params.scientific_name);
+  const paramScientific = scientificFromParams(params.species, params.scientific_name);
+
+  const species = analysisTop?.species || paramSpecies;
+  const scientific = analysisTop?.scientific_name ?? paramScientific;
+
+  const detectedBy: DetectedBy =
+    capture?.analysis?.detectedBy ??
+    (params.source === "image" ||
+    params.source === "audio" ||
+    params.source === "both"
+      ? params.source
+      : "manual");
+
+  const confidence =
+    analysisTop?.confidence ??
+    (params.confidence ? Number(params.confidence) : null);
+
+  const countFromParams = Boolean(params.count);
+  const count = capture?.count ?? parseCount(params.count);
+  const draftId = params.draftId?.trim() || null;
+
+  return {
+    capture,
+    draftId,
+    species,
+    scientific,
+    count,
+    countFromPhoto: capture?.count != null || countFromParams,
+    photoUri: primary?.uri ?? null,
+    photoBase64: primary?.base64 ?? null,
+    sessionPhotos: capture?.photos ?? [],
+    primaryPhotoId: primary?.id ?? null,
+    sessionAudio: capture?.audio ?? null,
+    heardSpecies: capture?.analysis
+      ? soundReportSpecies(capture.analysis)
+      : [],
+    detectedBy,
+    confidence: Number.isFinite(confidence) ? confidence : null,
+    photoSoundAgreed:
+      capture?.analysis?.agreed ?? params.audio_agreed === "1",
+    observedAt: primary?.capturedAt
+      ? new Date(primary.capturedAt)
+      : new Date(),
+  };
+}
+
 export default function NewSightingScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const { sendOffKey, playSendOff, onSendOffComplete } = usePostSendOff();
 
-  const params = useLocalSearchParams<{
-    source?: string;
-    species?: string;
-    scientific_name?: string;
-    confidence?: string;
-    count?: string;
-    audio_agreed?: string;
-    sound_library_id?: string;
-    audio_only?: string;
-    draftId?: string;
-  }>();
+  const params = useLocalSearchParams<SightingParams>();
 
-  const draftId = params.draftId?.trim() || null;
+  const [bootstrap] = useState(() => buildSightingBootstrap(params));
+  const draftId = bootstrap.draftId;
 
-  const [species, setSpecies] = useState(() =>
-    speciesFromParams(params.species, params.scientific_name),
-  );
-  const [scientific, setScientific] = useState(() =>
-    scientificFromParams(params.species, params.scientific_name),
-  );
+  const [species, setSpecies] = useState(bootstrap.species);
+  const [scientific, setScientific] = useState(bootstrap.scientific);
   const [rarity, setRarity] = useState<Rarity>("common");
   const [rarityLoading, setRarityLoading] = useState(false);
-  const [count, setCount] = useState(parseCount(params.count));
-  const [countFromPhoto, setCountFromPhoto] = useState(Boolean(params.count));
+  const [count, setCount] = useState(bootstrap.count);
+  const [countFromPhoto, setCountFromPhoto] = useState(bootstrap.countFromPhoto);
   const [countLoading, setCountLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [locationName, setLocationName] = useState("");
   const [locationCity, setLocationCity] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
-  const [observedAt, setObservedAt] = useState<Date>(() => new Date());
+  const [observedAt, setObservedAt] = useState<Date>(bootstrap.observedAt);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
-  const [sessionPhotos, setSessionPhotos] = useState<SessionPhoto[]>([]);
-  const [primaryPhotoId, setPrimaryPhotoId] = useState<string | null>(null);
-  const [sessionAudio, setSessionAudio] = useState<PendingCapture["audio"]>(null);
-  const [heardSpecies, setHeardSpecies] = useState<Prediction[]>([]);
+  const [photoUri, setPhotoUri] = useState<string | null>(bootstrap.photoUri);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(bootstrap.photoBase64);
+  const [photoDisplayUri, setPhotoDisplayUri] = useState<string | null>(() =>
+    normalizeSightingPhotoUri(bootstrap.photoUri, bootstrap.photoBase64),
+  );
+  const [sessionPhotos, setSessionPhotos] = useState<SessionPhoto[]>(bootstrap.sessionPhotos);
+  const [primaryPhotoId, setPrimaryPhotoId] = useState<string | null>(bootstrap.primaryPhotoId);
+  const [sessionAudio, setSessionAudio] = useState<PendingCapture["audio"]>(bootstrap.sessionAudio);
+  const [heardSpecies, setHeardSpecies] = useState<Prediction[]>(bootstrap.heardSpecies);
   const [soundLibraryId, setSoundLibraryId] = useState<string | null>(
-    params.sound_library_id?.trim() || null,
+    bootstrap.capture?.soundLibraryId ??
+      params.sound_library_id?.trim() ??
+      null,
   );
   const [libraryEntry, setLibraryEntry] = useState<SoundLibraryEntry | null>(null);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
@@ -138,46 +248,19 @@ export default function NewSightingScreen() {
   const [photoAuthStatus, setPhotoAuthStatus] = useState<PhotoAuthStatus>("idle");
   const [photoAuthMessage, setPhotoAuthMessage] = useState<string | null>(null);
 
-  const [detectedBy, setDetectedBy] = useState<DetectedBy>(() =>
-    params.source === "image" ||
-    params.source === "audio" ||
-    params.source === "both"
-      ? params.source
-      : "manual",
-  );
-  const [confidence, setConfidence] = useState<number | null>(() =>
-    params.confidence ? Number(params.confidence) : null,
-  );
-  const photoSoundAgreed = params.audio_agreed === "1";
+  const [detectedBy, setDetectedBy] = useState<DetectedBy>(bootstrap.detectedBy);
+  const [confidence, setConfidence] = useState<number | null>(bootstrap.confidence);
+  const photoSoundAgreed = bootstrap.photoSoundAgreed;
+
+  useEffect(() => {
+    setPhotoDisplayUri(normalizeSightingPhotoUri(photoUri, photoBase64));
+  }, [photoUri, photoBase64]);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      const capture = takePendingCapture();
-      if (capture) {
-        if (cancelled) return;
-        setSessionPhotos(capture.photos);
-        const primary = capture.photos[capture.primaryIndex] ?? capture.photos[0];
-        if (primary) {
-          setPrimaryPhotoId(primary.id);
-          setPhotoUri(primary.uri);
-          setPhotoBase64(primary.base64);
-          if (primary.capturedAt) {
-            setObservedAt(new Date(primary.capturedAt));
-          }
-        }
-        if (capture.count != null) {
-          setCount(capture.count);
-          setCountFromPhoto(true);
-        }
-        setSessionAudio(capture.audio ?? null);
-        setHeardSpecies(soundReportSpecies(capture.analysis));
-        if (capture.soundLibraryId) {
-          setSoundLibraryId(capture.soundLibraryId);
-        }
-        return;
-      }
+      if (bootstrap.capture) return;
 
       if (!draftId) return;
       const draft = await getCaptureDraft(draftId);
@@ -238,7 +321,7 @@ export default function NewSightingScreen() {
     return () => {
       cancelled = true;
     };
-  }, [draftId, params.species]);
+  }, [bootstrap.capture, draftId, params.species]);
 
   useEffect(() => {
     const id = soundLibraryId ?? params.sound_library_id?.trim();
@@ -322,6 +405,7 @@ export default function NewSightingScreen() {
     setPrimaryPhotoId(photo.id);
     setPhotoUri(photo.uri);
     setPhotoBase64(photo.base64);
+    setPhotoDisplayUri(normalizeSightingPhotoUri(photo.uri, photo.base64));
     setPhotoAuthStatus("checking");
     setPhotoAuthMessage(null);
     if (photo.capturedAt) {
@@ -367,33 +451,17 @@ export default function NewSightingScreen() {
   useEffect(() => {
     if (!species.trim()) return;
 
-    let cancelled = false;
     setRarityLoading(true);
-
-    (async () => {
-      try {
-        const profile = userId ? await getMyProfile(userId) : null;
-        const radiusKm = profile?.search_radius_km ?? 25;
-        const next = await inferRegionalRarity(
-          species,
-          scientific.trim() || null,
-          coords?.latitude ?? null,
-          coords?.longitude ?? null,
-          radiusKm,
-          observedAt.toISOString(),
-        );
-        if (!cancelled) setRarity(next);
-      } catch {
-        if (!cancelled) setRarity("common");
-      } finally {
-        if (!cancelled) setRarityLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [species, scientific, coords, userId, observedAt]);
+    const next = lookupRegionalRarity({
+      species,
+      scientificName: scientific.trim() || null,
+      lat: coords?.latitude ?? null,
+      lng: coords?.longitude ?? null,
+      observedAt: observedAt.toISOString(),
+    });
+    setRarity(next);
+    setRarityLoading(false);
+  }, [species, scientific, coords, observedAt]);
 
   async function analyzePhoto(uri: string, base64?: string | null) {
     setCountLoading(true);
@@ -455,6 +523,9 @@ export default function NewSightingScreen() {
       setPrimaryPhotoId(null);
       setPhotoUri(asset.uri);
       setPhotoBase64(asset.base64 ?? null);
+      setPhotoDisplayUri(
+        normalizeSightingPhotoUri(asset.uri, asset.base64 ?? null),
+      );
       setPhotoAuthStatus("checking");
       setPhotoAuthMessage(null);
       setSpecies("");
@@ -552,11 +623,15 @@ export default function NewSightingScreen() {
       if (draftId) {
         await deleteCaptureDraft(draftId);
       }
+      clearPendingCapture();
       void maybeGenerateSpeciesProfileAfterSighting(
         species.trim(),
         scientific.trim() || null,
         photoUrl,
       );
+      if (publishToProfile) {
+        await playSendOff();
+      }
       router.back();
     } catch (e) {
       if (e instanceof PhotoValidationError || isPhotoValidationError(e)) {
@@ -587,68 +662,156 @@ export default function NewSightingScreen() {
       <KeyboardScreen
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="px-4 pb-12 pt-4 gap-4"
+        contentContainerClassName="px-4 pb-12 pt-4 gap-5"
       >
-        <Pressable
-          onPress={audioOnly ? undefined : pickPhoto}
-          disabled={audioOnly}
-          className="h-44 items-center justify-center overflow-hidden rounded-2xl border border-border bg-card"
-        >
-          {photoUri && !audioOnly ? (
-            <Image source={{ uri: photoUri }} className="h-full w-full" resizeMode="cover" />
-          ) : audioOnly ? (
-            <View className="items-center gap-2 px-6">
-              <Mic size={28} color="#5f9470" />
-              <Text className="text-center font-sans text-sm text-muted-foreground">
-                Sound-only sighting
-              </Text>
-            </View>
-          ) : (
-            <View className="items-center gap-2">
-              <Camera size={26} color="#8a9e82" />
-              <Text className="font-sans text-sm text-muted-foreground">Add a photo</Text>
-            </View>
-          )}
-        </Pressable>
-
-        {sessionPhotos.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerClassName="gap-2"
+        <View className="gap-3">
+          <Pressable
+            onPress={audioOnly ? undefined : pickPhoto}
+            disabled={audioOnly}
+            className="overflow-hidden rounded-2xl border border-border bg-muted/40"
           >
-            {sessionPhotos.map((photo) => {
-              const selected = photo.id === primaryPhotoId;
-              return (
-                <Pressable
-                  key={photo.id}
-                  onPress={() => selectSessionPhoto(photo)}
-                  className={`overflow-hidden rounded-lg ${
-                    selected ? "border-2 border-primary" : "border border-border"
-                  }`}
-                >
-                  <Image
-                    source={{ uri: photo.uri }}
-                    className="h-16 w-16 bg-muted"
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        ) : null}
+            {photoDisplayUri && !audioOnly ? (
+              <Image
+                source={{ uri: photoDisplayUri }}
+                style={{ width: "100%", aspectRatio: 4 / 3 }}
+                contentFit="contain"
+                transition={200}
+                onError={() => {
+                  const fallback = normalizeSightingPhotoUri(null, photoBase64);
+                  if (fallback && fallback !== photoDisplayUri) {
+                    setPhotoDisplayUri(fallback);
+                  }
+                }}
+              />
+            ) : audioOnly ? (
+              <View className="aspect-[4/3] items-center justify-center gap-2 px-6">
+                <Mic size={28} color="#5f9470" />
+                <Text className="text-center font-sans text-sm text-muted-foreground">
+                  Sound-only sighting
+                </Text>
+              </View>
+            ) : (
+              <View className="aspect-[4/3] items-center justify-center gap-2">
+                <Camera size={26} color="#8a9e82" />
+                <Text className="font-sans text-sm text-muted-foreground">
+                  Tap to add a photo
+                </Text>
+              </View>
+            )}
+          </Pressable>
 
-        {detectedBy !== "manual" && confidence !== null ? (
-          <View className="flex-row items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5">
-            <Sparkles size={15} color="#5f9470" />
-            <Text className="flex-1 font-sans text-xs text-foreground/80">
-              Identified by {detectionSourceLabel(detectedBy)} ·{" "}
-              {Math.round(confidence * 100)}% match
-              {photoSoundAgreed ? " · photo and sound agree" : ""}. Edit anything
-              that looks off.
-            </Text>
+          {sessionPhotos.length > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerClassName="gap-2"
+            >
+              {sessionPhotos.map((photo) => {
+                const selected = photo.id === primaryPhotoId;
+                return (
+                  <Pressable
+                    key={photo.id}
+                    onPress={() => selectSessionPhoto(photo)}
+                    className={`overflow-hidden rounded-lg ${
+                      selected ? "border-2 border-primary" : "border border-border"
+                    }`}
+                  >
+                    <Image
+                      source={{
+                        uri:
+                          normalizeSightingPhotoUri(photo.uri, photo.base64) ??
+                          photo.uri,
+                      }}
+                      style={{ width: 64, height: 64 }}
+                      contentFit="cover"
+                    />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+        </View>
+
+        {(detectedBy !== "manual" && confidence !== null) || countLoading ? (
+          <View className="gap-3 rounded-2xl border border-border bg-card p-4">
+            {detectedBy !== "manual" && confidence !== null ? (
+              <View className="flex-row items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5">
+                <Sparkles size={15} color="#5f9470" />
+                <Text className="flex-1 font-sans text-xs text-foreground/80">
+                  Identified by {detectionSourceLabel(detectedBy)} ·{" "}
+                  {Math.round(confidence * 100)}% match
+                  {photoSoundAgreed ? " · photo and sound agree" : ""}. Edit
+                  anything that looks off.
+                </Text>
+              </View>
+            ) : null}
+
+            <View>
+              <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
+                Species
+              </Text>
+              {countLoading && !species.trim() ? (
+                <View className="flex-row items-center gap-2 rounded-xl border border-border bg-background px-4 py-3">
+                  <ActivityIndicator size="small" color="#5f9470" />
+                  <Text className="font-sans text-sm text-muted-foreground">
+                    Identifying species from photo…
+                  </Text>
+                </View>
+              ) : (
+                <TextInput
+                  value={species}
+                  onChangeText={setSpecies}
+                  placeholder="e.g. Cedar Waxwing"
+                  placeholderTextColor="#8a9e82"
+                  className="rounded-xl border border-border bg-background px-4 py-3 font-sans text-base text-foreground"
+                />
+              )}
+            </View>
+
+            <View>
+              <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
+                Scientific name (optional)
+              </Text>
+              <TextInput
+                value={scientific}
+                onChangeText={setScientific}
+                placeholder="e.g. Bombycilla cedrorum"
+                placeholderTextColor="#8a9e82"
+                autoCapitalize="none"
+                className="rounded-xl border border-border bg-background px-4 py-3 font-serif-italic text-base text-foreground"
+              />
+            </View>
           </View>
-        ) : null}
+        ) : (
+          <>
+            <View>
+              <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
+                Species
+              </Text>
+              <TextInput
+                value={species}
+                onChangeText={setSpecies}
+                placeholder="e.g. Cedar Waxwing"
+                placeholderTextColor="#8a9e82"
+                className="rounded-xl border border-border bg-card px-4 py-3 font-sans text-base text-foreground"
+              />
+            </View>
+
+            <View>
+              <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
+                Scientific name (optional)
+              </Text>
+              <TextInput
+                value={scientific}
+                onChangeText={setScientific}
+                placeholder="e.g. Bombycilla cedrorum"
+                placeholderTextColor="#8a9e82"
+                autoCapitalize="none"
+                className="rounded-xl border border-border bg-card px-4 py-3 font-serif-italic text-base text-foreground"
+              />
+            </View>
+          </>
+        )}
 
         {sessionAudio || libraryEntry ? (
           <View className="gap-2 rounded-xl border border-border bg-card px-3 py-3">
@@ -714,40 +877,6 @@ export default function NewSightingScreen() {
             </Text>
           </Pressable>
         ) : null}
-
-        <View>
-          <Text className="mb-1 font-sans-medium text-sm text-foreground/80">Species</Text>
-          {countLoading && !species.trim() ? (
-            <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
-              <ActivityIndicator size="small" color="#5f9470" />
-              <Text className="font-sans text-sm text-muted-foreground">
-                Identifying species from photo…
-              </Text>
-            </View>
-          ) : (
-            <TextInput
-              value={species}
-              onChangeText={setSpecies}
-              placeholder="e.g. Cedar Waxwing"
-              placeholderTextColor="#8a9e82"
-              className="rounded-xl border border-border bg-card px-4 py-3 font-sans text-base text-foreground"
-            />
-          )}
-        </View>
-
-        <View>
-          <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
-            Scientific name (optional)
-          </Text>
-          <TextInput
-            value={scientific}
-            onChangeText={setScientific}
-            placeholder="e.g. Bombycilla cedrorum"
-            placeholderTextColor="#8a9e82"
-            autoCapitalize="none"
-            className="rounded-xl border border-border bg-card px-4 py-3 font-serif-italic text-base text-foreground"
-          />
-        </View>
 
         <View>
           <Text className="mb-1.5 font-sans-medium text-sm text-foreground/80">Rarity</Text>
@@ -888,6 +1017,8 @@ export default function NewSightingScreen() {
         onClose={() => setLibraryPickerOpen(false)}
         onSelect={attachLibraryEntry}
       />
+
+      <PostSendOffOverlay sendOffKey={sendOffKey} onComplete={onSendOffComplete} />
     </SafeAreaView>
   );
 }

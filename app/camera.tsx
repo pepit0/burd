@@ -67,6 +67,8 @@ import { CameraZoomIndicator } from "@/components/CameraZoomIndicator";
 import { useIdentificationLocation } from "@/hooks/useIdentificationLocation";
 import { useLivePhotoId } from "@/hooks/useLivePhotoId";
 import { useLiveSoundConfirmation } from "@/hooks/useLiveSoundConfirmation";
+import { CameraOriented } from "@/components/CameraOriented";
+import { useCameraDeviceOrientation } from "@/hooks/useCameraDeviceOrientation";
 import { useCameraZoom } from "@/hooks/useCameraZoom";
 import {
   IDENTIFY_FINISH_SLOW_HINT,
@@ -133,6 +135,7 @@ export default function CameraScreen() {
   const liveSound = useLiveSoundConfirmation();
 
   const cameraZoom = useCameraZoom(cameraRef, { facing });
+  const uiRotation = useCameraDeviceOrientation();
 
   const showFinishSlowHint = useSlowRequestHint(
     finishing,
@@ -468,7 +471,13 @@ export default function CameraScreen() {
         : null;
       const agreed = soundConfirmsPhoto(result.top ?? null, soundTop);
 
-      const top = result.top;
+      let top = result.top;
+      if (!top && livePhoto.primaryDetection) {
+        top = enrichPrediction({
+          ...livePhoto.primaryDetection.prediction,
+          confidence: livePhoto.primaryDetection.peakConfidence,
+        });
+      }
       const pending: PendingCapture = {
         photos: session,
         primaryIndex: idx,
@@ -485,10 +494,19 @@ export default function CameraScreen() {
       };
       setPendingCapture(pending);
 
-      if (draftIdRef.current) {
-        await deleteCaptureDraft(draftIdRef.current);
-        draftIdRef.current = null;
+      const activeDraftId = draftIdRef.current;
+      if (activeDraftId) {
+        await upsertCaptureDraft({
+          id: activeDraftId,
+          createdAt: session[0]?.capturedAt ?? new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          photos: session.map((p) => ({ ...p, base64: null })),
+          primaryIndex: idx,
+          geo: geo ?? null,
+          inProgress: false,
+        });
       }
+      draftIdRef.current = null;
 
       router.replace({
         pathname: "/new-sighting",
@@ -499,6 +517,7 @@ export default function CameraScreen() {
           confidence: top ? String(top.confidence) : "",
           count: String(result.count ?? 1),
           audio_agreed: agreed ? "1" : "0",
+          draftId: activeDraftId ?? "",
         },
       });
     } catch (e) {
@@ -568,15 +587,19 @@ export default function CameraScreen() {
 
       {finishing && (
         <View className="absolute inset-0 z-20 items-center justify-center bg-black/60 px-8">
-          <ActivityIndicator size="large" color="#5f9470" />
-          <Text className="mt-3 text-center font-sans text-sm text-foreground/80">
-            Identifying from photo...
-          </Text>
-          {showFinishSlowHint ? (
-            <Text className="mt-2 text-center font-sans text-xs leading-relaxed text-amber-100/90">
-              {IDENTIFY_FINISH_SLOW_HINT}
-            </Text>
-          ) : null}
+          <CameraOriented rotation={uiRotation} align="center">
+            <View className="items-center">
+              <ActivityIndicator size="large" color="#5f9470" />
+              <Text className="mt-3 text-center font-sans text-sm text-foreground/80">
+                Identifying from photo...
+              </Text>
+              {showFinishSlowHint ? (
+                <Text className="mt-2 text-center font-sans text-xs leading-relaxed text-amber-100/90">
+                  {IDENTIFY_FINISH_SLOW_HINT}
+                </Text>
+              ) : null}
+            </View>
+          </CameraOriented>
         </View>
       )}
 
@@ -590,6 +613,7 @@ export default function CameraScreen() {
         bannerTop={liveBannerTop}
         reticleTop={reticleTop}
         reticleBottom={reticleBottom}
+        uiRotation={uiRotation}
       />
 
       <LiveSoundConfirmationOverlay
@@ -599,23 +623,26 @@ export default function CameraScreen() {
         soundDetection={liveSound.primaryDetection}
         photoDetection={livePhoto.primaryDetection}
         bannerTop={soundBannerTop}
+        uiRotation={uiRotation}
       />
 
       <View
-        className="absolute inset-x-4"
+        className="absolute inset-x-4 items-center"
         style={{ top: locationTop }}
         pointerEvents="box-none"
       >
-        <LocationAccuracyBanner
-          permission={locationPermission}
-          onEnablePress={() => {
-            if (locationPermission === "denied") {
-              openLocationSettings();
-              return;
-            }
-            void refreshLocation();
-          }}
-        />
+        <CameraOriented rotation={uiRotation} align="center">
+          <LocationAccuracyBanner
+            permission={locationPermission}
+            onEnablePress={() => {
+              if (locationPermission === "denied") {
+                openLocationSettings();
+                return;
+              }
+              void refreshLocation();
+            }}
+          />
+        </CameraOriented>
       </View>
 
       {/* Pinch-to-zoom sits above the preview but below controls. */}
@@ -623,77 +650,87 @@ export default function CameraScreen() {
         <View collapsable={false} style={[StyleSheet.absoluteFill, { zIndex: 5 }]} />
       </GestureDetector>
 
-      {/* Top controls */}
+      {/* Top controls — one CameraOriented per button so each spins in place */}
       <View
         className="absolute inset-x-0 z-20 flex-row items-center justify-between px-4"
         style={{ top: topPad }}
       >
-        <Pressable
-          onPress={confirmClose}
-          className="h-11 w-11 items-center justify-center rounded-full bg-background/60"
-        >
-          <X size={20} color="#eee8d4" />
-        </Pressable>
+        <CameraOriented rotation={uiRotation}>
+          <Pressable
+            onPress={confirmClose}
+            className="h-11 w-11 items-center justify-center rounded-full bg-background/60"
+          >
+            <X size={20} color="#eee8d4" />
+          </Pressable>
+        </CameraOriented>
 
         <View className="flex-row items-center gap-2">
           {canFinish ? (
-            <Pressable
-              onPress={finishSession}
-              disabled={finishing}
-              className="flex-row items-center gap-1.5 rounded-full bg-primary px-4 py-2.5 active:opacity-90"
-            >
-              <Check size={16} color="#f0ead6" />
-              <Text className="font-sans-medium text-sm text-primary-foreground">
-                Done
-              </Text>
-            </Pressable>
+            <CameraOriented rotation={uiRotation}>
+              <Pressable
+                onPress={finishSession}
+                disabled={finishing}
+                className="flex-row items-center gap-1.5 rounded-full bg-primary px-4 py-2.5 active:opacity-90"
+              >
+                <Check size={16} color="#f0ead6" />
+                <Text className="font-sans-medium text-sm text-primary-foreground">
+                  Done
+                </Text>
+              </Pressable>
+            </CameraOriented>
           ) : null}
 
-          <Pressable
-            onPress={cycleFlash}
-            className={`h-11 w-11 items-center justify-center rounded-full ${
-              flash === "off" ? "bg-background/60" : "bg-accent"
-            }`}
-          >
-            {flash === "off" ? (
-              <ZapOff size={18} color="#eee8d4" />
-            ) : flash === "on" ? (
-              <Zap size={18} color="#181e16" />
-            ) : (
-              <View className="flex-row items-center">
-                <Zap size={15} color="#181e16" />
-                <Text className="font-mono text-[9px] text-[#181e16]">A</Text>
+          <CameraOriented rotation={uiRotation}>
+            <Pressable
+              onPress={cycleFlash}
+              className={`h-11 w-11 items-center justify-center rounded-full ${
+                flash === "off" ? "bg-background/60" : "bg-accent"
+              }`}
+            >
+              {flash === "off" ? (
+                <ZapOff size={18} color="#eee8d4" />
+              ) : flash === "on" ? (
+                <Zap size={18} color="#181e16" />
+              ) : (
+                <View className="flex-row items-center">
+                  <Zap size={15} color="#181e16" />
+                  <Text className="font-mono text-[9px] text-[#181e16]">A</Text>
+                </View>
+              )}
+            </Pressable>
+          </CameraOriented>
+
+          <CameraOriented rotation={uiRotation}>
+            <Pressable
+              onPress={() => setGrid((g) => !g)}
+              className={`h-11 w-11 items-center justify-center rounded-full ${
+                grid ? "bg-accent" : "bg-background/60"
+              }`}
+            >
+              <Grid3x3 size={18} color={grid ? "#181e16" : "#eee8d4"} />
+            </Pressable>
+          </CameraOriented>
+
+          <CameraOriented rotation={uiRotation}>
+            <Pressable
+              onPress={() => livePhoto.setEnabled(!livePhoto.enabled)}
+              disabled={finishing}
+              className={`h-11 items-center justify-center rounded-full px-3 ${
+                livePhoto.enabled ? "bg-accent" : "bg-background/60"
+              }`}
+            >
+              <View className="flex-row items-center gap-1.5">
+                <Scan size={16} color={livePhoto.enabled ? "#181e16" : "#eee8d4"} />
+                <Text
+                  className={`font-sans-medium text-xs ${
+                    livePhoto.enabled ? "text-[#181e16]" : "text-foreground"
+                  }`}
+                >
+                  Live ID
+                </Text>
               </View>
-            )}
-          </Pressable>
-
-          <Pressable
-            onPress={() => setGrid((g) => !g)}
-            className={`h-11 w-11 items-center justify-center rounded-full ${
-              grid ? "bg-accent" : "bg-background/60"
-            }`}
-          >
-            <Grid3x3 size={18} color={grid ? "#181e16" : "#eee8d4"} />
-          </Pressable>
-
-          <Pressable
-            onPress={() => livePhoto.setEnabled(!livePhoto.enabled)}
-            disabled={finishing}
-            className={`h-11 items-center justify-center rounded-full px-3 ${
-              livePhoto.enabled ? "bg-accent" : "bg-background/60"
-            }`}
-          >
-            <View className="flex-row items-center gap-1.5">
-              <Scan size={16} color={livePhoto.enabled ? "#181e16" : "#eee8d4"} />
-              <Text
-                className={`font-sans-medium text-xs ${
-                  livePhoto.enabled ? "text-[#181e16]" : "text-foreground"
-                }`}
-              >
-                Live ID
-              </Text>
-            </View>
-          </Pressable>
+            </Pressable>
+          </CameraOriented>
         </View>
       </View>
 
@@ -702,69 +739,78 @@ export default function CameraScreen() {
         <View className="flex-row items-end px-8">
           <View className="w-16 items-center">
             <View className="-mt-4 mb-5 items-center">
-              <Pressable
-                onPress={toggleLiveSound}
-                disabled={finishing}
-                className={`relative h-12 w-12 items-center justify-center rounded-full border active:opacity-80 ${
-                  liveSound.enabled
-                    ? "border-primary bg-primary/25"
-                    : "border-white/20 bg-background/60"
-                }`}
-              >
-                <Mic
-                  size={20}
-                  color={liveSound.enabled ? "#5f9470" : "#eee8d4"}
-                />
-                {liveSound.isProcessing ? (
-                  <View className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent" />
-                ) : null}
-              </Pressable>
+              <CameraOriented rotation={uiRotation} align="center">
+                <Pressable
+                  onPress={toggleLiveSound}
+                  disabled={finishing}
+                  className={`relative h-12 w-12 items-center justify-center rounded-full border active:opacity-80 ${
+                    liveSound.enabled
+                      ? "border-primary bg-primary/25"
+                      : "border-white/20 bg-background/60"
+                  }`}
+                >
+                  <Mic
+                    size={20}
+                    color={liveSound.enabled ? "#5f9470" : "#eee8d4"}
+                  />
+                  {liveSound.isProcessing ? (
+                    <View className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent" />
+                  ) : null}
+                </Pressable>
+              </CameraOriented>
             </View>
 
-            <Pressable
-              onPress={() => setLibraryOpen(true)}
-              className="relative h-14 w-14 items-center justify-center rounded-xl border border-white/20 bg-background/50 active:opacity-80"
-            >
-              {latestPhoto ? (
-                <Image
-                  source={{ uri: latestPhoto.uri }}
-                  className="h-full w-full rounded-xl"
-                  resizeMode="cover"
-                />
-              ) : (
-                <Images size={22} color="#eee8d4" />
-              )}
-              {session.length > 0 ? (
-                <View className="absolute -right-1.5 -top-1.5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 py-0.5">
-                  <Text className="font-mono text-[10px] text-primary-foreground">
-                    {session.length}
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
+            <CameraOriented rotation={uiRotation} align="center">
+              <Pressable
+                onPress={() => setLibraryOpen(true)}
+                className="relative h-14 w-14 items-center justify-center rounded-xl border border-white/20 bg-background/50 active:opacity-80"
+              >
+                {latestPhoto ? (
+                  <Image
+                    source={{ uri: latestPhoto.uri }}
+                    className="h-full w-full rounded-xl"
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Images size={22} color="#eee8d4" />
+                )}
+                {session.length > 0 ? (
+                  <View className="absolute -right-1.5 -top-1.5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 py-0.5">
+                    <Text className="font-mono text-[10px] text-primary-foreground">
+                      {session.length}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            </CameraOriented>
           </View>
 
           <View className="flex-1 items-center">
             <CameraZoomIndicator
               zoomLabel={cameraZoom.zoomLabel}
               visible={cameraZoom.isPinching}
+              uiRotation={uiRotation}
             />
-            <Pressable
-              onPress={capture}
-              disabled={busy || finishing}
-              className="h-[78px] w-[78px] items-center justify-center rounded-full border-4 border-primary bg-background/40 active:opacity-80"
-            >
-              <View className="h-[58px] w-[58px] rounded-full bg-foreground" />
-            </Pressable>
+            <CameraOriented rotation={uiRotation} align="center">
+              <Pressable
+                onPress={capture}
+                disabled={busy || finishing}
+                className="h-[78px] w-[78px] items-center justify-center rounded-full border-4 border-primary bg-background/40 active:opacity-80"
+              >
+                <View className="h-[58px] w-[58px] rounded-full bg-foreground" />
+              </Pressable>
+            </CameraOriented>
           </View>
 
           <View className="w-16 items-center">
-            <Pressable
-              onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
-              className="h-14 w-14 items-center justify-center rounded-full bg-background/60"
-            >
-              <SwitchCamera size={22} color="#eee8d4" />
-            </Pressable>
+            <CameraOriented rotation={uiRotation} align="center">
+              <Pressable
+                onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+                className="h-14 w-14 items-center justify-center rounded-full bg-background/60"
+              >
+                <SwitchCamera size={22} color="#eee8d4" />
+              </Pressable>
+            </CameraOriented>
           </View>
         </View>
       </View>

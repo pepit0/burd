@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import {
@@ -13,6 +14,8 @@ export function usePushNotifications(userId: string | null) {
   const tokenRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (Platform.OS === "web") return;
+
     if (!userId) {
       void unregisterPushNotifications(tokenRef.current);
       tokenRef.current = null;
@@ -31,6 +34,8 @@ export function usePushNotifications(userId: string | null) {
   }, [userId]);
 
   useEffect(() => {
+    if (Platform.OS === "web") return;
+
     const openFromResponse = (response: Notifications.NotificationResponse) => {
       const data = parseNotificationData(
         response.notification.request.content.data as Record<string, unknown>,

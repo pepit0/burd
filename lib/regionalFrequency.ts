@@ -333,7 +333,7 @@ export function inferRarityFromFrequency(
     normalizeScientificName(scientificName) ||
     normalizeScientificName(species);
   if (!key) return null;
-  return lookupSpeciesScore(ctx, key).rarity;
+  return lookupSpeciesScoreStrict(ctx, key).rarity;
 }
 
 export function scorePrediction(
@@ -629,11 +629,20 @@ export function rankPredictions(
   ctx: RegionalContext | null,
   predictions: Prediction[],
 ): Prediction[] {
-  if (!ctx) return [...predictions];
+  if (predictions.length === 0) return [];
 
-  return [...predictions]
+  const byConfidence = [...predictions].sort(
+    (a, b) => b.confidence - a.confidence,
+  );
+
+  if (!ctx) return byConfidence;
+
+  const ranked = [...predictions]
     .filter((p) => shouldShowPrediction(ctx, p))
     .sort((a, b) => scorePrediction(ctx, b) - scorePrediction(ctx, a));
+
+  // Photo ID can surface non-bird / low-confidence taxa in live scan — never drop all results.
+  return ranked.length > 0 ? ranked : byConfidence;
 }
 
 export interface MonthlyAbundance {

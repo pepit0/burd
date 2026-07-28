@@ -3,18 +3,22 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
+  ScrollView,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Trash2 } from "lucide-react-native";
+import { LikeIcon } from "@/components/LikeIcon";
+import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useColorTheme } from "@/components/ColorThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { deleteAccount } from "@/lib/accountDeletion";
 import { getUserFacingMessage } from "@/lib/errors";
+import { LIKE_ICON_STYLES } from "@/lib/likeIconStyle";
 
 const RADIUS_OPTIONS = [5, 10, 25, 50, 100];
 
@@ -23,9 +27,11 @@ export default function ProfileSettingsScreen() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { profile, loading, setRadius } = useProfile(userId);
+  const { likeIconStyle, setLikeIconStyle } = useLikeIconStyle();
   const { mode, setMode, palette } = useColorTheme();
   const colorblindEnabled = mode === "colorblind";
   const [deleting, setDeleting] = useState(false);
+  const [savingLikeIcon, setSavingLikeIcon] = useState(false);
 
   function confirmDeleteAccount() {
     Alert.alert(
@@ -71,10 +77,53 @@ export default function ProfileSettingsScreen() {
     }
   }
 
+  async function handleLikeIconChange(next: typeof likeIconStyle) {
+    if (savingLikeIcon || next === likeIconStyle) return;
+    setSavingLikeIcon(true);
+    try {
+      await setLikeIconStyle(next);
+    } catch (e) {
+      Alert.alert("Could not save", getUserFacingMessage(e));
+    } finally {
+      setSavingLikeIcon(false);
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScreenHeader title="Profile settings" onBack={() => router.back()} />
-      <View className="px-4 pt-5">
+      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-8 pt-5">
+        <Text className="mb-1 font-serif-semibold text-base text-foreground">
+          Like button
+        </Text>
+        <Text className="mb-3 font-sans text-xs text-muted-foreground">
+          Choose how likes appear for you across the app.
+        </Text>
+        <View className="mb-6 flex-row flex-wrap gap-2">
+          {LIKE_ICON_STYLES.map((option) => {
+            const active = likeIconStyle === option.id;
+            return (
+              <Pressable
+                key={option.id}
+                onPress={() => void handleLikeIconChange(option.id)}
+                disabled={savingLikeIcon}
+                className={`min-w-[31%] flex-1 items-center rounded-xl border px-3 py-3 active:opacity-85 ${
+                  active ? "border-primary bg-primary/15" : "border-border bg-card"
+                }`}
+              >
+                <LikeIcon liked={active} style={option.id} size={22} />
+                <Text
+                  className={`mt-2 text-center font-sans text-[11px] ${
+                    active ? "font-sans-medium text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <Text className="mb-1 font-serif-semibold text-base text-foreground">
           Accessibility
         </Text>
@@ -112,7 +161,7 @@ export default function ProfileSettingsScreen() {
         </Text>
 
         {loading && !profile ? (
-          <ActivityIndicator className="mt-6" color={palette.primary} />
+          <ActivityIndicator className="mt-2" color={palette.primary} />
         ) : (
           <View className="flex-row flex-wrap gap-2">
             {RADIUS_OPTIONS.map((km) => {
@@ -160,8 +209,7 @@ export default function ProfileSettingsScreen() {
             </>
           )}
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
-

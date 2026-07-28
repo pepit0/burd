@@ -4,7 +4,7 @@ Burd uses native Sign in with Apple on iOS via `expo-apple-authentication` and S
 
 ## App code (already shipped)
 
-- Login / Register show the official Apple button on iOS only (Google is shown disabled as “Coming soon”)
+- Login / Register show the official Apple button on iOS only, plus **Continue with Google** on all platforms
 - [`lib/appleAuth.ts`](../lib/appleAuth.ts) exchanges the Apple identity token with Supabase (SHA-256 nonce)
 - First-time Apple users without a chosen username are sent to **Choose a username**
 - [`app.json`](../app.json) sets `ios.usesAppleSignIn` and the `expo-apple-authentication` plugin

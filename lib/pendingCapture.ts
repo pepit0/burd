@@ -38,13 +38,34 @@ export interface PendingCapture {
 }
 
 let pending: PendingCapture | null = null;
+/** Survives React Strict Mode remounts after the log screen claims a capture. */
+let claimedForSighting: PendingCapture | null = null;
 
 export function setPendingCapture(capture: PendingCapture | null) {
   pending = capture;
+  if (capture) claimedForSighting = null;
+}
+
+/** Read pending capture without clearing (safe for Strict Mode double-mount). */
+export function peekPendingCapture(): PendingCapture | null {
+  return claimedForSighting ?? pending;
+}
+
+/** Claim capture for the log screen — idempotent across Strict Mode remounts. */
+export function claimPendingCaptureForSighting(): PendingCapture | null {
+  if (claimedForSighting) return claimedForSighting;
+  if (!pending) return null;
+  claimedForSighting = pending;
+  pending = null;
+  return claimedForSighting;
+}
+
+export function clearPendingCapture(): void {
+  pending = null;
+  claimedForSighting = null;
 }
 
 export function takePendingCapture(): PendingCapture | null {
-  const value = pending;
-  pending = null;
+  const value = claimPendingCaptureForSighting();
   return value;
 }

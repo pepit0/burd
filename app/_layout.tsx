@@ -23,8 +23,10 @@ import {
   JetBrainsMono_400Regular,
   JetBrainsMono_500Medium,
 } from "@expo-google-fonts/jetbrains-mono";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { SuspensionScreen } from "@/components/SuspensionScreen";
 import { NotificationBadgeProvider } from "@/components/NotificationBadgeProvider";
+import { LikeIconStyleProvider } from "@/components/LikeIconStyleProvider";
 import { SafeKeyboardProvider } from "@/components/SafeKeyboardProvider";
 import { WebDesktopFrame } from "@/components/WebDesktopFrame";
 import { ColorThemeProvider, useColorTheme } from "@/components/ColorThemeProvider";
@@ -44,48 +46,57 @@ function AppShell() {
 
   return (
     <NotificationBadgeProvider userId={user?.id ?? null}>
-      <View className="flex-1 bg-background" style={vars(nativewindColorVars(palette))}>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: palette.background },
-          }}
-        >
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
-          <Stack.Screen name="new-sighting" options={{ presentation: "modal" }} />
-          <Stack.Screen name="sound-review" options={{ presentation: "modal" }} />
-          <Stack.Screen name="sounds" />
-          <Stack.Screen name="post/[id]" options={{ presentation: "modal" }} />
-          <Stack.Screen name="sighting/[id]" options={{ presentation: "modal" }} />
-          <Stack.Screen name="species/[id]" />
-          <Stack.Screen name="users" />
-          <Stack.Screen name="follows" />
-          <Stack.Screen name="user/[id]" />
-          <Stack.Screen name="admin" />
-          <Stack.Screen name="profile-settings" />
-          <Stack.Screen
-            name="camera"
-            options={{ presentation: "fullScreenModal", animation: "fade" }}
-          />
-          <Stack.Screen
-            name="audio-id"
-            options={{ presentation: "fullScreenModal", animation: "fade" }}
-          />
-          <Stack.Screen name="data-sources" />
-        </Stack>
-      </View>
+      <LikeIconStyleProvider userId={user?.id ?? null}>
+        <View className="flex-1 bg-background" style={vars(nativewindColorVars(palette))}>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: palette.background },
+            }}
+          >
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
+            <Stack.Screen name="new-sighting" options={{ presentation: "modal" }} />
+            <Stack.Screen name="sound-review" options={{ presentation: "modal" }} />
+            <Stack.Screen name="sounds" />
+            <Stack.Screen name="post/[id]" options={{ presentation: "modal" }} />
+            <Stack.Screen name="sighting/[id]" options={{ presentation: "modal" }} />
+            <Stack.Screen
+              name="edit-journal-sighting/[id]"
+              options={{ presentation: "modal" }}
+            />
+            <Stack.Screen name="species/[id]" />
+            <Stack.Screen name="users" />
+            <Stack.Screen name="follows" />
+            <Stack.Screen name="user/[id]" />
+            <Stack.Screen name="admin" />
+            <Stack.Screen name="profile-settings" />
+            <Stack.Screen
+              name="camera"
+              options={{ presentation: "fullScreenModal", animation: "fade" }}
+            />
+            <Stack.Screen
+              name="audio-id"
+              options={{ presentation: "fullScreenModal", animation: "fade" }}
+            />
+            <Stack.Screen name="data-sources" />
+          </Stack>
+        </View>
+      </LikeIconStyleProvider>
     </NotificationBadgeProvider>
   );
 }
 
 export default function RootLayout() {
   return (
-    <ColorThemeProvider>
-      <RootLayoutInner />
-    </ColorThemeProvider>
+    <SafeAreaProvider>
+      <ColorThemeProvider>
+        <RootLayoutInner />
+      </ColorThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -227,9 +238,11 @@ function RootLayoutInner() {
   if (loading || !fontsReady) {
     return (
       <WebDesktopFrame>
-        <View className="flex-1 items-center justify-center bg-background">
-          <ActivityIndicator size="large" color={palette.primary} />
-        </View>
+        <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom"]}>
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" color={palette.primary} />
+          </View>
+        </SafeAreaView>
       </WebDesktopFrame>
     );
   }
@@ -259,9 +272,12 @@ function RootLayoutInner() {
       <WebDesktopFrame>
         <SafeKeyboardProvider>
           {gating ? (
-            <View className="absolute inset-0 z-50 items-center justify-center bg-background">
+            <SafeAreaView
+              className="absolute inset-0 z-50 items-center justify-center bg-background"
+              edges={["top", "bottom"]}
+            >
               <ActivityIndicator size="large" color={palette.primary} />
-            </View>
+            </SafeAreaView>
           ) : null}
           <AppShell />
         </SafeKeyboardProvider>

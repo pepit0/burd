@@ -9,15 +9,20 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import {
   ArrowLeft,
   Feather,
-  Heart,
   MessageCircle,
   MoreHorizontal,
   Repeat2,
   Share2,
 } from "lucide-react-native";
+import { LikeBurstOverlay } from "@/components/LikeBurstOverlay";
+import { LikeIcon } from "@/components/LikeIcon";
+import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
+import { INACTIVE_ICON_COLOR_ON_DARK } from "@/lib/likeIconStyle";
 import { Avatar } from "@/components/Avatar";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { PostComments } from "@/components/PostComments";
@@ -30,10 +35,13 @@ import { useAdmin } from "@/hooks/useAdmin";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { getCommentCountForSighting } from "@/lib/comments";
 import { getLoadErrorMessage } from "@/lib/errors";
+import { triggerLikeHaptic } from "@/lib/haptics";
 import {
   getFeedPostById,
   getMyLikedIds,
+  getMyRepostedIds,
   setLike,
+  setRepost,
 } from "@/lib/sightings";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import { timeAgo } from "@/lib/time";
@@ -76,6 +84,12 @@ function commentLabel(count: number): string {
   return `${count} comments`;
 }
 
+function repostLabel(count: number): string {
+  if (count === 0) return "No reposts yet";
+  if (count === 1) return "1 repost";
+  return `${count} reposts`;
+}
+
 export default function PostScreen() {
   const router = useRouter();
   const { id, commentId } = useLocalSearchParams<{ id: string; commentId?: string }>();
@@ -85,15 +99,20 @@ export default function PostScreen() {
 
   const [post, setPost] = useState<FeedSighting | null>(null);
   const [liked, setLiked] = useState(false);
+  const [reposted, setReposted] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [repostCount, setRepostCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
+  const [reposting, setReposting] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [burstKey, setBurstKey] = useState(0);
   const scrollRef = useRef<React.ElementRef<typeof KeyboardScreen>>(null);
   const commentsYRef = useRef(0);
   const audioPlayback = useAudioPlayback(post?.audio_url ?? null);
+  const { likeIconStyle } = useLikeIconStyle();
 
   useEffect(() => {
     if (!id) {
@@ -116,14 +135,21 @@ export default function PostScreen() {
         }
         setPost(row);
         setLikeCount(row.like_count);
+        setRepostCount(row.repost_count ?? 0);
         if (!cancelled) {
           setCommentCount(
             row.comment_count ?? (await getCommentCountForSighting(row.id)),
           );
         }
         if (userId) {
-          const likedIds = await getMyLikedIds(userId);
-          if (!cancelled) setLiked(likedIds.has(row.id));
+          const [likedIds, repostedIds] = await Promise.all([
+            getMyLikedIds(userId),
+            getMyRepostedIds(userId),
+          ]);
+          if (!cancelled) {
+            setLiked(likedIds.has(row.id));
+            setReposted(repostedIds.has(row.id));
+          }
         }
       } catch (e) {
         if (!cancelled) setError(getLoadErrorMessage(e));
@@ -140,6 +166,10 @@ export default function PostScreen() {
   async function toggleLike() {
     if (!userId || !post || liking) return;
     const next = !liked;
+    if (next) {
+      triggerLikeHaptic();
+      setBurstKey((key) => key + 1);
+    }
     setLiked(next);
     setLikeCount((c) => Math.max(0, c + (next ? 1 : -1)));
     setLiking(true);
@@ -152,6 +182,37 @@ export default function PostScreen() {
       setLiking(false);
     }
   }
+
+  function likeIfNeeded() {
+    if (!liked) {
+      void toggleLike();
+    }
+  }
+
+  async function toggleRepost() {
+    if (!userId || !post || reposting || post.user_id === userId) return;
+    const next = !reposted;
+    if (next) {
+      triggerLikeHaptic();
+    }
+    setReposted(next);
+    setRepostCount((c) => Math.max(0, c + (next ? 1 : -1)));
+    setReposting(true);
+    try {
+      await setRepost(userId, post.id, next);
+    } catch {
+      setReposted(!next);
+      setRepostCount((c) => Math.max(0, c + (next ? -1 : 1)));
+    } finally {
+      setReposting(false);
+    }
+  }
+
+  const doubleTapLike = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      runOnJS(likeIfNeeded)();
+    });
 
   function scrollToComments() {
     scrollRef.current?.scrollTo({ y: commentsYRef.current, animated: true });
@@ -187,7 +248,7 @@ export default function PostScreen() {
             onPress={() => router.push(`/user/${post.user_id}`)}
             className="flex-row items-center gap-2 active:opacity-80"
           >
-            <Avatar user={post.username} color={post.avatar_color} size={28} />
+            <Avatar user={post.username} color={post.avatar_color} avatarUrl={post.avatar_url} size={28} />
             <Text className="font-sans-medium text-sm text-foreground">
               @{post.username}
             </Text>
@@ -232,45 +293,55 @@ export default function PostScreen() {
             </View>
           ) : null}
 
-          <View
-            className="bg-muted"
-            style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
-          >
-            {isPhotoSighting(post) && !isRemoved ? (
-              <Image
-                source={{ uri: post.photo_url! }}
-                style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
-                resizeMode="cover"
-              />
-            ) : isAudioSighting(post) && !isRemoved ? (
-              <PlaybackWaveform
-                playback={audioPlayback}
-                className="h-full w-full"
-                variant="hero"
-                interactive
-              />
-            ) : (
-              <View className="h-full w-full items-center justify-center">
-                <Feather size={40} color="#3a4e35" />
-              </View>
-            )}
-          </View>
+          <GestureDetector gesture={doubleTapLike}>
+            <View
+              className="bg-muted"
+              style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
+            >
+              {isPhotoSighting(post) && !isRemoved ? (
+                <Image
+                  source={{ uri: post.photo_url! }}
+                  style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
+                  resizeMode="cover"
+                />
+              ) : isAudioSighting(post) && !isRemoved ? (
+                <PlaybackWaveform
+                  playback={audioPlayback}
+                  className="h-full w-full"
+                  variant="hero"
+                  interactive
+                />
+              ) : (
+                <View className="h-full w-full items-center justify-center">
+                  <Feather size={40} color="#3a4e35" />
+                </View>
+              )}
+              <LikeBurstOverlay burstKey={burstKey} iconStyle={likeIconStyle} heroSize={88} />
+            </View>
+          </GestureDetector>
 
           {!isRemoved ? (
             <>
           <View className="flex-row items-center gap-1 px-3 py-2">
             <PostAction onPress={toggleLike} disabled={!userId || liking}>
-              <Heart
+              <LikeIcon
+                liked={liked}
+                style={likeIconStyle}
                 size={ACTION_ICON_SIZE}
-                color={liked ? "#f87171" : "#eee8d4"}
-                fill={liked ? "#f87171" : "transparent"}
+                inactiveColor={INACTIVE_ICON_COLOR_ON_DARK}
               />
             </PostAction>
             <PostAction onPress={scrollToComments}>
               <MessageCircle size={ACTION_ICON_SIZE} color="#eee8d4" />
             </PostAction>
-            <PostAction disabled>
-              <Repeat2 size={ACTION_ICON_SIZE} color="#eee8d4" />
+            <PostAction
+              onPress={toggleRepost}
+              disabled={!userId || reposting || post.user_id === userId}
+            >
+              <Repeat2
+                size={ACTION_ICON_SIZE}
+                color={reposted ? "#5f9470" : "#eee8d4"}
+              />
             </PostAction>
             <PostAction disabled>
               <Share2 size={ACTION_ICON_SIZE} color="#eee8d4" />
@@ -284,6 +355,11 @@ export default function PostScreen() {
             <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
               {commentLabel(commentCount)}
             </Text>
+            {repostCount > 0 ? (
+              <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
+                {repostLabel(repostCount)}
+              </Text>
+            ) : null}
 
             <Text className="mt-2 font-sans text-sm leading-relaxed text-foreground">
               <Text className="font-sans-medium">@{post.username}</Text>{" "}

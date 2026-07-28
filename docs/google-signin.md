@@ -4,7 +4,7 @@ Burd uses Supabase OAuth + an in-app browser (`expo-web-browser`) for Google.
 
 ## App code
 
-- Login and Sign up show **Continue with Google**
+- Login and Sign up show **Continue with Google** on iOS, Android, and web
 - [`lib/googleAuth.ts`](../lib/googleAuth.ts) opens Supabase’s Google OAuth URL and stores the session
 - New Google users are sent to **Choose a username** (`username_chosen: false`)
 
@@ -19,6 +19,8 @@ Burd uses Supabase OAuth + an in-app browser (`expo-web-browser`) for Google.
 6. Under **Authentication → URL Configuration**, add redirect URLs:  
    - `burd://**`  
    - `burd://auth/callback`  
+   - `https://burdapp.com/app/auth/callback`  
+   - `http://localhost:8081/app/auth/callback` (local web dev)  
    - your Expo / EAS redirect if different  
 
 Then rebuild or reload the app and tap **Continue with Google**.

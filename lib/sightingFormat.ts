@@ -1,8 +1,11 @@
 import * as Location from "expo-location";
 import {
   applyGeocodeFields,
+  abbreviateAdministrativeRegion,
   isLikelyStreetAddress,
   parseCityFromAddressString,
+  parseRegionFromAddressString,
+  stripCountryFromPlaceString,
 } from "@/lib/geocode";
 import type { Sighting } from "@/types";
 
@@ -33,6 +36,28 @@ function cityFromStoredFields(sighting: Sighting): string | null {
   }
 
   return null;
+}
+
+/** City/town + province/state for feed cards (no country). */
+export function sightingPlaceLine(sighting: Sighting): string | null {
+  const city = cityFromStoredFields(sighting);
+  const regionSource =
+    sighting.location_address?.trim() || sighting.location_name?.trim() || "";
+  const region = regionSource ? parseRegionFromAddressString(regionSource) : null;
+
+  if (city && region) {
+    return `${city}, ${abbreviateAdministrativeRegion(region)}`;
+  }
+  if (city) return city;
+
+  const name = sighting.location_name?.trim();
+  if (!name) return null;
+
+  if (name.includes(",")) {
+    return stripCountryFromPlaceString(name);
+  }
+
+  return isLikelyStreetAddress(name) ? null : name;
 }
 
 /** City/town for journal list rows (sync — uses saved fields only). */
@@ -110,15 +135,51 @@ export async function resolveSightingAddress(
 }
 
 export function formatJournalWhen(date: Date): string {
-  const datePart = date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  const datePart = formatJournalEntryDatePart(date);
   const timePart = date.toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
   });
   return `${datePart} · ${timePart}`;
+}
+
+function formatJournalEntryDatePart(date: Date, now = new Date()): string {
+  const cutoff = new Date(now);
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+
+  if (date >= cutoff) {
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** Journal entry detail — month/day only when observed within the past year. */
+export function formatJournalEntryDate(date: Date, now = new Date()): string {
+  const cutoff = new Date(now);
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+
+  if (date >= cutoff) {
+    return date.toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  return date.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export function formatDetailDate(date: Date): string {

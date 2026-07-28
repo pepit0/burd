@@ -1,7 +1,7 @@
 import * as Location from "expo-location";
 import { applyGeocodeFields } from "@/lib/geocode";
 import { enrichPrediction } from "@/lib/predictionLabels";
-import { inferRegionalRarity } from "@/lib/rarity";
+import { lookupRegionalRarity } from "@/lib/rarity";
 import {
   BLUE_JAY_KEY,
   checklistNativeLeader,
@@ -19,7 +19,7 @@ import {
   getCatalogSpeciesByScientificName,
   resolveCatalogSpecies,
 } from "@/lib/speciesCatalog";
-import { createSighting, getMyProfile } from "@/lib/sightings";
+import { createSighting } from "@/lib/sightings";
 import { maybeGenerateSpeciesProfileAfterSighting } from "@/lib/speciesProfileLoad";
 import {
   linkSoundToSighting,
@@ -517,16 +517,13 @@ export async function saveLiveSessionToJournal(
 
   const enriched = enrichPrediction(primary.prediction);
   const geocode = await resolveGeocodeFields(coords);
-  const profile = await getMyProfile(userId);
-  const radiusKm = profile?.search_radius_km ?? 25;
-  const rarity = await inferRegionalRarity(
-    enriched.species,
-    enriched.scientific_name,
-    coords?.latitude ?? null,
-    coords?.longitude ?? null,
-    radiusKm,
+  const rarity = lookupRegionalRarity({
+    species: enriched.species,
+    scientificName: enriched.scientific_name,
+    lat: coords?.latitude ?? null,
+    lng: coords?.longitude ?? null,
     observedAt,
-  );
+  });
 
   const sightingId = await createSighting(userId, {
     species: enriched.species,

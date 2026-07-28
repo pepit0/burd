@@ -18,7 +18,7 @@ export function ScreenHeader({
   onBack,
 }: ScreenHeaderProps) {
   return (
-    <View className="flex-row items-center justify-between border-b border-border px-5 pb-3 pt-2">
+    <View className="flex-row items-center justify-between px-5 pb-4 pt-3">
       <View className="min-w-0 flex-1 flex-row items-center gap-1">
         {onBack ? (
           <Pressable
@@ -39,7 +39,9 @@ export function ScreenHeader({
             </Text>
           </View>
         ) : (
-          <Text className="font-serif-semibold text-lg text-foreground">{title}</Text>
+          <Text className="font-serif-semibold text-xl tracking-tight text-foreground">
+            {title}
+          </Text>
         )}
       </View>
 

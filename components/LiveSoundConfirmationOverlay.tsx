@@ -6,6 +6,8 @@ import {
   displaySpeciesName,
 } from "@/lib/predictionLabels";
 import { speciesKeysMatch } from "@/lib/speciesMatch";
+import { CameraOriented } from "@/components/CameraOriented";
+import type { CameraUiRotation } from "@/hooks/useCameraDeviceOrientation";
 import type { LivePhotoDetection } from "@/lib/livePhotoSession";
 import type { LiveDetection } from "@/lib/liveSoundSession";
 
@@ -16,6 +18,7 @@ interface LiveSoundConfirmationOverlayProps {
   soundDetection: LiveDetection | null;
   photoDetection: LivePhotoDetection | null;
   bannerTop: number;
+  uiRotation?: CameraUiRotation;
 }
 
 export function LiveSoundConfirmationOverlay({
@@ -25,6 +28,7 @@ export function LiveSoundConfirmationOverlay({
   soundDetection,
   photoDetection,
   bannerTop,
+  uiRotation = 0,
 }: LiveSoundConfirmationOverlayProps) {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -66,7 +70,7 @@ export function LiveSoundConfirmationOverlay({
   return (
     <Animated.View
       pointerEvents="none"
-      className="absolute inset-x-4 z-10"
+      className="absolute inset-x-4 z-10 items-center"
       style={{
         top: bannerTop,
         opacity: opacityAnim,
@@ -81,23 +85,26 @@ export function LiveSoundConfirmationOverlay({
       }}
     >
       {!soundDetection && isProcessing && !chunkWarning ? (
-        <View className="items-center">
+        <CameraOriented rotation={uiRotation} align="center">
           <View className="flex-row items-center gap-2 rounded-full bg-background/70 px-3 py-1.5">
             <ActivityIndicator size="small" color="#5f9470" />
             <Text className="font-sans text-xs text-foreground/80">Listening…</Text>
           </View>
-        </View>
+        </CameraOriented>
       ) : null}
 
       {chunkWarning ? (
-        <View className="rounded-2xl border border-amber-400/35 bg-black/70 px-3.5 py-2.5">
-          <Text className="font-sans text-xs leading-relaxed text-amber-100/90">
-            {chunkWarning}
-          </Text>
-        </View>
+        <CameraOriented rotation={uiRotation} align="center">
+          <View className="rounded-2xl border border-amber-400/35 bg-black/70 px-3.5 py-2.5">
+            <Text className="font-sans text-xs leading-relaxed text-amber-100/90">
+              {chunkWarning}
+            </Text>
+          </View>
+        </CameraOriented>
       ) : null}
 
       {soundDetection ? (
+        <CameraOriented rotation={uiRotation} align="center">
         <View
           className={`overflow-hidden rounded-2xl border shadow-lg ${
             hasPhotoReference && agrees
@@ -179,6 +186,7 @@ export function LiveSoundConfirmationOverlay({
             </View>
           </View>
         </View>
+        </CameraOriented>
       ) : null}
     </Animated.View>
   );

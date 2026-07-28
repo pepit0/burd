@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore, useState } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
-import { Image, type ImageContentFit } from "expo-image";
+import { Image, type ImageContentFit, type ImageContentPosition } from "expo-image";
 import { Feather } from "lucide-react-native";
 import {
   isFieldGuideImageAllowed,
@@ -23,6 +23,7 @@ interface SpeciesImageProps {
   className?: string;
   style?: StyleProp<ViewStyle>;
   contentFit?: ImageContentFit;
+  contentPosition?: ImageContentPosition;
   zoom?: number;
 }
 
@@ -48,6 +49,7 @@ export function SpeciesImage({
   className,
   style,
   contentFit = "cover",
+  contentPosition = "top",
   zoom,
 }: SpeciesImageProps) {
   const cacheKey = speciesImageCacheKey(catalogId, scientificName, size);
@@ -105,7 +107,7 @@ export function SpeciesImage({
           height: `${scale * 100}%`,
         }}
         contentFit={contentFit}
-        contentPosition="top"
+        contentPosition={contentPosition}
         transition={200}
         recyclingKey={cacheKey}
       />

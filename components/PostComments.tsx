@@ -7,7 +7,9 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Heart, MessageCircle, SendHorizontal } from "lucide-react-native";
+import { MessageCircle, SendHorizontal } from "lucide-react-native";
+import { LikeIcon } from "@/components/LikeIcon";
+import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
 import { Avatar } from "@/components/Avatar";
 import { MentionText } from "@/components/MentionText";
 import { MentionTextInput } from "@/components/MentionTextInput";
@@ -65,6 +67,8 @@ function CommentRow({
   highlighted?: boolean;
   highlightCommentId?: string | null;
 }) {
+  const { likeIconStyle } = useLikeIconStyle();
+
   return (
     <View
       className={`${nested ? "ml-10 mt-3" : "mt-4"} ${
@@ -72,7 +76,12 @@ function CommentRow({
       }`}
     >
       <View className="flex-row gap-2.5">
-        <Avatar user={comment.username} color={comment.avatar_color} size={nested ? 28 : 32} />
+        <Avatar
+          user={comment.username}
+          color={comment.avatar_color}
+          avatarUrl={comment.avatar_url}
+          size={nested ? 28 : 32}
+        />
         <View className="min-w-0 flex-1">
           <Text className="font-sans text-sm leading-snug text-foreground">
             <Text className="font-sans-medium">@{comment.username}</Text>{" "}
@@ -86,11 +95,7 @@ function CommentRow({
               onPress={() => onToggleLike(comment.id)}
               className="flex-row items-center gap-1 active:opacity-70"
             >
-              <Heart
-                size={12}
-                color={comment.liked ? "#f87171" : "#8a9e82"}
-                fill={comment.liked ? "#f87171" : "transparent"}
-              />
+              <LikeIcon liked={comment.liked} style={likeIconStyle} size={12} />
               {comment.like_count > 0 ? (
                 <Text className="font-mono text-[10px] text-muted-foreground">
                   {comment.like_count}

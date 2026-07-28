@@ -1,8 +1,15 @@
 import type { CatalogSpecies } from "@/lib/speciesCatalog";
 import type { FieldGuideFilters } from "@/lib/filters";
+import { lookupRegionalRarity } from "@/lib/rarity";
 import { SPECIES_PROFILES } from "@/lib/speciesProfiles";
 import { observedDate } from "@/lib/sightingFormat";
 import type { Rarity, Sighting } from "@/types";
+
+export interface FieldGuideRegionalContext {
+  lat: number;
+  lng: number;
+  date?: Date;
+}
 
 export interface FieldGuideEntry {
   id: string;
@@ -64,14 +71,25 @@ function isLogged(
 export function toFieldGuideEntry(
   item: CatalogSpecies,
   index: Map<string, SightingHit>,
+  regional: FieldGuideRegionalContext | null = null,
 ): FieldGuideEntry {
+  const rarity = regional
+    ? lookupRegionalRarity({
+        species: item.species,
+        scientificName: item.scientific_name,
+        lat: regional.lat,
+        lng: regional.lng,
+        observedAt: regional.date,
+      })
+    : item.rarity;
+
   return {
     id: item.id,
     species: item.species,
     scientific_name: item.scientific_name,
     family: item.family,
     habitat: SPECIES_PROFILES[item.id]?.habitat ?? "",
-    rarity: item.rarity,
+    rarity,
     logged: isLogged(item, index),
   };
 }
@@ -125,10 +143,20 @@ export function filterCatalogByOptions(
   catalog: CatalogSpecies[],
   filters: FieldGuideFilters,
   index: Map<string, SightingHit>,
+  regional: FieldGuideRegionalContext | null = null,
 ): CatalogSpecies[] {
   return catalog.filter((item) => {
-    if (filters.rarity !== "all" && item.rarity !== filters.rarity) {
-      return false;
+    if (filters.rarity !== "all") {
+      const rarity = regional
+        ? lookupRegionalRarity({
+            species: item.species,
+            scientificName: item.scientific_name,
+            lat: regional.lat,
+            lng: regional.lng,
+            observedAt: regional.date,
+          })
+        : item.rarity;
+      if (rarity !== filters.rarity) return false;
     }
     const logged = isLogged(item, index);
     if (filters.logged === "logged" && !logged) return false;

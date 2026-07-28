@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,15 +14,30 @@ import { trackForUser } from "@/lib/analytics";
 import { getUserFacingMessage } from "@/lib/errors";
 import {
   claimUsername,
+  DISPLAY_NAME_MAX_LENGTH,
+  normalizeDisplayName,
   normalizeUsername,
+  validateDisplayName,
   validateUsername,
 } from "@/lib/signup";
+
+function initialDisplayName(user: ReturnType<typeof useAuth>["user"]): string {
+  const fullName = user?.user_metadata?.full_name;
+  return typeof fullName === "string" ? normalizeDisplayName(fullName) : "";
+}
 
 export default function ChooseUsernameScreen() {
   const { user } = useAuth();
   const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState(() => initialDisplayName(user));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (displayName.trim()) return;
+    const fromOAuth = initialDisplayName(user);
+    if (fromOAuth) setDisplayName(fromOAuth);
+  }, [user, displayName]);
 
   async function handleContinue() {
     setError(null);
@@ -37,11 +52,18 @@ export default function ChooseUsernameScreen() {
       return;
     }
 
+    const displayNameError = validateDisplayName(displayName);
+    if (displayNameError) {
+      setError(displayNameError);
+      return;
+    }
+
     setLoading(true);
     try {
-      await claimUsername(user.id, username);
+      await claimUsername(user.id, username, displayName);
       trackForUser(user.id, "username_claimed", {
         username: normalizeUsername(username),
+        display_name: normalizeDisplayName(displayName),
       });
       // Root layout watches user_metadata.username and routes to tabs.
     } catch (e) {
@@ -68,12 +90,26 @@ export default function ChooseUsernameScreen() {
         </View>
 
         <Text className="mb-2 font-serif-semibold text-2xl text-foreground">
-          Choose a username
+          Set up your profile
         </Text>
         <Text className="mb-8 font-sans text-base text-muted-foreground">
-          Pick your @handle so other birders can find you. If it's taken, try
-          another.
+          Pick a display name and @handle so other birders can find you.
         </Text>
+
+        <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
+          Display name
+        </Text>
+        <TextInput
+          autoCapitalize="words"
+          autoComplete="name"
+          autoCorrect={false}
+          onChangeText={setDisplayName}
+          placeholder="Marsh Watcher"
+          placeholderTextColor="#8a9e82"
+          value={displayName}
+          maxLength={DISPLAY_NAME_MAX_LENGTH}
+          className="mb-4 rounded-xl border border-border bg-card px-4 py-3 font-sans text-base text-foreground"
+        />
 
         <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
           Username

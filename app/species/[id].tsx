@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Pressable,
   Text,
   View,
@@ -14,13 +15,17 @@ import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesAskGuide } from "@/components/SpeciesAskGuide";
 import { SpeciesImage } from "@/components/SpeciesImage";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { useFieldGuideAuthor } from "@/hooks/useFieldGuideAuthor";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useSpeciesProfile } from "@/hooks/useSpeciesProfile";
 import { getSightingsForSpecies } from "@/lib/fieldGuide";
 import { getCatalogSpeciesById } from "@/lib/speciesCatalog";
+import { lookupRegionalRarity } from "@/lib/rarity";
 import { hasDetailedFieldGuide } from "@/lib/speciesProfileLoad";
 import { formatDetailDate, observedDate } from "@/lib/sightingFormat";
+
+const SPECIES_HERO_SIZE = Dimensions.get("window").width;
 
 function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
@@ -39,6 +44,7 @@ export default function SpeciesDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
+  const { coords } = useCurrentLocation();
   const { sightings } = useMySightings(user?.id ?? null);
 
   const species = id ? getCatalogSpeciesById(id) : undefined;
@@ -69,6 +75,23 @@ export default function SpeciesDetailScreen() {
 
   const latestSighting = userSightings[0] ?? null;
 
+  const rarity = useMemo(() => {
+    if (!species) return "common" as const;
+    const lat = latestSighting?.latitude ?? coords?.latitude ?? null;
+    const lng = latestSighting?.longitude ?? coords?.longitude ?? null;
+    const observedAt =
+      latestSighting?.observed_at ??
+      latestSighting?.created_at ??
+      null;
+    return lookupRegionalRarity({
+      species: species.species,
+      scientificName: species.scientific_name,
+      lat,
+      lng,
+      observedAt,
+    });
+  }, [species, latestSighting, coords]);
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-row items-center justify-between border-b border-border px-4 pb-3 pt-2">
@@ -91,11 +114,17 @@ export default function SpeciesDetailScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerClassName="pb-12"
         >
-          <View className="h-56 bg-muted">
+          <View
+            className="bg-muted"
+            style={{ width: SPECIES_HERO_SIZE, height: SPECIES_HERO_SIZE }}
+          >
             <SpeciesImage
               catalogId={species.id}
               scientificName={species.scientific_name}
-              size="large"
+              size="original"
+              contentFit="contain"
+              contentPosition="center"
+              zoom={1}
               className="h-full w-full"
             />
             {userSightings.length > 0 && (
@@ -117,7 +146,7 @@ export default function SpeciesDetailScreen() {
                 {species.scientific_name}
               </Text>
               <View className="mt-3 flex-row flex-wrap items-center gap-2">
-                <RarityBadge rarity={species.rarity} />
+                <RarityBadge rarity={rarity} />
                 <Text className="font-sans text-xs text-muted-foreground">
                   {profile?.family ?? species.family}
                   {profile?.size ? ` · ${profile.size}` : ""}

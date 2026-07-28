@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Alert,
   Modal,
@@ -7,12 +7,12 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Edit3, Flag, ShieldAlert, Trash2, UserX, X } from "lucide-react-native";
+import { Edit3, EyeOff, Flag, ShieldAlert, Trash2, UserX, X } from "lucide-react-native";
 import { ModerationReasonModal } from "@/components/ModerationReasonModal";
 import { getUserFacingMessage } from "@/lib/errors";
 import { removePostAsAdmin, removePostAuthorAsAdmin } from "@/lib/moderation";
 import { reportPost } from "@/lib/reports";
-import { deleteMySighting } from "@/lib/sightings";
+import { unpublishSighting } from "@/lib/sightings";
 
 interface PostOptionsMenuProps {
   sightingId: string;
@@ -25,6 +25,62 @@ interface PostOptionsMenuProps {
   onClose: () => void;
   onPostRemoved?: () => void;
   onAuthorRemoved?: () => void;
+}
+
+type OptionVariant = "default" | "destructive" | "accent";
+
+function OptionSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <View className="mb-4">
+      <View className="mb-2 flex-row items-center gap-2 px-1">
+        {icon}
+        <Text className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+          {title}
+        </Text>
+      </View>
+      <View className="gap-2">{children}</View>
+    </View>
+  );
+}
+
+function OptionRow({
+  onPress,
+  disabled,
+  icon,
+  label,
+  variant = "default",
+}: {
+  onPress: () => void;
+  disabled?: boolean;
+  icon: ReactNode;
+  label: string;
+  variant?: OptionVariant;
+}) {
+  const containerClass =
+    variant === "destructive"
+      ? "border-destructive/30 bg-destructive/10"
+      : variant === "accent"
+        ? "border-accent/30 bg-accent/10"
+        : "border-border bg-background";
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      className={`flex-row items-center gap-3 rounded-xl border px-4 py-3.5 active:opacity-90 ${containerClass}`}
+    >
+      {icon}
+      <Text className="font-sans-medium text-sm text-foreground">{label}</Text>
+    </Pressable>
+  );
 }
 
 export function PostOptionsMenu({
@@ -46,35 +102,38 @@ export function PostOptionsMenu({
 
   const isOwner = Boolean(userId && ownerUserId && userId === ownerUserId);
 
-  function handleDeletePress() {
+  function handleRemoveFromProfilePress() {
     onClose();
     if (!userId || !isOwner) return;
 
     Alert.alert(
-      "Delete this post?",
-      "This removes the sighting from your journal and profile. This cannot be undone.",
+      "Remove from profile?",
+      "This takes the post off your profile and the public feed. It stays in your journal so you can post it again later.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete",
+          text: "Remove",
           style: "destructive",
           onPress: () => {
-            void confirmDelete();
+            void confirmRemoveFromProfile();
           },
         },
       ],
     );
   }
 
-  async function confirmDelete() {
+  async function confirmRemoveFromProfile() {
     if (!userId || submitting) return;
     setSubmitting(true);
     try {
-      await deleteMySighting(userId, sightingId);
+      await unpublishSighting(userId, sightingId);
       onPostRemoved?.();
-      Alert.alert("Deleted", "Your post was removed.");
+      Alert.alert(
+        "Removed from profile",
+        "Your sighting is still in your journal.",
+      );
     } catch (e) {
-      Alert.alert("Could not delete", getUserFacingMessage(e));
+      Alert.alert("Could not remove post", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -183,61 +242,49 @@ export function PostOptionsMenu({
               </Pressable>
             </View>
 
-            {isAdmin ? (
-              <>
-                <Pressable
-                  onPress={handleEditPress}
-                  className="mb-2 flex-row items-center gap-3 rounded-xl border border-border bg-background px-4 py-3.5 active:opacity-90"
-                >
-                  <Edit3 size={18} color="#5f9470" />
-                  <Text className="font-sans-medium text-sm text-foreground">Edit post</Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleRemovePress}
-                  className="mb-2 flex-row items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3.5 active:opacity-90"
-                >
-                  <Trash2 size={18} color="#f87171" />
-                  <Text className="font-sans-medium text-sm text-foreground">Remove post</Text>
-                </Pressable>
-                {hasPhoto && !authorDisqualified ? (
-                  <Pressable
-                    onPress={handleRemoveAuthorPress}
-                    className="mb-2 flex-row items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3.5 active:opacity-90"
-                  >
-                    <UserX size={18} color="#c8893a" />
-                    <Text className="font-sans-medium text-sm text-foreground">
-                      Remove author credit
-                    </Text>
-                  </Pressable>
-                ) : null}
-                <View className="mb-2 flex-row items-center gap-2 px-1">
-                  <ShieldAlert size={14} color="#8a9e82" />
-                  <Text className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Admin actions
-                  </Text>
-                </View>
-              </>
-            ) : null}
-
-            {isOwner ? (
-              <Pressable
-                onPress={handleDeletePress}
+            <OptionSection title="Options">
+              {isOwner ? (
+                <OptionRow
+                  onPress={handleRemoveFromProfilePress}
+                  disabled={submitting}
+                  icon={<EyeOff size={18} color="#8a9e82" />}
+                  label="Remove from profile"
+                />
+              ) : null}
+              <OptionRow
+                onPress={handleReportPress}
                 disabled={submitting}
-                className="mb-2 flex-row items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3.5 active:opacity-90"
-              >
-                <Trash2 size={18} color="#f87171" />
-                <Text className="font-sans-medium text-sm text-foreground">Delete post</Text>
-              </Pressable>
-            ) : null}
+                icon={<Flag size={18} color="#f87171" />}
+                label="Report this post"
+              />
+            </OptionSection>
 
-            <Pressable
-              onPress={handleReportPress}
-              disabled={submitting}
-              className="flex-row items-center gap-3 rounded-xl border border-border bg-background px-4 py-3.5 active:opacity-90"
-            >
-              <Flag size={18} color="#f87171" />
-              <Text className="font-sans-medium text-sm text-foreground">Report this post</Text>
-            </Pressable>
+            {isAdmin ? (
+              <OptionSection
+                title="Admin actions"
+                icon={<ShieldAlert size={14} color="#8a9e82" />}
+              >
+                <OptionRow
+                  onPress={handleEditPress}
+                  icon={<Edit3 size={18} color="#5f9470" />}
+                  label="Edit post"
+                />
+                <OptionRow
+                  onPress={handleRemovePress}
+                  variant="destructive"
+                  icon={<Trash2 size={18} color="#f87171" />}
+                  label="Remove post"
+                />
+                {hasPhoto && !authorDisqualified ? (
+                  <OptionRow
+                    onPress={handleRemoveAuthorPress}
+                    variant="accent"
+                    icon={<UserX size={18} color="#c8893a" />}
+                    label="Remove author credit"
+                  />
+                ) : null}
+              </OptionSection>
+            ) : null}
 
             <Pressable
               onPress={onClose}

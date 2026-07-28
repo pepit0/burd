@@ -5,11 +5,9 @@ import {
   Image,
   Pressable,
   RefreshControl,
-  ScrollView,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
@@ -27,7 +25,7 @@ import {
   Users,
 } from "lucide-react-native";
 import { Linking } from "react-native";
-import { ScreenHeader } from "@/components/ScreenHeader";
+import { ScrollScreen } from "@/components/ScrollScreen";
 import {
   ProfileBannerPickerSheet,
 } from "@/components/ProfileBannerPickerSheet";
@@ -44,8 +42,10 @@ import { SightingPostsGrid } from "@/components/SightingPostsGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useMySightings } from "@/hooks/useMySightings";
+import { useReposts } from "@/hooks/useReposts";
 import { useProfile } from "@/hooks/useProfile";
 import { getUserFacingMessage } from "@/lib/errors";
+import { rarityForSighting } from "@/lib/rarity";
 import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { supabase } from "@/lib/supabase";
@@ -146,6 +146,7 @@ export default function ProfileScreen() {
   const [postsFilter, setPostsFilter] = useState<ProfilePostsFilter>("all");
   const { sightings, refresh: refreshSightings, silentRefresh: silentRefreshSightings } =
     useMySightings(userId);
+  const { reposts, refresh: refreshReposts } = useReposts(userId);
 
   const firstFocus = useRef(true);
   useFocusEffect(
@@ -156,12 +157,13 @@ export default function ProfileScreen() {
       }
       silentRefresh();
       silentRefreshSightings();
-    }, [silentRefresh, silentRefreshSightings]),
+      void refreshReposts();
+    }, [silentRefresh, silentRefreshSightings, refreshReposts]),
   );
 
   const onPullRefresh = useCallback(async () => {
-    await Promise.all([refresh(), refreshSightings()]);
-  }, [refresh, refreshSightings]);
+    await Promise.all([refresh(), refreshSightings(), refreshReposts()]);
+  }, [refresh, refreshSightings, refreshReposts]);
 
   const speciesCount = useMemo(
     () => new Set(sightings.map((s) => s.species.toLowerCase())).size,
@@ -172,7 +174,7 @@ export default function ProfileScreen() {
     [sightings],
   );
   const rareCount = useMemo(
-    () => sightings.filter((s) => s.rarity === "rare").length,
+    () => sightings.filter((s) => rarityForSighting(s) === "rare").length,
     [sightings],
   );
 
@@ -184,6 +186,7 @@ export default function ProfileScreen() {
     () => filterProfileSightings(publishedSightings, postsFilter),
     [publishedSightings, postsFilter],
   );
+  const gridPosts = postsFilter === "reposts" ? reposts : filteredPosts;
 
   const badges = useMemo(
     () => [
@@ -286,31 +289,28 @@ export default function ProfileScreen() {
 
   if (loading && !profile) {
     return (
-      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-        <ScreenHeader title="Profile" />
+      <ScrollScreen title="Profile">
         <ActivityIndicator className="mt-20" color="#5f9470" />
-      </SafeAreaView>
+      </ScrollScreen>
     );
   }
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <ScreenHeader
-        title="Profile"
-        action={
-          <Pressable
-            onPress={() => router.push("/profile-settings" as never)}
-            className="rounded-full p-2 active:bg-card"
-            accessibilityLabel="Profile settings"
-          >
-            <Settings size={18} color="#8a9e82" />
-          </Pressable>
-        }
-      />
+  const settingsAction = (
+    <Pressable
+      onPress={() => router.push("/profile-settings" as never)}
+      className="rounded-full p-2 active:bg-card"
+      accessibilityLabel="Profile settings"
+    >
+      <Settings size={18} color="#8a9e82" />
+    </Pressable>
+  );
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerClassName="pb-12"
+  return (
+    <>
+      <ScrollScreen
+        title="Profile"
+        headerAction={settingsAction}
+        contentClassName="pb-36"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor="#5f9470" />
         }
@@ -365,13 +365,17 @@ export default function ProfileScreen() {
           <View className="flex-row items-center justify-between gap-3">
             <View className="min-w-0 flex-1">
               <View className="flex-row items-center gap-1.5">
-                <DisplayNameText
-                  text={displayName}
-                  className="font-serif-semibold text-xl text-foreground"
-                />
+                <View className="min-w-0 flex-1 shrink">
+                  <DisplayNameText
+                    text={displayName}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    className="font-serif-semibold text-xl text-foreground"
+                  />
+                </View>
                 <Pressable
                   onPress={() => setDetailsEditOpen(true)}
-                  className="rounded-full p-1 active:bg-muted"
+                  className="shrink-0 rounded-full p-1 active:bg-muted"
                   accessibilityLabel="Edit display name and bio"
                 >
                   <Pencil size={14} color="#8a9e82" />
@@ -406,9 +410,11 @@ export default function ProfileScreen() {
           <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
           <View className="px-4 pt-2">
             <SightingPostsGrid
-              sightings={filteredPosts}
+              sightings={gridPosts}
               emptyLabel={
-                postsFilter === "photos"
+                postsFilter === "reposts"
+                  ? "No reposts yet. Repost public posts you love from the home feed."
+                  : postsFilter === "photos"
                   ? "No photo posts yet. Publish a sighting from your journal."
                   : postsFilter === "audio"
                     ? "No audio posts yet. Publish a sound sighting from your journal."
@@ -458,7 +464,7 @@ export default function ProfileScreen() {
               iconColor="#5f9470"
               iconBg="rgba(95,148,112,0.15)"
               label="Find birders"
-              description="Follow others to fill your feed"
+              description="Follow others to fill your home feed"
               onPress={() => router.push("/users")}
             />
             {isAdmin ? (
@@ -495,7 +501,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         </View>
-      </ScrollView>
+      </ScrollScreen>
 
       <ProfileDetailsEditSheet
         visible={detailsEditOpen}
@@ -513,6 +519,6 @@ export default function ProfileScreen() {
         onClose={() => setBannerPickerOpen(false)}
         onSelect={(presetId) => void selectBanner(presetId)}
       />
-    </SafeAreaView>
+    </>
   );
 }

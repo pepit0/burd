@@ -211,7 +211,7 @@
   const waitlistSuccess = document.getElementById("waitlist-success");
   const waitlistError = document.getElementById("waitlist-error");
 
-  waitlistForm?.addEventListener("submit", async (e) => {
+  waitlistForm?.addEventListener("submit", (e) => {
     e.preventDefault();
     const emailInput = document.getElementById("waitlist-email");
     if (!(emailInput instanceof HTMLInputElement) || !emailInput.value) return;
@@ -220,39 +220,37 @@
     const submitButton = waitlistForm.querySelector('button[type="submit"]');
     if (!(submitButton instanceof HTMLButtonElement)) return;
 
-    waitlistError?.setAttribute("hidden", "");
-    submitButton.disabled = true;
-    const originalButtonText = submitButton.textContent;
-    submitButton.textContent = "Submitting...";
-
-    try {
-      if (!endpoint || endpoint.includes("YOUR_FORM_ID")) {
-        throw new Error("Formspree endpoint is not configured");
-      }
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          email: emailInput.value.trim(),
-          source: "burdapp.com waitlist",
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Formspree request failed with status ${response.status}`);
-      }
-
-      waitlistForm.setAttribute("hidden", "");
-      waitlistSuccess?.removeAttribute("hidden");
-    } catch (_error) {
+    if (!endpoint || endpoint.includes("YOUR_FORM_ID")) {
       waitlistError?.removeAttribute("hidden");
-    } finally {
-      submitButton.disabled = false;
-      submitButton.textContent = originalButtonText;
+      return;
     }
+
+    const email = emailInput.value.trim();
+    waitlistError?.setAttribute("hidden", "");
+
+    // Optimistic success — Formspree can take a few seconds over the network.
+    waitlistForm.setAttribute("hidden", "");
+    waitlistSuccess?.removeAttribute("hidden");
+
+    const body = new FormData();
+    body.append("email", email);
+    body.append("source", "burdapp.com waitlist");
+
+    // FormData POST is a "simple" CORS request (no JSON preflight).
+    void fetch(endpoint, {
+      method: "POST",
+      body,
+      headers: { Accept: "application/json" },
+    }).then((response) => {
+      if (!response.ok) throw new Error(`status ${response.status}`);
+    }).catch(() => {
+      waitlistSuccess?.setAttribute("hidden", "");
+      waitlistForm.removeAttribute("hidden");
+      waitlistError?.removeAttribute("hidden");
+      submitButton.disabled = false;
+      submitButton.textContent = "Notify Me";
+      emailInput.value = email;
+      emailInput.focus();
+    });
   });
 })();

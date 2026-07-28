@@ -12,9 +12,9 @@ import {
 } from "lucide-react-native";
 
 const TABS: Record<string, { label: string; icon: LucideIcon }> = {
-  index: { label: "Feed", icon: Feather },
+  index: { label: "Home", icon: Feather },
   journal: { label: "Journal", icon: BookOpen },
-  "field-guide": { label: "Field Guide", icon: Search },
+  "field-guide": { label: "Guide", icon: Search },
   profile: { label: "Profile", icon: User },
 };
 
@@ -33,26 +33,29 @@ function TabButton({
   onPress: () => void;
 }) {
   const meta = TABS[routeName];
-  if (!meta) {
-    return null;
-  }
+  if (!meta) return null;
+
   const Icon = meta.icon;
   return (
     <Pressable
       key={routeKey}
       onPress={onPress}
-      className="relative flex-1 items-center justify-center gap-1 py-3"
+      className="flex-1 items-center justify-center gap-1 py-3"
     >
       <Icon size={18} color={focused ? ACTIVE : INACTIVE} strokeWidth={focused ? 2 : 1.5} />
-      <Text
-        className="font-mono text-[9px] uppercase tracking-widest"
-        style={{ color: focused ? ACTIVE : INACTIVE }}
-      >
-        {meta.label}
-      </Text>
-      {focused && (
-        <View className="absolute bottom-0 h-0.5 w-6 rounded-t-full bg-primary" />
-      )}
+      <View className="items-center gap-1">
+        <Text
+          className="font-mono text-[9px] uppercase tracking-widest"
+          style={{ color: focused ? ACTIVE : INACTIVE }}
+        >
+          {meta.label}
+        </Text>
+        <View className="h-0.5 w-6">
+          {focused ? (
+            <View className="h-0.5 w-6 rounded-full bg-primary" />
+          ) : null}
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -88,29 +91,44 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View
-      className="border-t border-border bg-card"
-      style={{ paddingBottom: insets.bottom }}
+      pointerEvents="box-none"
+      className="absolute bottom-0 left-0 right-0 px-4"
+      style={{
+        paddingBottom: Math.max(insets.bottom, 12),
+        paddingTop: 28,
+      }}
     >
-      <View className="flex-row items-center">
-        {left.map(renderTab)}
+      <View
+        className="rounded-[28px] border border-border/50 bg-card/95"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.35,
+          shadowRadius: 16,
+          elevation: 12,
+        }}
+      >
+        <View className="flex-row items-center">
+          {left.map(renderTab)}
 
-        <View className="px-2">
-          <Pressable
-            onPress={() => router.push("/camera")}
-            className="-mt-8 h-[72px] w-[72px] items-center justify-center rounded-full border-[5px] border-background bg-primary active:opacity-90"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.35,
-              shadowRadius: 8,
-              elevation: 10,
-            }}
-          >
-            <Camera size={28} color="#f0ead6" strokeWidth={2.25} />
-          </Pressable>
+          <View className="px-2">
+            <Pressable
+              onPress={() => router.push("/camera")}
+              className="-mt-8 h-[72px] w-[72px] items-center justify-center rounded-full border-[5px] border-card bg-primary active:opacity-90"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.35,
+                shadowRadius: 8,
+                elevation: 10,
+              }}
+            >
+              <Camera size={28} color="#f0ead6" strokeWidth={2.25} />
+            </Pressable>
+          </View>
+
+          {right.map(renderTab)}
         </View>
-
-        {right.map(renderTab)}
       </View>
     </View>
   );

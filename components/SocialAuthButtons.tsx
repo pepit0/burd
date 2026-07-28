@@ -9,8 +9,13 @@ import {
   type ViewStyle,
 } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
+import { GoogleLogo } from "@/components/GoogleLogo";
 import { getUserFacingMessage } from "@/lib/errors";
 import { isAppleSignInAvailable, signInWithApple } from "@/lib/appleAuth";
+import { signInWithGoogle } from "@/lib/googleAuth";
+
+const SOCIAL_BUTTON_HEIGHT = 44;
+const SOCIAL_BUTTON_RADIUS = 12;
 
 interface SocialAuthButtonsProps {
   onError?: (message: string) => void;
@@ -18,13 +23,25 @@ interface SocialAuthButtonsProps {
   style?: StyleProp<ViewStyle>;
 }
 
-/** Apple (iOS) + Google (coming soon) under email/password forms. */
+function SocialButtonLoading({ className }: { className?: string }) {
+  return (
+    <View
+      className={`items-center justify-center rounded-xl bg-white ${className ?? ""}`}
+      style={{ height: SOCIAL_BUTTON_HEIGHT, borderRadius: SOCIAL_BUTTON_RADIUS }}
+    >
+      <ActivityIndicator color="#5f9470" />
+    </View>
+  );
+}
+
+/** Apple (iOS) + Google on login / sign-up screens. */
 export function SocialAuthButtons({
   onError,
   className,
   style,
 }: SocialAuthButtonsProps) {
   const [appleLoading, setAppleLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const showApple = isAppleSignInAvailable() && Platform.OS === "ios";
 
   return (
@@ -37,9 +54,7 @@ export function SocialAuthButtons({
 
       {showApple ? (
         appleLoading ? (
-          <View className="mb-3 h-11 items-center justify-center rounded-xl bg-card">
-            <ActivityIndicator color="#eee8d4" />
-          </View>
+          <SocialButtonLoading className="mb-3" />
         ) : (
           <View className="mb-3">
             <AppleAuthentication.AppleAuthenticationButton
@@ -49,10 +64,10 @@ export function SocialAuthButtons({
               buttonStyle={
                 AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
               }
-              cornerRadius={12}
-              style={{ width: "100%", height: 44 }}
+              cornerRadius={SOCIAL_BUTTON_RADIUS}
+              style={{ width: "100%", height: SOCIAL_BUTTON_HEIGHT }}
               onPress={() => {
-                if (appleLoading) return;
+                if (appleLoading || googleLoading) return;
                 void (async () => {
                   setAppleLoading(true);
                   try {
@@ -75,18 +90,39 @@ export function SocialAuthButtons({
         )
       ) : null}
 
-      <Pressable
-        accessibilityState={{ disabled: true }}
-        className="h-11 flex-row items-center justify-center gap-2 rounded-xl border border-border/60 bg-card/50 opacity-50"
-        disabled
-      >
-        <Text className="font-sans-medium text-base text-muted-foreground">
-          Continue with Google
-        </Text>
-        <Text className="font-sans text-xs text-muted-foreground">
-          Coming soon
-        </Text>
-      </Pressable>
+      {googleLoading ? (
+        <SocialButtonLoading />
+      ) : (
+        <Pressable
+          className="flex-row items-center justify-center gap-2.5 rounded-xl border border-[#dadce0] bg-white active:opacity-90"
+          style={{ height: SOCIAL_BUTTON_HEIGHT, borderRadius: SOCIAL_BUTTON_RADIUS }}
+          disabled={appleLoading || googleLoading}
+          onPress={() => {
+            if (appleLoading || googleLoading) return;
+            void (async () => {
+              setGoogleLoading(true);
+              try {
+                const result = await signInWithGoogle();
+                if (result.cancelled) return;
+              } catch (e) {
+                onError?.(
+                  getUserFacingMessage(
+                    e,
+                    "Could not sign in with Google. Please try again.",
+                  ),
+                );
+              } finally {
+                setGoogleLoading(false);
+              }
+            })();
+          }}
+        >
+          <GoogleLogo size={18} />
+          <Text className="font-sans-medium text-[15px] text-[#1f1f1f]">
+            Continue with Google
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }

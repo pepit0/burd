@@ -2,9 +2,11 @@ export type Rarity = "common" | "uncommon" | "rare";
 
 export type DetectedBy = "manual" | "image" | "audio" | "both";
 
-export type ActivityType = "like" | "follow" | "comment" | "milestone" | "log" | "moderation";
+export type ActivityType = "like" | "follow" | "comment" | "milestone" | "log" | "moderation" | "repost";
 
 export type UserRole = "user" | "admin";
+
+export type LikeIconStyle = "heart" | "thumbs_up" | "bird" | "burd" | "leaf";
 
 export type ModerationActionType =
   | "remove_post"
@@ -34,6 +36,7 @@ export interface Profile {
   latitude: number | null;
   longitude: number | null;
   search_radius_km: number;
+  like_icon_style?: LikeIconStyle;
   created_at: string;
   role?: UserRole;
   suspended?: boolean;
@@ -90,8 +93,10 @@ export interface SoundLibraryEntry {
 export interface FeedSighting extends Sighting {
   username: string;
   avatar_color: string;
+  avatar_url: string | null;
   full_name: string | null;
   like_count: number;
+  repost_count?: number;
   comment_count?: number;
 }
 
@@ -188,4 +193,8 @@ export interface AdminPostEditInput {
   rarity: Rarity;
   count: number;
   notes?: string | null;
+}
+
+export interface JournalSightingUpdate extends AdminPostEditInput {
+  observed_at?: string | null;
 }

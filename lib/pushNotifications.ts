@@ -4,15 +4,17 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { removePushToken, savePushToken } from "@/lib/activity";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export type NotificationRouteData = {
   activity_id?: string;
@@ -27,7 +29,7 @@ function getProjectId(): string | undefined {
 }
 
 export async function registerForPushNotifications(userId: string): Promise<string | null> {
-  if (!Device.isDevice) {
+  if (Platform.OS === "web" || !Device.isDevice) {
     return null;
   }
 

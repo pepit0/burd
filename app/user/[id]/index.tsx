@@ -9,13 +9,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronLeft, Grid3X3, ShieldAlert } from "lucide-react-native";
+import { ChevronLeft, ShieldAlert } from "lucide-react-native";
 import { FollowButton } from "@/components/FollowButton";
 import { DisplayNameText } from "@/components/DisplayNameText";
 import { ProfileBadges } from "@/components/ProfileBadges";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
 import {
   filterProfileSightings,
+  ProfilePostsFilterBar,
   type ProfilePostsFilter,
 } from "@/components/ProfilePostsFilter";
 import { ProfileStatsRow } from "@/components/ProfileStatsRow";
@@ -24,7 +25,9 @@ import { UserModerationSheet } from "@/components/UserModerationSheet";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useReposts } from "@/hooks/useReposts";
 import { buildProfileBadges } from "@/lib/profileBadges";
+import { rarityForSighting } from "@/lib/rarity";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 
@@ -49,6 +52,7 @@ export default function UserProfileScreen() {
     declineRequest,
     refresh,
   } = useUserProfile(id ?? null, currentUserId);
+  const { reposts } = useReposts(id ?? null);
 
   useEffect(() => {
     if (isSelf) {
@@ -65,7 +69,7 @@ export default function UserProfileScreen() {
     [sightings],
   );
   const rareCount = useMemo(
-    () => sightings.filter((s) => s.rarity === "rare").length,
+    () => sightings.filter((s) => rarityForSighting(s) === "rare").length,
     [sightings],
   );
 
@@ -84,9 +88,12 @@ export default function UserProfileScreen() {
     () => filterProfileSightings(sightings, postsFilter),
     [sightings, postsFilter],
   );
+  const gridPosts = postsFilter === "reposts" ? reposts : filteredSightings;
 
   const emptyPostsLabel =
-    postsFilter === "photos"
+    postsFilter === "reposts"
+      ? "No reposts yet."
+      : postsFilter === "photos"
       ? "No photo posts yet."
       : postsFilter === "audio"
         ? "No audio posts yet."
@@ -123,12 +130,6 @@ export default function UserProfileScreen() {
           params: { tab: "friends", profileId },
         }),
     },
-  ];
-
-  const filterOptions: { id: ProfilePostsFilter; label: string }[] = [
-    { id: "all", label: "All" },
-    { id: "photos", label: "Photos" },
-    { id: "audio", label: "Audio" },
   ];
 
   return (
@@ -224,42 +225,10 @@ export default function UserProfileScreen() {
           </View>
 
           <View className="mt-6 border-t border-border">
-            <View className="flex-row items-center justify-between px-4 py-2.5">
-              <View className="flex-row items-center gap-2">
-                <Grid3X3 size={14} color="#c8893a" />
-                <Text className="font-sans-medium text-xs uppercase tracking-wider text-foreground">
-                  Posts
-                </Text>
-              </View>
-              <View className="flex-row items-center gap-2">
-                {filterOptions.map((option) => {
-                  const active = postsFilter === option.id;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => setPostsFilter(option.id)}
-                      className={`rounded-full px-3 py-1 ${
-                        active ? "bg-primary" : "border border-border bg-card"
-                      }`}
-                    >
-                      <Text
-                        className={`text-xs ${
-                          active
-                            ? "font-sans-medium text-primary-foreground"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
+            <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
             <View className="px-4 pt-2">
               <SightingPostsGrid
-                sightings={filteredSightings}
+                sightings={gridPosts}
                 emptyLabel={emptyPostsLabel}
                 onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
               />

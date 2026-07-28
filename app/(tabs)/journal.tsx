@@ -1,16 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Pressable,
   RefreshControl,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Camera,
@@ -18,6 +15,7 @@ import {
   Clock,
   Feather,
   FileImage,
+  Filter,
   MapPin,
   Plus,
   Search,
@@ -26,7 +24,10 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
-import { ScreenHeader } from "@/components/ScreenHeader";
+import { FilterSheet } from "@/components/FilterSheet";
+import { RarityBadge } from "@/components/RarityBadge";
+import { ScrollScreen } from "@/components/ScrollScreen";
+import { TabEmptyState } from "@/components/TabEmptyState";
 import { AudioPostThumb } from "@/components/AudioPostThumb";
 import { useAuth } from "@/hooks/useAuth";
 import { useMySightings } from "@/hooks/useMySightings";
@@ -37,10 +38,20 @@ import { deleteMySighting } from "@/lib/sightings";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import { setPendingCapture } from "@/lib/pendingCapture";
 import {
+  applyJournalFilters,
+  countActiveJournalFilters,
+  DEFAULT_JOURNAL_FILTERS,
+  journalCardClassName,
+  shouldGroupJournalByDate,
+  type JournalFilters,
+  type JournalSort,
+} from "@/lib/journalFilters";
+import {
   formatJournalWhen,
   observedDate,
   sightingCity,
 } from "@/lib/sightingFormat";
+import { rarityForSighting } from "@/lib/rarity";
 import type { Sighting } from "@/types";
 import type { CaptureDraft } from "@/lib/captureDrafts";
 
@@ -57,6 +68,10 @@ const MEDIA_TABS: { id: JournalMediaTab; label: string }[] = [
   { id: "sounds", label: "Sounds" },
   { id: "drafts", label: "Drafts" },
 ];
+
+/** Small list thumbnail — slightly larger so the full photo fits inside the frame. */
+const JOURNAL_THUMB_BOX =
+  "h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted";
 
 function groupLabel(dateString: string): string {
   const d = new Date(dateString);
@@ -102,17 +117,26 @@ export default function JournalScreen() {
   const userId = user?.id ?? null;
   const { sightings, loading, refreshing, error, refresh, silentRefresh } =
     useMySightings(userId);
+  const ownedSightings = useMemo(
+    () => (userId ? sightings.filter((s) => s.user_id === userId) : []),
+    [sightings, userId],
+  );
   const {
     drafts,
     loading: draftsLoading,
     refresh: refreshDrafts,
     remove: removeDraft,
   } = useCaptureDrafts();
-  const cityFor = useResolvedCities(sightings);
+  const cityFor = useResolvedCities(ownedSightings);
   const [search, setSearch] = useState("");
   const [mediaTab, setMediaTab] = useState<JournalMediaTab>(() =>
     params.tab === "drafts" ? "drafts" : "photos",
   );
+  const [journalFilters, setJournalFilters] = useState<JournalFilters>(
+    DEFAULT_JOURNAL_FILTERS,
+  );
+  const [filterOpen, setFilterOpen] = useState(false);
+  const activeFilterCount = countActiveJournalFilters(journalFilters);
 
   useFocusEffect(
     useCallback(() => {
@@ -139,27 +163,38 @@ export default function JournalScreen() {
       {
         icon: "camera",
         label: "Photos",
-        value: sightings.filter((s) => isPhotoSighting(s)).length,
+        value: ownedSightings.filter((s) => isPhotoSighting(s)).length,
       },
       {
         icon: "volume",
         label: "Sounds",
-        value: sightings.filter((s) => isAudioSighting(s)).length,
+        value: ownedSightings.filter((s) => isAudioSighting(s)).length,
       },
-      { icon: "zap", label: "Logged", value: sightings.length },
+      { icon: "zap", label: "Logged", value: ownedSightings.length },
     ],
-    [sightings],
+    [ownedSightings],
   );
 
-  const filteredSightings = useMemo(
-    () =>
-      mediaTab === "drafts"
-        ? []
-        : sightings.filter(
-            (s) => matchesSearch(s, search) && matchesMediaTab(s, mediaTab),
-          ),
-    [sightings, search, mediaTab],
+  const mediaTabCounts = useMemo(
+    () => ({
+      photos: ownedSightings.filter((s) => matchesMediaTab(s, "photos")).length,
+      sounds: ownedSightings.filter((s) => matchesMediaTab(s, "sounds")).length,
+      drafts: drafts.length,
+    }),
+    [ownedSightings, drafts],
   );
+
+  const filteredSightings = useMemo(() => {
+    if (mediaTab === "drafts") return [];
+
+    const tabFiltered = ownedSightings.filter(
+      (s) => matchesSearch(s, search) && matchesMediaTab(s, mediaTab),
+    );
+
+    return applyJournalFilters(tabFiltered, journalFilters);
+  }, [ownedSightings, search, mediaTab, journalFilters]);
+
+  const groupByDate = shouldGroupJournalByDate(journalFilters.sort);
 
   const filteredDrafts = useMemo(() => {
     if (mediaTab !== "drafts") return [];
@@ -171,6 +206,8 @@ export default function JournalScreen() {
   }, [drafts, mediaTab, search]);
 
   const groups = useMemo(() => {
+    if (!groupByDate) return [];
+
     const map = new Map<string, Sighting[]>();
     for (const s of filteredSightings) {
       const key = groupLabel(observedDate(s).toISOString());
@@ -179,7 +216,7 @@ export default function JournalScreen() {
       else map.set(key, [s]);
     }
     return Array.from(map, ([date, entries]) => ({ date, entries }));
-  }, [filteredSightings]);
+  }, [filteredSightings, groupByDate]);
 
   function openDraft(draft: CaptureDraft) {
     setPendingCapture({
@@ -213,12 +250,12 @@ export default function JournalScreen() {
   }
 
   function confirmDeleteSighting(sighting: Sighting) {
-    if (!userId) return;
+    if (!userId || sighting.user_id !== userId) return;
     Alert.alert(
-      "Delete this sighting?",
+      "Delete from journal?",
       sighting.published_at
-        ? "This removes it from your journal and profile."
-        : "This removes it from your journal.",
+        ? "This permanently deletes the sighting from your journal and profile. This cannot be undone."
+        : "This permanently deletes the sighting from your journal. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -246,6 +283,75 @@ export default function JournalScreen() {
         ? "No drafts yet. Photos saved offline or when ID is slow will show up here."
         : "No photo sightings yet. Tap the + to log your first bird.";
 
+  function renderJournalEntry(e: Sighting) {
+    const when = observedDate(e);
+    const rarity = rarityForSighting(e);
+    return (
+      <Pressable
+        onPress={() => router.push(`/sighting/${e.id}`)}
+        className={`flex-row items-center gap-3 p-4 active:opacity-90 ${journalCardClassName(rarity)}`}
+      >
+        <View className={JOURNAL_THUMB_BOX}>
+          {isPhotoSighting(e) ? (
+            <Image
+              source={{ uri: e.photo_url! }}
+              className="h-full w-full"
+              resizeMode="contain"
+            />
+          ) : isAudioSighting(e) ? (
+            <AudioPostThumb size="sm" className="h-full w-full" />
+          ) : (
+            <Feather size={16} color="#3a4e35" />
+          )}
+        </View>
+        <View className="min-w-0 flex-1">
+          <Text className="font-serif text-sm text-foreground" numberOfLines={1}>
+            {e.species}
+          </Text>
+          {!e.published_at ? (
+            <Text className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
+              Journal only
+            </Text>
+          ) : (
+            <Text className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-primary/90">
+              Posted
+            </Text>
+          )}
+          <View className="mt-1">
+            <RarityBadge rarity={rarity} />
+          </View>
+          <View className="mt-1 flex-row items-center gap-1">
+            <MapPin size={9} color="#8a9e82" />
+            <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
+              {cityFor(e)}
+            </Text>
+          </View>
+          <View className="mt-0.5 flex-row items-center gap-1">
+            <Clock size={9} color="#8a9e82" />
+            <Text className="text-[10px] text-muted-foreground/80">
+              {formatJournalWhen(when)}
+            </Text>
+          </View>
+        </View>
+        <View className="items-end">
+          <Text className="font-mono text-sm text-accent">×{e.count}</Text>
+          <Text className="mt-0.5 text-[9px] uppercase tracking-wider text-muted-foreground/50">
+            birds
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => confirmDeleteSighting(e)}
+          hitSlop={8}
+          className="rounded-full p-2 active:opacity-70"
+          accessibilityLabel="Delete sighting"
+        >
+          <Trash2 size={14} color="#8a9e82" />
+        </Pressable>
+        <ChevronRight size={13} color="#8a9e82" />
+      </Pressable>
+    );
+  }
+
   async function onRefresh() {
     if (mediaTab === "drafts") {
       await refreshDrafts();
@@ -254,32 +360,30 @@ export default function JournalScreen() {
     await refresh();
   }
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <ScreenHeader title="My Journal" />
+  const toolbar = (
+    <View className="gap-3 px-4">
+      <View className="flex-row gap-3">
+        {stats.map((stat) => {
+          const Icon = STAT_ICONS[stat.icon];
+          return (
+            <View
+              key={stat.label}
+              className="flex-1 items-center rounded-xl border border-border bg-card p-3"
+            >
+              <Icon size={15} color="#c8893a" />
+              <Text className="mt-1.5 font-serif-semibold text-2xl leading-none text-foreground">
+                {stat.value}
+              </Text>
+              <Text className="mt-1 text-[9px] uppercase tracking-widest text-muted-foreground">
+                {stat.label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
 
-      <View className="gap-3 px-4 pb-3 pt-3">
-        <View className="flex-row gap-3">
-          {stats.map((stat) => {
-            const Icon = STAT_ICONS[stat.icon];
-            return (
-              <View
-                key={stat.label}
-                className="flex-1 items-center rounded-xl border border-border bg-card p-3"
-              >
-                <Icon size={15} color="#c8893a" />
-                <Text className="mt-1.5 font-serif-semibold text-2xl leading-none text-foreground">
-                  {stat.value}
-                </Text>
-                <Text className="mt-1 text-[9px] uppercase tracking-widest text-muted-foreground">
-                  {stat.label}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-
-        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
+      <View className="flex-row items-center gap-2">
+        <View className="flex-1 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
           <Search size={14} color="#8a9e82" />
           <TextInput
             value={search}
@@ -289,41 +393,58 @@ export default function JournalScreen() {
             className="flex-1 font-sans text-sm text-foreground"
           />
         </View>
-
-        <View className="flex-row items-center justify-start gap-2">
-          {MEDIA_TABS.map((tab) => {
-            const active = mediaTab === tab.id;
-            const label =
-              tab.id === "drafts" && drafts.length > 0
-                ? `Drafts (${drafts.length})`
-                : tab.label;
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => setMediaTab(tab.id)}
-                className={`rounded-full px-3 py-1 ${
-                  active ? "bg-primary" : "border border-border bg-card"
-                }`}
-              >
-                <Text
-                  className={`text-xs ${
-                    active
-                      ? "font-sans-medium text-primary-foreground"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <Pressable
+          onPress={() => setFilterOpen(true)}
+          className={`rounded-xl border p-2.5 active:opacity-80 ${
+            activeFilterCount > 0
+              ? "border-primary bg-primary/15"
+              : "border-border bg-card"
+          }`}
+          accessibilityLabel="Filter and sort journal"
+        >
+          <Filter
+            size={16}
+            color={activeFilterCount > 0 ? "#5f9470" : "#8a9e82"}
+          />
+        </Pressable>
       </View>
 
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerClassName="pb-28"
+      <View className="flex-row items-center justify-start gap-2">
+        {MEDIA_TABS.map((tab) => {
+          const active = mediaTab === tab.id;
+          const count = mediaTabCounts[tab.id];
+          const label = count > 0 ? `${tab.label} (${count})` : tab.label;
+          return (
+            <Pressable
+              key={tab.id}
+              onPress={() => setMediaTab(tab.id)}
+              className={`rounded-full px-3 py-1 ${
+                active ? "bg-primary" : "border border-border bg-card"
+              }`}
+            >
+              <Text
+                className={`text-xs ${
+                  active
+                    ? "font-sans-medium text-primary-foreground"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  return (
+    <View className="flex-1">
+      <ScrollScreen
+        title="Journal"
+        hideHeaderOnScroll
+        toolbar={toolbar}
+        contentClassName="pb-36 pt-2 gap-6"
         refreshControl={
           <RefreshControl
             refreshing={mediaTab === "drafts" ? false : refreshing}
@@ -334,11 +455,9 @@ export default function JournalScreen() {
       >
         {mediaTab === "drafts" ? (
           draftsLoading && drafts.length === 0 ? (
-            <ActivityIndicator className="mt-16" color="#5f9470" />
+            <TabEmptyState loading />
           ) : filteredDrafts.length === 0 ? (
-            <Text className="mt-16 px-8 text-center font-sans text-sm leading-relaxed text-muted-foreground">
-              {emptyTabCopy}
-            </Text>
+            <TabEmptyState>{emptyTabCopy}</TabEmptyState>
           ) : (
             <View className="gap-2 px-4">
               {filteredDrafts.map((draft) => {
@@ -349,14 +468,14 @@ export default function JournalScreen() {
                   <Pressable
                     key={draft.id}
                     onPress={() => openDraft(draft)}
-                    className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3 active:opacity-90"
+                    className="flex-row items-center gap-3 rounded-2xl bg-card p-4 active:opacity-90"
                   >
-                    <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                    <View className={JOURNAL_THUMB_BOX}>
                       {primary?.uri ? (
                         <Image
                           source={{ uri: primary.uri }}
                           className="h-full w-full"
-                          resizeMode="cover"
+                          resizeMode="contain"
                         />
                       ) : (
                         <FileImage size={16} color="#3a4e35" />
@@ -394,23 +513,21 @@ export default function JournalScreen() {
               })}
             </View>
           )
-        ) : loading && sightings.length === 0 ? (
-          <ActivityIndicator className="mt-16" color="#5f9470" />
+        ) : loading && ownedSightings.length === 0 ? (
+          <TabEmptyState loading />
         ) : error ? (
-          <Text className="mt-16 px-8 text-center font-sans text-sm text-muted-foreground">
-            {error}
-          </Text>
-        ) : sightings.length === 0 ? (
-          <Text className="mt-16 px-8 text-center font-sans text-sm leading-relaxed text-muted-foreground">
+          <TabEmptyState>{error}</TabEmptyState>
+        ) : ownedSightings.length === 0 ? (
+          <TabEmptyState>
             No sightings logged yet. Tap the + to record your first bird.
-          </Text>
+          </TabEmptyState>
         ) : filteredSightings.length === 0 ? (
-          <Text className="mt-16 px-8 text-center font-sans text-sm leading-relaxed text-muted-foreground">
-            {search.trim()
-              ? "No journal entries match your search."
+          <TabEmptyState>
+            {search.trim() || activeFilterCount > 0
+              ? "No journal entries match your search or filters."
               : emptyTabCopy}
-          </Text>
-        ) : (
+          </TabEmptyState>
+        ) : groupByDate ? (
           <View className="gap-6 px-4">
             {groups.map((group) => {
               const total = group.entries.reduce((n, e) => n + e.count, 0);
@@ -427,87 +544,70 @@ export default function JournalScreen() {
                   </View>
 
                   <View className="gap-2">
-                    {group.entries.map((e) => {
-                      const when = observedDate(e);
-                      return (
-                        <Pressable
-                          key={e.id}
-                          onPress={() => router.push(`/sighting/${e.id}`)}
-                          className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3 active:opacity-90"
-                        >
-                          <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-muted">
-                            {isPhotoSighting(e) ? (
-                              <Image
-                                source={{ uri: e.photo_url! }}
-                                className="h-full w-full"
-                                resizeMode="cover"
-                              />
-                            ) : isAudioSighting(e) ? (
-                              <AudioPostThumb size="sm" className="h-full w-full" />
-                            ) : (
-                              <Feather size={16} color="#3a4e35" />
-                            )}
-                          </View>
-                          <View className="min-w-0 flex-1">
-                            <Text
-                              className="font-serif text-sm text-foreground"
-                              numberOfLines={1}
-                            >
-                              {e.species}
-                            </Text>
-                            {!e.published_at ? (
-                              <Text className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
-                                Journal only
-                              </Text>
-                            ) : null}
-                            <View className="mt-0.5 flex-row items-center gap-1">
-                              <MapPin size={9} color="#8a9e82" />
-                              <Text
-                                className="text-[11px] text-muted-foreground"
-                                numberOfLines={1}
-                              >
-                                {cityFor(e)}
-                              </Text>
-                            </View>
-                            <View className="mt-0.5 flex-row items-center gap-1">
-                              <Clock size={9} color="#8a9e82" />
-                              <Text className="text-[10px] text-muted-foreground/80">
-                                {formatJournalWhen(when)}
-                              </Text>
-                            </View>
-                          </View>
-                          <View className="items-end">
-                            <Text className="font-mono text-sm text-accent">×{e.count}</Text>
-                            <Text className="mt-0.5 text-[9px] uppercase tracking-wider text-muted-foreground/50">
-                              birds
-                            </Text>
-                          </View>
-                          <Pressable
-                            onPress={() => confirmDeleteSighting(e)}
-                            hitSlop={8}
-                            className="rounded-full p-2 active:bg-card"
-                            accessibilityLabel="Delete sighting"
-                          >
-                            <Trash2 size={14} color="#8a9e82" />
-                          </Pressable>
-                          <ChevronRight size={13} color="#8a9e82" />
-                        </Pressable>
-                      );
-                    })}
+                    {group.entries.map((e) => (
+                      <View key={e.id}>{renderJournalEntry(e)}</View>
+                    ))}
                   </View>
                 </View>
               );
             })}
           </View>
+        ) : (
+          <View className="gap-2 px-4">
+            {filteredSightings.map((e) => (
+              <View key={e.id}>{renderJournalEntry(e)}</View>
+            ))}
+          </View>
         )}
-      </ScrollView>
+      </ScrollScreen>
+
+      <FilterSheet
+        visible={filterOpen}
+        title="Filter journal"
+        onClose={() => setFilterOpen(false)}
+        onReset={() => setJournalFilters(DEFAULT_JOURNAL_FILTERS)}
+        sections={[
+          {
+            title: "Rarity",
+            value: journalFilters.rarity,
+            onSelect: (value) =>
+              setJournalFilters((prev) => ({
+                ...prev,
+                rarity: value as JournalFilters["rarity"],
+              })),
+            options: [
+              { value: "all", label: "All" },
+              { value: "common", label: "Common" },
+              { value: "uncommon", label: "Uncommon" },
+              { value: "rare", label: "Rare" },
+            ],
+          },
+          {
+            title: "Sort by",
+            value: journalFilters.sort,
+            onSelect: (value) =>
+              setJournalFilters((prev) => ({
+                ...prev,
+                sort: value as JournalSort,
+              })),
+            options: [
+              { value: "newest", label: "Newest first" },
+              { value: "oldest", label: "Oldest first" },
+              { value: "rarest", label: "Rarest first" },
+              { value: "most_common", label: "Most common first" },
+              { value: "species_az", label: "Species A–Z" },
+              { value: "species_za", label: "Species Z–A" },
+            ],
+          },
+        ]}
+      />
 
       <Pressable
         onPress={() => router.push("/new-sighting")}
-        className="absolute bottom-6 right-5 h-[52px] w-[52px] items-center justify-center rounded-full bg-primary shadow-lg active:opacity-90"
+        className="absolute bottom-28 right-5 z-30 h-[52px] w-[52px] items-center justify-center rounded-full bg-primary shadow-lg active:opacity-90"
       >
         <Plus size={20} color="#f0ead6" />
       </Pressable>
-    </SafeAreaView>
+    </View>
   );
 }
