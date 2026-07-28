@@ -21,6 +21,7 @@ import {
   Pencil,
   Settings,
   ShieldAlert,
+  Shield,
   Star,
   Users,
 } from "lucide-react-native";
@@ -485,6 +486,15 @@ export default function ProfileScreen() {
               label="Support"
               description="Questions, bugs, or account help"
               onPress={() => Linking.openURL(SUPPORT_MAILTO)}
+              borderTop
+            />
+            <SettingsRow
+              icon={Shield}
+              iconColor="#5f9470"
+              iconBg="rgba(95,148,112,0.15)"
+              label="Age rating"
+              description="13+ required · social features"
+              onPress={() => router.push("/age-rating" as never)}
               borderTop
             />
             <LegalLinksRow

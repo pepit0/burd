@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   cancelAnimation,
   Easing,
@@ -10,8 +9,6 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { Mic, Square } from "lucide-react-native";
-import { LiveSoundBird } from "@/components/LiveSoundBird";
-import { LiveSoundWaveform } from "@/components/LiveSoundWaveform";
 import type { LiveSoundStatus } from "@/hooks/useLiveSoundId";
 
 const RECORD_SIZE = 112;
@@ -19,29 +16,32 @@ const RECORD_RADIUS = RECORD_SIZE / 2;
 
 interface LiveSoundControlBarProps {
   status: LiveSoundStatus;
-  listening: boolean;
-  level: number;
+  recording: boolean;
+  processing: boolean;
   saving: boolean;
   disabled: boolean;
+  statusLabel: string;
+  helperText?: string | null;
   onPress: () => void;
 }
 
 export function LiveSoundControlBar({
   status,
-  listening,
-  level,
+  recording,
+  processing,
   saving,
   disabled,
+  statusLabel,
+  helperText,
   onPress,
 }: LiveSoundControlBarProps) {
-  const processing = status === "processing";
-  const idle = status === "idle";
   const pulse = useSharedValue(1);
   const glow = useSharedValue(0);
   const glowVisible = useSharedValue(1);
+  const buttonLocked = disabled || saving || processing;
 
   useEffect(() => {
-    const shouldAnimate = !listening && !saving && !disabled;
+    const shouldAnimate = !recording && !saving && !processing && !disabled;
 
     if (!shouldAnimate) {
       cancelAnimation(pulse);
@@ -66,7 +66,7 @@ export function LiveSoundControlBar({
       -1,
       true,
     );
-  }, [disabled, glow, glowVisible, listening, pulse, saving]);
+  }, [disabled, glow, glowVisible, processing, pulse, recording, saving]);
 
   const buttonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
@@ -77,62 +77,51 @@ export function LiveSoundControlBar({
     transform: [{ scale: 1 + glow.value * 0.14 }],
   }));
 
-  return (
-    <View className="overflow-hidden rounded-2xl border border-border/60 bg-card/50">
-      <LinearGradient
-        colors={
-          listening
-            ? ["rgba(200,137,58,0.12)", "rgba(95,148,112,0.06)"]
-            : ["rgba(95,148,112,0.1)", "rgba(95,148,112,0.03)"]
-        }
-        style={StyleSheet.absoluteFillObject}
-      />
+  const showSpinner = saving || processing;
+  const showStop = recording && !showSpinner;
 
-      <View style={styles.content}>
-        <View style={styles.topSection}>
-          <View style={styles.recordWrap}>
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.recordGlow, glowStyle]}
-            />
-            <Animated.View style={buttonStyle}>
-              <Pressable
-                onPress={onPress}
-                disabled={disabled}
-                style={[
-                  styles.recordButton,
-                  listening ? styles.recordButtonActive : styles.recordButtonIdle,
-                  disabled ? styles.recordButtonDisabled : null,
-                ]}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#5f9470" size="large" />
-                ) : listening ? (
-                  <Square size={34} color="#c8893a" fill="#c8893a" />
-                ) : (
-                  <Mic size={34} color="#5f9470" />
-                )}
-              </Pressable>
-            </Animated.View>
-          </View>
+  return (
+    <View style={styles.content}>
+      <View style={styles.topSection}>
+        <View style={styles.recordWrap}>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.recordGlow, glowStyle]}
+          />
+          <Animated.View style={buttonStyle}>
+            <Pressable
+              onPress={onPress}
+              disabled={buttonLocked}
+              style={[
+                styles.recordButton,
+                showStop
+                  ? styles.recordButtonActive
+                  : processing || saving
+                    ? styles.recordButtonProcessing
+                    : styles.recordButtonIdle,
+                buttonLocked ? styles.recordButtonDisabled : null,
+              ]}
+            >
+              {showSpinner ? (
+                <ActivityIndicator color="#8a9e82" size="large" />
+              ) : showStop ? (
+                <Square size={34} color="#c8893a" fill="#c8893a" />
+              ) : (
+                <Mic size={34} color="#5f9470" />
+              )}
+            </Pressable>
+          </Animated.View>
         </View>
 
-        <View style={styles.soundRow}>
-          <View style={styles.birdSlot}>
-            <LiveSoundBird
-              listening={listening}
-              processing={processing}
-              scale={0.48}
-            />
-          </View>
-          <View style={styles.waveformSlot}>
-            <LiveSoundWaveform
-              active={listening}
-              level={level}
-              idleAnimate={idle || processing}
-              compact
-            />
-          </View>
+        <View style={styles.captionBlock}>
+          <Text className="text-center font-sans-medium text-sm text-primary">
+            {statusLabel}
+          </Text>
+          {helperText ? (
+            <Text className="text-center font-sans text-xs text-muted-foreground">
+              {helperText}
+            </Text>
+          ) : null}
         </View>
       </View>
     </View>
@@ -141,29 +130,19 @@ export function LiveSoundControlBar({
 
 const styles = StyleSheet.create({
   content: {
-    gap: 10,
-    paddingTop: 16,
-    paddingBottom: 12,
+    gap: 24,
+    paddingTop: 4,
+    paddingBottom: 4,
+    alignItems: "center",
+    width: "100%",
   },
   topSection: {
     alignItems: "center",
   },
-  soundRow: {
-    flexDirection: "row",
+  captionBlock: {
+    marginTop: 12,
+    gap: 4,
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-  },
-  birdSlot: {
-    width: 58,
-    height: 58,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  waveformSlot: {
-    flex: 1,
-    minWidth: 0,
   },
   recordWrap: {
     width: RECORD_SIZE,
@@ -194,7 +173,11 @@ const styles = StyleSheet.create({
     borderColor: "#c8893a",
     backgroundColor: "rgba(200, 137, 58, 0.2)",
   },
+  recordButtonProcessing: {
+    borderColor: "rgba(138, 158, 130, 0.35)",
+    backgroundColor: "rgba(36, 48, 32, 0.65)",
+  },
   recordButtonDisabled: {
-    opacity: 0.55,
+    opacity: 0.72,
   },
 });

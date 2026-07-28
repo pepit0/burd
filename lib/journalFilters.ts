@@ -1,4 +1,4 @@
-import { observedDate } from "@/lib/sightingFormat";
+import { journalLogDate } from "@/lib/sightingFormat";
 import { rarityForSighting } from "@/lib/rarity";
 import type { Rarity, Sighting } from "@/types";
 
@@ -59,21 +59,21 @@ export function sortJournalSightings(
   switch (sort) {
     case "oldest":
       return copy.sort(
-        (a, b) => observedDate(a).getTime() - observedDate(b).getTime(),
+        (a, b) => journalLogDate(a).getTime() - journalLogDate(b).getTime(),
       );
     case "rarest":
       return copy.sort((a, b) => {
         const rarityDiff =
           RARITY_RANK[rarityForSighting(b)] - RARITY_RANK[rarityForSighting(a)];
         if (rarityDiff !== 0) return rarityDiff;
-        return observedDate(b).getTime() - observedDate(a).getTime();
+        return journalLogDate(b).getTime() - journalLogDate(a).getTime();
       });
     case "most_common":
       return copy.sort((a, b) => {
         const rarityDiff =
           RARITY_RANK[rarityForSighting(a)] - RARITY_RANK[rarityForSighting(b)];
         if (rarityDiff !== 0) return rarityDiff;
-        return observedDate(b).getTime() - observedDate(a).getTime();
+        return journalLogDate(b).getTime() - journalLogDate(a).getTime();
       });
     case "species_az":
       return copy.sort((a, b) =>
@@ -86,7 +86,7 @@ export function sortJournalSightings(
     case "newest":
     default:
       return copy.sort(
-        (a, b) => observedDate(b).getTime() - observedDate(a).getTime(),
+        (a, b) => journalLogDate(b).getTime() - journalLogDate(a).getTime(),
       );
   }
 }

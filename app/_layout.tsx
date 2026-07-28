@@ -25,6 +25,7 @@ import {
 } from "@expo-google-fonts/jetbrains-mono";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { SuspensionScreen } from "@/components/SuspensionScreen";
+import { DismissKeyboard } from "@/components/DismissKeyboard";
 import { NotificationBadgeProvider } from "@/components/NotificationBadgeProvider";
 import { LikeIconStyleProvider } from "@/components/LikeIconStyleProvider";
 import { SafeKeyboardProvider } from "@/components/SafeKeyboardProvider";
@@ -47,14 +48,15 @@ function AppShell() {
   return (
     <NotificationBadgeProvider userId={user?.id ?? null}>
       <LikeIconStyleProvider userId={user?.id ?? null}>
-        <View className="flex-1 bg-background" style={vars(nativewindColorVars(palette))}>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: palette.background },
-            }}
-          >
+        <DismissKeyboard>
+          <View className="flex-1 bg-background" style={vars(nativewindColorVars(palette))}>
+            <StatusBar style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: palette.background },
+              }}
+            >
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" />
@@ -68,6 +70,7 @@ function AppShell() {
               name="edit-journal-sighting/[id]"
               options={{ presentation: "modal" }}
             />
+            <Stack.Screen name="edit-post/[id]" options={{ presentation: "modal" }} />
             <Stack.Screen name="species/[id]" />
             <Stack.Screen name="users" />
             <Stack.Screen name="follows" />
@@ -83,8 +86,10 @@ function AppShell() {
               options={{ presentation: "fullScreenModal", animation: "fade" }}
             />
             <Stack.Screen name="data-sources" />
-          </Stack>
-        </View>
+            <Stack.Screen name="age-rating" />
+            </Stack>
+          </View>
+        </DismissKeyboard>
       </LikeIconStyleProvider>
     </NotificationBadgeProvider>
   );

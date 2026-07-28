@@ -11,7 +11,10 @@ import { useRouter } from "expo-router";
 import { Feather, Mail } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
-import { AuthLegalNotice } from "@/components/AuthLegalNotice";
+import {
+  SignupConsent,
+  hasSignupConsent,
+} from "@/components/SignupConsent";
 import { AUTH_EMAIL_REDIRECT_TO } from "@/lib/authRedirect";
 import { getSignupPlatform, track } from "@/lib/analytics";
 import {
@@ -29,6 +32,10 @@ export default function RegisterScreen() {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [resendNote, setResendNote] = useState<string | null>(null);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+
+  const consentComplete = hasSignupConsent(privacyAccepted, ageConfirmed);
 
   async function handleSignUp() {
     setError(null);
@@ -43,6 +50,11 @@ export default function RegisterScreen() {
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (!consentComplete) {
+      setError("Please accept the Terms & Privacy Policy and confirm you are at least 13.");
       return;
     }
 
@@ -65,6 +77,8 @@ export default function RegisterScreen() {
             username_chosen: false,
             signup_platform: getSignupPlatform(),
             signup_method: "email",
+            privacy_policy_accepted_at: new Date().toISOString(),
+            age_confirmed_at: new Date().toISOString(),
           },
         },
       });
@@ -226,9 +240,19 @@ export default function RegisterScreen() {
           <Text className="mb-4 font-sans text-sm text-destructive">{error}</Text>
         ) : null}
 
+        <SignupConsent
+          className="mb-5"
+          privacyAccepted={privacyAccepted}
+          ageConfirmed={ageConfirmed}
+          onPrivacyAcceptedChange={setPrivacyAccepted}
+          onAgeConfirmedChange={setAgeConfirmed}
+        />
+
         <Pressable
-          className="mb-4 items-center rounded-xl bg-primary py-3.5 active:opacity-90"
-          disabled={loading}
+          className={`mb-4 items-center rounded-xl bg-primary py-3.5 active:opacity-90 ${
+            !consentComplete ? "opacity-50" : ""
+          }`}
+          disabled={loading || !consentComplete}
           onPress={() => void handleSignUp()}
         >
           {loading ? (
@@ -240,9 +264,11 @@ export default function RegisterScreen() {
           )}
         </Pressable>
 
-        <SocialAuthButtons onError={setError} className="mb-4" />
-
-        <AuthLegalNotice className="mb-6" />
+        <SocialAuthButtons
+          disabled={!consentComplete}
+          onError={setError}
+          className="mb-6"
+        />
 
         <Pressable onPress={() => router.replace("/(auth)/login")}>
           <Text className="text-center font-sans text-base text-muted-foreground">

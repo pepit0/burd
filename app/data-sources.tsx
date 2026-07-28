@@ -8,6 +8,7 @@ import {
   getManifestVersion,
 } from "@/lib/regionalFrequency";
 import {
+  AGE_RATING_URL,
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
 } from "@/lib/legalUrls";
@@ -88,6 +89,15 @@ export default function DataSourcesScreen() {
             <Text className="font-sans-medium text-sm text-foreground">Privacy Policy</Text>
             <Text className="mt-1 font-sans text-xs text-muted-foreground">
               Open the policy used for both the Burd app and website.
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => Linking.openURL(AGE_RATING_URL)}
+            className="mt-2 rounded-lg border border-border px-3 py-2.5 active:opacity-80"
+          >
+            <Text className="font-sans-medium text-sm text-foreground">Age rating</Text>
+            <Text className="mt-1 font-sans text-xs text-muted-foreground">
+              13+ eligibility and social feature disclosure.
             </Text>
           </Pressable>
         </View>

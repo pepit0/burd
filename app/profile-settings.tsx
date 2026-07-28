@@ -4,6 +4,7 @@ import {
   Alert,
   Pressable,
   ScrollView,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -130,28 +131,22 @@ export default function ProfileSettingsScreen() {
         <Text className="mb-3 font-sans text-xs text-muted-foreground">
           Improve contrast and use a colorblind-friendly palette.
         </Text>
-        <Pressable
-          onPress={() => void setMode(colorblindEnabled ? "default" : "colorblind")}
-          className="mb-6 flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-3 active:opacity-85"
-        >
-          <View className="pr-4">
+        <View className="mb-6 flex-row items-center rounded-xl border border-border bg-card px-4 py-3">
+          <View className="min-w-0 flex-1 pr-3">
             <Text className="font-sans-medium text-sm text-foreground">Colorblind Mode</Text>
-            <Text className="mt-1 font-sans text-xs text-muted-foreground">
+            <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
               Replace green-forward colors with a blue/orange accessible palette.
             </Text>
           </View>
-          <View
-            className={`h-6 w-11 rounded-full border ${
-              colorblindEnabled ? "border-primary bg-primary" : "border-border bg-muted"
-            }`}
-          >
-            <View
-              className={`mt-0.5 h-5 w-5 rounded-full bg-primary-foreground ${
-                colorblindEnabled ? "ml-5" : "ml-0.5"
-              }`}
-            />
-          </View>
-        </Pressable>
+          <Switch
+            value={colorblindEnabled}
+            onValueChange={(enabled) => void setMode(enabled ? "colorblind" : "default")}
+            trackColor={{ false: palette.muted, true: palette.primary }}
+            thumbColor={palette.primaryForeground}
+            ios_backgroundColor={palette.muted}
+            style={{ flexShrink: 0 }}
+          />
+        </View>
 
         <Text className="mb-1 font-serif-semibold text-base text-foreground">
           Nearby Radius

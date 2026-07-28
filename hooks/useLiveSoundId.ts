@@ -128,6 +128,8 @@ export interface UseLiveSoundIdResult {
   errorMessage: string | null;
   chunkWarning: string | null;
   isActive: boolean;
+  /** Mic is actively capturing audio (excludes post-stop processing). */
+  isRecording: boolean;
   requestMicPermission: () => Promise<boolean>;
   requestLocationPermission: () => Promise<boolean>;
   openLocationSettings: () => void;
@@ -154,6 +156,7 @@ function sessionDurationMs(
 
 export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
   const [status, setStatus] = useState<LiveSoundStatus>("idle");
+  const [isRecording, setIsRecording] = useState(false);
   const [micPermission, setMicPermission] = useState<MicPermissionState>("undetermined");
   const [meteringLevel, setMeteringLevel] = useState(0);
   const [displayRows, setDisplayRows] = useState<LiveDisplayRow[]>([]);
@@ -442,6 +445,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     setErrorMessage(null);
     setChunkWarning(null);
     setMeteringLevel(0);
+    setIsRecording(false);
 
     const now = new Date().toISOString();
     const coords = await refreshLocation();
@@ -477,10 +481,13 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     if (!started) {
       activeRef.current = false;
       sessionRef.current = null;
+      setIsRecording(false);
       setStatus("error");
       setErrorMessage("Could not start recording.");
       return;
     }
+
+    setIsRecording(true);
 
     clearPruneTimer();
     pruneTimerRef.current = setInterval(() => {
@@ -500,7 +507,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
       } catch {
         setMeteringLevel(0);
       }
-    }, 100);
+    }, 50);
 
     clearSegmentTimer();
     segmentTimerRef.current = setTimeout(() => {
@@ -604,6 +611,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     if (!activeRef.current) return;
 
     activeRef.current = false;
+    setIsRecording(false);
     clearSegmentTimer();
     clearMeteringTimer();
     clearPruneTimer();
@@ -640,6 +648,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
 
   const resetSession = useCallback(() => {
     activeRef.current = false;
+    setIsRecording(false);
     clearSegmentTimer();
     clearMeteringTimer();
     clearPruneTimer();
@@ -762,7 +771,8 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     sessionResult,
     errorMessage,
     chunkWarning,
-    isActive: status === "listening" || status === "processing",
+    isActive: isRecording,
+    isRecording,
     requestMicPermission,
     requestLocationPermission,
     openLocationSettings,

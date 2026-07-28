@@ -48,7 +48,7 @@ import {
 } from "@/lib/journalFilters";
 import {
   formatJournalWhen,
-  observedDate,
+  journalLogDate,
   sightingCity,
 } from "@/lib/sightingFormat";
 import { rarityForSighting } from "@/lib/rarity";
@@ -210,7 +210,7 @@ export default function JournalScreen() {
 
     const map = new Map<string, Sighting[]>();
     for (const s of filteredSightings) {
-      const key = groupLabel(observedDate(s).toISOString());
+      const key = groupLabel(journalLogDate(s).toISOString());
       const arr = map.get(key);
       if (arr) arr.push(s);
       else map.set(key, [s]);
@@ -284,7 +284,7 @@ export default function JournalScreen() {
         : "No photo sightings yet. Tap the + to log your first bird.";
 
   function renderJournalEntry(e: Sighting) {
-    const when = observedDate(e);
+    const when = journalLogDate(e);
     const rarity = rarityForSighting(e);
     return (
       <Pressable
@@ -362,21 +362,21 @@ export default function JournalScreen() {
 
   const toolbar = (
     <View className="gap-3 px-4">
-      <View className="flex-row gap-3">
-        {stats.map((stat) => {
+      <View className="flex-row items-center rounded-xl border border-border/80 bg-muted/40 py-2">
+        {stats.map((stat, index) => {
           const Icon = STAT_ICONS[stat.icon];
           return (
             <View
               key={stat.label}
-              className="flex-1 items-center rounded-xl border border-border bg-card p-3"
+              className={`min-w-0 flex-1 flex-row items-center justify-center gap-1.5 px-2 ${
+                index > 0 ? "border-l border-border/70" : ""
+              }`}
             >
-              <Icon size={15} color="#c8893a" />
-              <Text className="mt-1.5 font-serif-semibold text-2xl leading-none text-foreground">
+              <Icon size={13} color="#8a9e82" />
+              <Text className="font-mono text-sm tabular-nums text-foreground">
                 {stat.value}
               </Text>
-              <Text className="mt-1 text-[9px] uppercase tracking-widest text-muted-foreground">
-                {stat.label}
-              </Text>
+              <Text className="text-[11px] text-muted-foreground">{stat.label}</Text>
             </View>
           );
         })}

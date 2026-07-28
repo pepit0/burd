@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Pressable,
   ScrollView,
   Text,
   View,
 } from "react-native";
-import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -25,6 +25,12 @@ import {
 } from "lucide-react-native";
 import { RarityBadge } from "@/components/RarityBadge";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
+import { PinchZoomImage } from "@/components/PinchZoomImage";
+import {
+  DismissKeyboardArea,
+  dismissKeyboardOnScrollDrag,
+  keyboardAwareScrollProps,
+} from "@/components/DismissKeyboard";
 import { useAuth } from "@/hooks/useAuth";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { getLoadErrorMessage, getUserFacingMessage } from "@/lib/errors";
@@ -72,6 +78,9 @@ function DetailRow({
     </View>
   );
 }
+
+const SIGHTING_PHOTO_WIDTH = Dimensions.get("window").width;
+const SIGHTING_PHOTO_HEIGHT = SIGHTING_PHOTO_WIDTH * (3 / 4);
 
 export default function SightingDetailScreen() {
   const router = useRouter();
@@ -255,7 +264,7 @@ export default function SightingDetailScreen() {
           <X size={22} color="#8a9e82" />
         </Pressable>
         <Text className="font-serif-semibold text-lg text-foreground">Sighting</Text>
-        {isOwner && isJournalOnly ? (
+        {isOwner ? (
           <Pressable
             onPress={() => router.push(`/edit-journal-sighting/${id}` as never)}
             className="rounded-full p-1.5 active:bg-card"
@@ -278,14 +287,17 @@ export default function SightingDetailScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerClassName="pb-12"
+          onScrollBeginDrag={dismissKeyboardOnScrollDrag}
+          {...keyboardAwareScrollProps}
         >
+          <DismissKeyboardArea>
           {isPhotoSighting(sighting) ? (
             <View className="overflow-hidden bg-muted/40">
-              <Image
-                source={{ uri: sighting.photo_url! }}
-                style={{ width: "100%", aspectRatio: 4 / 3 }}
+              <PinchZoomImage
+                uri={sighting.photo_url!}
+                width={SIGHTING_PHOTO_WIDTH}
+                height={SIGHTING_PHOTO_HEIGHT}
                 contentFit="contain"
-                transition={200}
               />
             </View>
           ) : isAudioSighting(sighting) ? (
@@ -388,9 +400,8 @@ export default function SightingDetailScreen() {
                   Journal only
                 </Text>
                 <Text className="font-sans text-xs leading-relaxed text-muted-foreground">
-                  This sighting is private in your journal. Edit it anytime before
-                  posting, or share it when you are ready for it to appear on your
-                  profile.
+                  This sighting is private in your journal. Edit it anytime, or share it when you
+                  are ready for it to appear on your profile.
                 </Text>
                 <View className="flex-row gap-2">
                   <Pressable
@@ -422,17 +433,26 @@ export default function SightingDetailScreen() {
               <View className="gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
                 <Text className="font-sans-medium text-sm text-foreground">Posted to profile</Text>
                 <Text className="font-sans text-xs leading-relaxed text-muted-foreground">
-                  This sighting is on your profile and in your journal. Remove it from your profile
-                  to hide it from the feed while keeping it here, or delete it from your journal to
-                  remove it permanently.
+                  This sighting is on your profile and in your journal. Edit the journal entry anytime
+                  — changes appear on your public post. Remove from profile to hide it from the feed
+                  without deleting your journal record.
                 </Text>
-                <Pressable
-                  onPress={() => router.push(`/post/${sighting.id}`)}
-                  className="flex-row items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 active:opacity-90"
-                >
-                  <Share2 size={16} color="#5f9470" />
-                  <Text className="font-sans-medium text-sm text-primary">View public post</Text>
-                </Pressable>
+                <View className="flex-row gap-2">
+                  <Pressable
+                    onPress={() => router.push(`/edit-journal-sighting/${id}` as never)}
+                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 active:opacity-90"
+                  >
+                    <Edit3 size={16} color="#5f9470" />
+                    <Text className="font-sans-medium text-sm text-foreground">Edit entry</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => router.push(`/post/${sighting.id}`)}
+                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 active:opacity-90"
+                  >
+                    <Share2 size={16} color="#5f9470" />
+                    <Text className="font-sans-medium text-sm text-primary">View post</Text>
+                  </Pressable>
+                </View>
                 <Pressable
                   onPress={() => void handleUnpublish()}
                   disabled={unpublishing}
@@ -503,6 +523,7 @@ export default function SightingDetailScreen() {
               </Pressable>
             ) : null}
           </View>
+          </DismissKeyboardArea>
         </ScrollView>
       )}
     </SafeAreaView>

@@ -35,6 +35,11 @@ interface UseFeed {
   toggleLike: (sightingId: string) => void;
 }
 
+interface FeedCacheEntry {
+  sightings: FeedSighting[];
+  likedIds: Set<string>;
+}
+
 export function useFeed({
   filter,
   userId,
@@ -48,6 +53,19 @@ export function useFeed({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasLoaded = useRef(false);
+  const filterRef = useRef(filter);
+  filterRef.current = filter;
+  const cacheRef = useRef<Partial<Record<FeedFilter, FeedCacheEntry>>>({});
+
+  const writeCache = useCallback(
+    (activeFilter: FeedFilter, rows: FeedSighting[], liked: Set<string>) => {
+      cacheRef.current[activeFilter] = {
+        sightings: rows,
+        likedIds: new Set(liked),
+      };
+    },
+    [],
+  );
 
   const load = useCallback(
     async (mode: "initial" | "refresh" | "silent") => {
@@ -57,6 +75,8 @@ export function useFeed({
         }
         return;
       }
+
+      const activeFilter = filterRef.current;
 
       if (mode === "refresh") {
         setRefreshing(true);
@@ -70,57 +90,85 @@ export function useFeed({
 
       try {
         let rows: FeedSighting[] = [];
-        if (filter === "for_you") {
+        if (activeFilter === "for_you") {
           rows = await getForYouFeed(
             userId,
             coords?.latitude ?? null,
             coords?.longitude ?? null,
             radiusKm,
           );
-        } else if (filter === "following") {
-          rows = await getFollowingFeed();
-        } else if (filter === "new") {
-          rows = await getGlobalFeed(userId);
+        } else if (activeFilter === "following") {
+          rows = await getFollowingFeed(userId);
+        } else if (activeFilter === "new") {
+          rows = await getGlobalFeed();
         }
         const liked = await getMyLikedIds(userId);
+        writeCache(activeFilter, rows, liked);
+        if (filterRef.current !== activeFilter) return;
         setSightings(rows);
         setLikedIds(liked);
         hasLoaded.current = true;
         setError(null);
       } catch (e) {
-        setError(getLoadErrorMessage(e));
+        if (filterRef.current === activeFilter) {
+          setError(getLoadErrorMessage(e));
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (filterRef.current === activeFilter) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [filter, userId, coords, radiusKm, enabled],
+    [userId, coords, radiusKm, enabled, writeCache],
   );
 
   useEffect(() => {
+    if (!enabled) return;
+
+    const cached = cacheRef.current[filter];
+    if (cached) {
+      setSightings(cached.sightings);
+      setLikedIds(new Set(cached.likedIds));
+      hasLoaded.current = true;
+      setLoading(false);
+      void load("silent");
+      return;
+    }
+
     hasLoaded.current = false;
     setLoading(true);
-    load("initial");
-  }, [load]);
+    void load("initial");
+  }, [load, enabled, filter]);
 
   const toggleLike = useCallback(
     (sightingId: string) => {
       if (!userId) return;
+      const activeFilter = filterRef.current;
       const willLike = !likedIds.has(sightingId);
 
       setLikedIds((prev) => {
         const next = new Set(prev);
         if (willLike) next.add(sightingId);
         else next.delete(sightingId);
+        const cached = cacheRef.current[activeFilter];
+        if (cached) {
+          cacheRef.current[activeFilter] = { ...cached, likedIds: next };
+        }
         return next;
       });
-      setSightings((prev) =>
-        prev.map((s) =>
+      setSightings((prev) => {
+        const next = prev.map((s) =>
           s.id === sightingId
             ? { ...s, like_count: s.like_count + (willLike ? 1 : -1) }
             : s,
-        ),
-      );
+        );
+        const cached = cacheRef.current[activeFilter];
+        if (cached) {
+          cacheRef.current[activeFilter] = { ...cached, sightings: next };
+        }
+        return next;
+      });
 
       setLike(userId, sightingId, willLike).catch(() => {
         setLikedIds((prev) => {

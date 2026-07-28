@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -10,11 +10,27 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { BookOpen, Trash2, X } from "lucide-react-native";
 import { LiveSoundControlBar } from "@/components/LiveSoundControlBar";
-import { LiveSoundTipCarousel } from "@/components/LiveSoundTipCarousel";
+import { LiveSoundSpaceVisualizer } from "@/components/LiveSoundSpaceVisualizer";
+import {
+  LIVE_SOUND_FIELD_GUIDE_SHEET_HEIGHT,
+  LiveSoundFieldGuideSheet,
+} from "@/components/LiveSoundFieldGuideSheet";
 import { LiveSpeciesRow } from "@/components/LiveSpeciesRow";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
+import {
+  DismissKeyboardArea,
+  dismissKeyboardOnScrollDrag,
+  keyboardAwareScrollProps,
+} from "@/components/DismissKeyboard";
+import {
+  SpeciesImageLightbox,
+  type ImageOriginRect,
+  type SpeciesImageLightboxRequest,
+} from "@/components/SpeciesImageLightbox";
 import { useAuth } from "@/hooks/useAuth";
 import { useLiveSoundId } from "@/hooks/useLiveSoundId";
+import { speciesImageTargetFromDetection } from "@/lib/liveSoundImage";
+import type { LiveDetection } from "@/lib/liveSoundSession";
 import { enrichPrediction } from "@/lib/predictionLabels";
 import { SHOW_LIVE_SOUND_CONFIDENCE } from "@/lib/soundDebug";
 
@@ -36,7 +52,7 @@ export default function AudioIdentifyScreen() {
     sessionResult,
     errorMessage,
     chunkWarning,
-    isActive,
+    isRecording,
     requestMicPermission,
     requestLocationPermission,
     openLocationSettings,
@@ -50,6 +66,10 @@ export default function AudioIdentifyScreen() {
   } = useLiveSoundId(userId);
 
   const autoBackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [previewDetectionKey, setPreviewDetectionKey] = useState<string | null>(null);
+  const [lightboxRequest, setLightboxRequest] = useState<SpeciesImageLightboxRequest | null>(
+    null,
+  );
   const insets = useSafeAreaInsets();
   const topInsetRef = useRef(insets.top);
   if (insets.top > topInsetRef.current) {
@@ -83,7 +103,7 @@ export default function AudioIdentifyScreen() {
       return;
     }
 
-    if (isActive || status === "saving") {
+    if (isRecording) {
       await stopSession();
       return;
     }
@@ -97,7 +117,38 @@ export default function AudioIdentifyScreen() {
   }
 
   const listening = status === "listening" || status === "processing";
+  const identifying = status === "processing" && !isRecording;
   const showLiveList = listening;
+  const [visualizerKey, setVisualizerKey] = useState(0);
+  const prevStatusRef = useRef(status);
+
+  useEffect(() => {
+    if (status === "idle" && prevStatusRef.current !== "idle") {
+      setVisualizerKey((key) => key + 1);
+    }
+    prevStatusRef.current = status;
+  }, [status]);
+
+  const previewDetection = useMemo(
+    () =>
+      displayRows.find((row) => row.detection.key === previewDetectionKey)?.detection ??
+      null,
+    [displayRows, previewDetectionKey],
+  );
+
+  useEffect(() => {
+    if (!listening) {
+      setPreviewDetectionKey(null);
+      setLightboxRequest(null);
+    }
+  }, [listening]);
+
+  function openExpandedImage(detection: LiveDetection, originRect: ImageOriginRect) {
+    setLightboxRequest({
+      target: speciesImageTargetFromDetection(detection),
+      originRect,
+    });
+  }
   const reviewDetections = sessionReview?.sessionDetections ?? [];
   const selectedDetection =
     reviewDetections.find((detection) => detection.key === selectedPrimaryKey) ??
@@ -107,20 +158,22 @@ export default function AudioIdentifyScreen() {
     ? enrichPrediction(selectedDetection.prediction)
     : null;
 
-  const showIdleTips = status === "idle" && micPermission === "granted";
-
-  const listenHelperText = listening
-    ? "Tap stop when you're done"
-    : status === "review"
-      ? "Review your session below"
-      : status === "done"
-        ? "Tap to listen again"
-        : null;
+  const listenHelperText = previewDetection
+    ? "Close field guide to stop recording"
+    : isRecording
+      ? "Tap stop when you're done"
+      : identifying
+        ? "Identifying birds heard…"
+        : status === "review"
+          ? "Review your session below"
+          : status === "done"
+            ? "Tap to listen again"
+            : null;
 
   return (
     <View className="flex-1 bg-background">
       <View
-        className="flex-row items-center justify-between px-4 pb-4"
+        className="flex-row items-center justify-between px-4 pb-3"
         style={{ paddingTop: topPad }}
       >
         <Pressable
@@ -130,7 +183,7 @@ export default function AudioIdentifyScreen() {
               router.back();
               return;
             }
-            if (isActive) {
+            if (isRecording) {
               void stopSession();
               return;
             }
@@ -147,7 +200,7 @@ export default function AudioIdentifyScreen() {
         <View className="w-7" />
       </View>
 
-      <View className="gap-1.5 px-4 pb-2">
+      <View className="px-4 pb-2">
         <LocationAccuracyBanner
           permission={locationPermission}
           onEnablePress={() => {
@@ -158,42 +211,19 @@ export default function AudioIdentifyScreen() {
             void requestLocationPermission();
           }}
         />
+      </View>
 
-        <View className="mt-3">
-          <LiveSoundControlBar
-            status={status}
-            listening={listening}
-            level={meteringLevel}
-            saving={status === "saving"}
-            disabled={status === "saving" || status === "review"}
-            onPress={() => void handleListenPress()}
-          />
-        </View>
-
-        <View className="flex-row items-center justify-between gap-2 px-0.5">
-          <Text className="font-sans-medium text-sm text-primary">
-            {statusLabel}
-          </Text>
-          {showIdleTips ? (
-            <LiveSoundTipCarousel active inline />
-          ) : listenHelperText ? (
-            <Text className="shrink font-sans text-xs text-muted-foreground">
-              {listenHelperText}
-            </Text>
-          ) : null}
-        </View>
-
-        {chunkWarning && (listening || status === "review") ? (
-          <View className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2">
-            <Text className="text-center font-sans text-xs leading-relaxed text-accent">
-              {chunkWarning}
-            </Text>
-          </View>
-        ) : null}
+      <View className="px-2">
+        <LiveSoundSpaceVisualizer
+          key={visualizerKey}
+          level={meteringLevel}
+          active={isRecording}
+          visible
+        />
       </View>
 
       {showLiveList ? (
-        <View className="min-h-0 flex-1 px-4">
+        <View className="min-h-0 flex-1 px-2">
           <Text className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
             Live detections
           </Text>
@@ -201,8 +231,12 @@ export default function AudioIdentifyScreen() {
             data={displayRows}
             keyExtractor={(row) => row.detection.key}
             showsVerticalScrollIndicator={false}
+            onScrollBeginDrag={dismissKeyboardOnScrollDrag}
+            {...keyboardAwareScrollProps}
             contentContainerStyle={{
-              paddingBottom: bottomPad,
+              paddingBottom: previewDetection
+                ? LIVE_SOUND_FIELD_GUIDE_SHEET_HEIGHT + 12
+                : 12,
               flexGrow: 1,
               gap: 8,
             }}
@@ -217,18 +251,26 @@ export default function AudioIdentifyScreen() {
                 isExpiring={isExpiring}
                 highlighted={isHeardNow}
                 showConfidence={SHOW_LIVE_SOUND_CONFIDENCE}
+                onImagePress={(originRect) => openExpandedImage(detection, originRect)}
+                onPress={() =>
+                  setPreviewDetectionKey((current) =>
+                    current === detection.key ? null : detection.key,
+                  )
+                }
               />
             )}
           />
         </View>
       ) : (
         <ScrollView
-          className="flex-1"
+          className="min-h-0 flex-1"
           contentContainerClassName="gap-2 px-4"
-          contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 12, flexGrow: 1 }}
+          onScrollBeginDrag={dismissKeyboardOnScrollDrag}
           showsVerticalScrollIndicator={false}
+          {...keyboardAwareScrollProps}
         >
+          <DismissKeyboardArea>
           {micPermission !== "granted" && status === "idle" ? (
             <View className="mb-4 rounded-xl border border-border bg-card px-4 py-3">
               <Text className="font-sans-medium text-sm text-foreground">
@@ -272,6 +314,7 @@ export default function AudioIdentifyScreen() {
                       isExpiring={false}
                       selectable
                       selected={detection.key === selectedPrimaryKey}
+                      onImagePress={(originRect) => openExpandedImage(detection, originRect)}
                       onPress={() => setSelectedPrimaryKey(detection.key)}
                     />
                   ))}
@@ -366,8 +409,47 @@ export default function AudioIdentifyScreen() {
               </Pressable>
             </View>
           ) : null}
+          </DismissKeyboardArea>
         </ScrollView>
       )}
+
+      <View
+        className="gap-1.5 px-4 pt-2"
+        style={{ paddingBottom: bottomPad }}
+        pointerEvents={previewDetection ? "none" : "auto"}
+      >
+        {chunkWarning && (listening || status === "review") ? (
+          <View className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2">
+            <Text className="text-center font-sans text-xs leading-relaxed text-accent">
+              {chunkWarning}
+            </Text>
+          </View>
+        ) : null}
+
+        <LiveSoundControlBar
+          status={status}
+          recording={isRecording}
+          processing={identifying}
+          saving={status === "saving"}
+          disabled={status === "review"}
+          statusLabel={statusLabel}
+          helperText={listenHelperText}
+          onPress={() => void handleListenPress()}
+        />
+      </View>
+
+      {previewDetection ? (
+        <LiveSoundFieldGuideSheet
+          detection={previewDetection}
+          onClose={() => setPreviewDetectionKey(null)}
+          onImagePress={(originRect) => openExpandedImage(previewDetection, originRect)}
+        />
+      ) : null}
+
+      <SpeciesImageLightbox
+        request={lightboxRequest}
+        onDismiss={() => setLightboxRequest(null)}
+      />
     </View>
   );
 }

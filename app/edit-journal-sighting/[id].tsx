@@ -79,15 +79,6 @@ export default function EditJournalSightingScreen() {
           return;
         }
 
-        if (row.published_at) {
-          Alert.alert(
-            "Already posted",
-            "Posted sightings can't be edited. Delete this entry and log it again if you need to make changes.",
-            [{ text: "OK", onPress: () => router.back() }],
-          );
-          return;
-        }
-
         const when = observedDate(row);
         setSighting(row);
         setSpecies(row.species);
@@ -144,9 +135,13 @@ export default function EditJournalSightingScreen() {
         rarity,
         count,
       });
-      Alert.alert("Saved", "Your journal entry was updated.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      Alert.alert(
+        "Saved",
+        sighting.published_at
+          ? "Your journal entry and post were updated."
+          : "Your journal entry was updated.",
+        [{ text: "OK", onPress: () => router.back() }],
+      );
     } catch (e) {
       Alert.alert("Could not save", getUserFacingMessage(e));
     } finally {
@@ -191,6 +186,16 @@ export default function EditJournalSightingScreen() {
       </View>
 
       <KeyboardScreen contentContainerClassName="px-4 pb-12 pt-4">
+        {sighting.published_at ? (
+          <View className="mb-4 rounded-xl border border-primary/30 bg-primary/10 p-4">
+            <Text className="font-sans-medium text-sm text-foreground">Posted to profile</Text>
+            <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
+              Changes here update your public post too. Remove from profile only if you want to hide
+              it from the feed without deleting your journal entry.
+            </Text>
+          </View>
+        ) : null}
+
         <Text className="mb-1 font-sans text-xs text-muted-foreground">Species</Text>
         <TextInput
           value={species}

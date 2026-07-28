@@ -1,4 +1,5 @@
 import speciesImageUrls from "@/data/species-image-urls.json";
+import { Image } from "react-native";
 import { catalogIdFromScientific } from "@/lib/photoCatalog";
 import { normalizeScientificName } from "@/lib/taxonomy";
 
@@ -136,6 +137,35 @@ async function fetchInatDefaultPhoto(
   } catch {
     return null;
   }
+}
+
+const dimensionCache = new Map<string, { width: number; height: number }>();
+
+/** Natural pixel size for layout (hero / lightbox). */
+export function resolveSpeciesImageDimensions(
+  catalogId: string | null | undefined,
+  scientificName: string,
+): Promise<{ width: number; height: number }> {
+  const cacheKey = speciesImageCacheKey(catalogId, scientificName, "original");
+  const cached = dimensionCache.get(cacheKey);
+  if (cached) return Promise.resolve(cached);
+
+  return (async () => {
+    const url =
+      speciesImageUrl(catalogId, scientificName, "original") ??
+      (await resolveSpeciesImageUrl(catalogId, scientificName, "original"));
+
+    const dimensions = await new Promise<{ width: number; height: number }>((resolve) => {
+      Image.getSize(
+        url,
+        (width, height) => resolve({ width, height }),
+        () => resolve({ width: 4, height: 3 }),
+      );
+    });
+
+    dimensionCache.set(cacheKey, dimensions);
+    return dimensions;
+  })();
 }
 
 /** @deprecated Use speciesImageUrl */

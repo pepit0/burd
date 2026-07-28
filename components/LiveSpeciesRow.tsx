@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { SpeciesImage } from "@/components/SpeciesImage";
+import type { ImageOriginRect } from "@/components/SpeciesImageLightbox";
 import {
   displayScientificName,
   displaySpeciesName,
@@ -15,6 +16,7 @@ interface LiveSpeciesRowProps {
   highlighted?: boolean;
   showConfidence?: boolean;
   onPress?: () => void;
+  onImagePress?: (originRect: ImageOriginRect) => void;
 }
 
 export function LiveSpeciesRow({
@@ -25,9 +27,11 @@ export function LiveSpeciesRow({
   highlighted = false,
   showConfidence = true,
   onPress,
+  onImagePress,
 }: LiveSpeciesRowProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const highlightAnim = useRef(new Animated.Value(0)).current;
+  const imageAnchorRef = useRef<View>(null);
 
   useEffect(() => {
     Animated.timing(opacity, {
@@ -59,14 +63,24 @@ export function LiveSpeciesRow({
   const scientificForImage =
     detection.prediction.scientific_name ?? scientificName ?? commonName;
 
-  const rowContent = (
+  function handleImagePress() {
+    if (!onImagePress) return;
+    imageAnchorRef.current?.measureInWindow((x, y, width, height) => {
+      onImagePress({ x, y, width, height, borderRadius: 8 });
+    });
+  }
+
+  const thumbnail = (
+    <SpeciesImage
+      catalogId={detection.catalogId ?? "unknown-bird"}
+      scientificName={scientificForImage}
+      className="h-12 w-12 rounded-lg"
+      size="medium"
+    />
+  );
+
+  const details = (
     <>
-      <SpeciesImage
-        catalogId={detection.catalogId ?? "unknown-bird"}
-        scientificName={scientificForImage}
-        className="h-12 w-12 rounded-lg"
-        size="medium"
-      />
       <View className="min-w-0 flex-1">
         <View className="flex-row items-center gap-2">
           <Text className="font-serif text-base text-foreground">{commonName}</Text>
@@ -95,32 +109,70 @@ export function LiveSpeciesRow({
     </>
   );
 
-  const row = highlighted ? (
-    <Animated.View
-      style={{ borderColor, backgroundColor }}
-      className="flex-row items-center gap-3 rounded-xl border-2 px-3 py-3"
-    >
-      {rowContent}
-    </Animated.View>
-  ) : (
-    <View
-      className={`flex-row items-center gap-3 rounded-xl border px-3 py-3 ${
-        selected ? "border-primary bg-primary/10" : "border-border bg-card"
-      }`}
-    >
-      {rowContent}
+  const splitRow = (
+    <View className="flex-row items-center gap-3">
+      {onImagePress ? (
+        <Pressable
+          onPress={handleImagePress}
+          className="active:opacity-80"
+          hitSlop={4}
+          accessibilityLabel={`Enlarge photo of ${commonName}`}
+          accessibilityRole="button"
+        >
+          <View ref={imageAnchorRef} collapsable={false}>
+            {thumbnail}
+          </View>
+        </Pressable>
+      ) : (
+        thumbnail
+      )}
+      {onPress ? (
+        <Pressable
+          onPress={onPress}
+          className="min-w-0 flex-1 flex-row items-center gap-3 active:opacity-90"
+          accessibilityLabel={`Open field guide for ${commonName}`}
+          accessibilityRole="button"
+        >
+          {details}
+        </Pressable>
+      ) : (
+        <View className="min-w-0 flex-1 flex-row items-center gap-3">{details}</View>
+      )}
     </View>
   );
 
-  return (
-    <Animated.View style={{ opacity }}>
-      {selectable && onPress ? (
-        <Pressable onPress={onPress} className="active:opacity-90">
-          {row}
-        </Pressable>
-      ) : (
-        row
-      )}
-    </Animated.View>
+  const wholeRowPressable = onPress ? (
+    <Pressable onPress={onPress} className="active:opacity-90">
+      <View className="flex-row items-center gap-3">
+        {thumbnail}
+        {details}
+      </View>
+    </Pressable>
+  ) : (
+    <View className="flex-row items-center gap-3">
+      {thumbnail}
+      {details}
+    </View>
   );
+
+  const rowBody = onImagePress ? splitRow : wholeRowPressable;
+
+  const row = highlighted ? (
+    <Animated.View
+      style={{ borderColor, backgroundColor }}
+      className="rounded-xl border-2 px-3 py-3"
+    >
+      {rowBody}
+    </Animated.View>
+  ) : (
+    <View
+      className={`rounded-xl border px-3 py-3 ${
+        selected ? "border-primary bg-primary/10" : "border-border bg-card"
+      }`}
+    >
+      {rowBody}
+    </View>
+  );
+
+  return <Animated.View style={{ opacity }}>{row}</Animated.View>;
 }

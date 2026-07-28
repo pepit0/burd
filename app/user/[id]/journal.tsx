@@ -9,7 +9,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  dismissKeyboardOnScrollDrag,
+  DismissKeyboardArea,
+  keyboardAwareScrollProps,
+} from "@/components/DismissKeyboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Camera,
@@ -31,7 +35,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import {
   formatJournalWhen,
-  observedDate,
+  journalLogDate,
   sightingCity,
 } from "@/lib/sightingFormat";
 import type { Sighting } from "@/types";
@@ -125,7 +129,7 @@ export default function UserJournalScreen() {
   const groups = useMemo(() => {
     const map = new Map<string, Sighting[]>();
     for (const s of filteredSightings) {
-      const key = groupLabel(observedDate(s).toISOString());
+      const key = groupLabel(journalLogDate(s).toISOString());
       const arr = map.get(key);
       if (arr) arr.push(s);
       else map.set(key, [s]);
@@ -225,10 +229,13 @@ export default function UserJournalScreen() {
         className="flex-1"
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pb-12"
+        onScrollBeginDrag={dismissKeyboardOnScrollDrag}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#5f9470" />
         }
+        {...keyboardAwareScrollProps}
       >
+        <DismissKeyboardArea>
         {loading && sightings.length === 0 ? (
           <ActivityIndicator className="mt-16" color="#5f9470" />
         ) : error ? (
@@ -257,7 +264,7 @@ export default function UserJournalScreen() {
 
                   <View className="gap-2">
                     {group.entries.map((e) => {
-                      const when = observedDate(e);
+                      const when = journalLogDate(e);
                       return (
                         <Pressable
                           key={e.id}
@@ -316,6 +323,7 @@ export default function UserJournalScreen() {
             })}
           </View>
         )}
+        </DismissKeyboardArea>
       </ScrollView>
     </SafeAreaView>
   );

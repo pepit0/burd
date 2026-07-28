@@ -198,3 +198,8 @@ export interface AdminPostEditInput {
 export interface JournalSightingUpdate extends AdminPostEditInput {
   observed_at?: string | null;
 }
+
+/** Caption-only edits allowed while a sighting stays published. */
+export interface PublishedPostUpdate {
+  notes?: string | null;
+}

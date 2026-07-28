@@ -161,15 +161,12 @@ export default function CameraScreen() {
           Burd uses the camera so you can capture the birds you spot.
         </Text>
         <Pressable
-          onPress={requestPermission}
+          onPress={() => void requestPermission()}
           className="mt-5 rounded-xl bg-primary px-5 py-3"
         >
           <Text className="font-sans-medium text-sm text-primary-foreground">
-            Grant access
+            Continue
           </Text>
-        </Pressable>
-        <Pressable onPress={() => router.back()} className="mt-3 px-5 py-2">
-          <Text className="font-sans text-sm text-muted-foreground">Not now</Text>
         </Pressable>
       </SafeAreaView>
     );

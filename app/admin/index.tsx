@@ -12,6 +12,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft, ShieldAlert, Trash2 } from "lucide-react-native";
 import { ModerationReasonModal } from "@/components/ModerationReasonModal";
+import {
+  DismissKeyboardArea,
+  dismissKeyboardOnScrollDrag,
+  keyboardAwareScrollProps,
+} from "@/components/DismissKeyboard";
 import { DisplayNameText } from "@/components/DisplayNameText";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -275,7 +280,13 @@ export default function AdminHubScreen() {
       {loading ? (
         <ActivityIndicator className="mt-16" color="#5f9470" />
       ) : (
-        <ScrollView contentContainerClassName="px-4 pb-12 pt-4" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerClassName="px-4 pb-12 pt-4"
+          showsVerticalScrollIndicator={false}
+          onScrollBeginDrag={dismissKeyboardOnScrollDrag}
+          {...keyboardAwareScrollProps}
+        >
+          <DismissKeyboardArea>
           <View className="mb-2 flex-row items-center gap-2">
             <ShieldAlert size={16} color="#c8893a" />
             <Text className="font-serif-semibold text-lg text-foreground">Reported posts</Text>
@@ -477,6 +488,7 @@ export default function AdminHubScreen() {
               </View>
             ))
           )}
+          </DismissKeyboardArea>
         </ScrollView>
       )}
 

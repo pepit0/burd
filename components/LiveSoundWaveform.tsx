@@ -87,14 +87,14 @@ export function LiveSoundWaveform({
   idleAnimate = false,
   compact = false,
 }: LiveSoundWaveformProps) {
-  const barCount = compact ? 12 : BAR_COUNT;
+  const barCount = compact ? 18 : BAR_COUNT;
   const barMaxHeight = compact ? 44 : BAR_MAX_HEIGHT;
   const barMinHeight = compact ? 6 : 12;
 
   return (
     <View
-      className={`w-full flex-row items-end justify-center gap-1 ${
-        compact ? "h-14 px-1" : "h-28 gap-1.5 px-6"
+      className={`w-full flex-row items-end justify-center ${
+        compact ? "h-14 gap-0.5 px-1" : "h-28 gap-1.5 px-6"
       }`}
     >
       {Array.from({ length: barCount }, (_, index) => (

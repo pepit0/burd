@@ -5,6 +5,10 @@ import {
   ScrollView,
   type ScrollViewProps,
 } from "react-native";
+import {
+  DismissKeyboardArea,
+  keyboardAwareScrollProps,
+} from "@/components/DismissKeyboard";
 import { hasKeyboardControllerNativeModule } from "@/lib/keyboardAvailable";
 
 type KeyboardScreenProps = ScrollViewProps & {
@@ -24,11 +28,11 @@ const FallbackKeyboardScreen = forwardRef<ScrollView, KeyboardScreenProps>(
       >
         <ScrollView
           ref={ref}
-          keyboardShouldPersistTaps="handled"
+          {...keyboardAwareScrollProps}
           contentContainerStyle={[{ flexGrow: 1 }, contentContainerStyle]}
           {...props}
         >
-          {children}
+          <DismissKeyboardArea>{children}</DismissKeyboardArea>
         </ScrollView>
       </KeyboardAvoidingView>
     );
@@ -45,7 +49,7 @@ if (hasKeyboardControllerNativeModule) {
     React.ElementRef<typeof KeyboardAwareScrollView>,
     KeyboardScreenProps
   >(function KeyboardScreen(
-    { bottomOffset = 20, keyboardShouldPersistTaps = "handled", ...props },
+    { bottomOffset = 20, keyboardShouldPersistTaps = "handled", children, ...props },
     ref,
   ) {
     return (
@@ -53,8 +57,11 @@ if (hasKeyboardControllerNativeModule) {
         ref={ref}
         bottomOffset={bottomOffset}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        keyboardDismissMode="on-drag"
         {...props}
-      />
+      >
+        <DismissKeyboardArea>{children}</DismissKeyboardArea>
+      </KeyboardAwareScrollView>
     );
   });
 }

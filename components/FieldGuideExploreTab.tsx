@@ -14,6 +14,10 @@ import Animated, { type AnimatedStyle } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import { MapPin } from "lucide-react-native";
 import { SpeciesAbundanceChart } from "@/components/SpeciesAbundanceChart";
+import {
+  dismissKeyboardOnScrollDrag,
+  keyboardAwareScrollProps,
+} from "@/components/DismissKeyboard";
 import { SpeciesImage } from "@/components/SpeciesImage";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { useRegionalLocationLabel } from "@/hooks/useRegionalLocationLabel";
@@ -185,10 +189,14 @@ export function FieldGuideExploreTab({
           }}
           scrollEventThrottle={16}
           onScroll={onScroll}
-          onScrollBeginDrag={onScrollBeginDrag}
+          onScrollBeginDrag={() => {
+            dismissKeyboardOnScrollDrag();
+            onScrollBeginDrag?.();
+          }}
           onScrollEndDrag={onScrollEndDrag}
           onMomentumScrollEnd={onMomentumScrollEnd}
           showsVerticalScrollIndicator={false}
+          {...keyboardAwareScrollProps}
         />
       )}
     </Animated.View>

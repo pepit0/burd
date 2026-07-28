@@ -179,7 +179,12 @@ export function PostOptionsMenu({
     }
   }
 
-  function handleEditPress() {
+  function handleOwnerEditPress() {
+    onClose();
+    router.push(`/edit-journal-sighting/${sightingId}` as never);
+  }
+
+  function handleAdminEditPress() {
     onClose();
     router.push(`/admin/edit-post/${sightingId}` as never);
   }
@@ -244,12 +249,20 @@ export function PostOptionsMenu({
 
             <OptionSection title="Options">
               {isOwner ? (
-                <OptionRow
-                  onPress={handleRemoveFromProfilePress}
-                  disabled={submitting}
-                  icon={<EyeOff size={18} color="#8a9e82" />}
-                  label="Remove from profile"
-                />
+                <>
+                  <OptionRow
+                    onPress={handleOwnerEditPress}
+                    disabled={submitting}
+                    icon={<Edit3 size={18} color="#5f9470" />}
+                    label="Edit entry"
+                  />
+                  <OptionRow
+                    onPress={handleRemoveFromProfilePress}
+                    disabled={submitting}
+                    icon={<EyeOff size={18} color="#8a9e82" />}
+                    label="Remove from profile"
+                  />
+                </>
               ) : null}
               <OptionRow
                 onPress={handleReportPress}
@@ -265,9 +278,9 @@ export function PostOptionsMenu({
                 icon={<ShieldAlert size={14} color="#8a9e82" />}
               >
                 <OptionRow
-                  onPress={handleEditPress}
+                  onPress={handleAdminEditPress}
                   icon={<Edit3 size={18} color="#5f9470" />}
-                  label="Edit post"
+                  label="Edit post (admin)"
                 />
                 <OptionRow
                   onPress={handleRemovePress}

@@ -14,6 +14,7 @@ import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesAskGuide } from "@/components/SpeciesAskGuide";
 import { SpeciesImage } from "@/components/SpeciesImage";
+import { PinchZoomView } from "@/components/PinchZoomImage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { useFieldGuideAuthor } from "@/hooks/useFieldGuideAuthor";
@@ -115,26 +116,31 @@ export default function SpeciesDetailScreen() {
           contentContainerClassName="pb-12"
         >
           <View
-            className="bg-muted"
+            className="relative bg-muted"
             style={{ width: SPECIES_HERO_SIZE, height: SPECIES_HERO_SIZE }}
           >
-            <SpeciesImage
-              catalogId={species.id}
-              scientificName={species.scientific_name}
-              size="original"
-              contentFit="contain"
-              contentPosition="center"
-              zoom={1}
-              className="h-full w-full"
-            />
-            {userSightings.length > 0 && (
-              <View className="absolute right-3 top-3 flex-row items-center gap-1 rounded-full bg-background/80 px-2.5 py-1">
+            <PinchZoomView className="h-full w-full">
+              <SpeciesImage
+                catalogId={species.id}
+                scientificName={species.scientific_name}
+                size="original"
+                contentFit="contain"
+                contentPosition="center"
+                zoom={1}
+                className="h-full w-full"
+              />
+            </PinchZoomView>
+            {userSightings.length > 0 ? (
+              <View
+                className="absolute right-3 top-3 flex-row items-center gap-1 rounded-full bg-background/80 px-2.5 py-1"
+                pointerEvents="none"
+              >
                 <Check size={10} color="#5f9470" strokeWidth={2.5} />
                 <Text className="font-mono text-[10px] text-primary">
                   in your life list
                 </Text>
               </View>
-            )}
+            ) : null}
           </View>
 
           <View className="gap-5 px-4 pt-5">

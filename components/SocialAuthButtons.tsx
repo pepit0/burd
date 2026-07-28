@@ -19,6 +19,8 @@ const SOCIAL_BUTTON_RADIUS = 12;
 
 interface SocialAuthButtonsProps {
   onError?: (message: string) => void;
+  /** When true, social sign-in is blocked (e.g. pending signup consent). */
+  disabled?: boolean;
   className?: string;
   style?: StyleProp<ViewStyle>;
 }
@@ -37,6 +39,7 @@ function SocialButtonLoading({ className }: { className?: string }) {
 /** Apple (iOS) + Google on login / sign-up screens. */
 export function SocialAuthButtons({
   onError,
+  disabled = false,
   className,
   style,
 }: SocialAuthButtonsProps) {
@@ -56,7 +59,10 @@ export function SocialAuthButtons({
         appleLoading ? (
           <SocialButtonLoading className="mb-3" />
         ) : (
-          <View className="mb-3">
+          <View
+            className={`mb-3 ${disabled ? "opacity-40" : ""}`}
+            pointerEvents={disabled ? "none" : "auto"}
+          >
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={
                 AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
@@ -67,7 +73,7 @@ export function SocialAuthButtons({
               cornerRadius={SOCIAL_BUTTON_RADIUS}
               style={{ width: "100%", height: SOCIAL_BUTTON_HEIGHT }}
               onPress={() => {
-                if (appleLoading || googleLoading) return;
+                if (disabled || appleLoading || googleLoading) return;
                 void (async () => {
                   setAppleLoading(true);
                   try {
@@ -94,11 +100,13 @@ export function SocialAuthButtons({
         <SocialButtonLoading />
       ) : (
         <Pressable
-          className="flex-row items-center justify-center gap-2.5 rounded-xl border border-[#dadce0] bg-white active:opacity-90"
+          className={`flex-row items-center justify-center gap-2.5 rounded-xl border border-[#dadce0] bg-white active:opacity-90 ${
+            disabled ? "opacity-40" : ""
+          }`}
           style={{ height: SOCIAL_BUTTON_HEIGHT, borderRadius: SOCIAL_BUTTON_RADIUS }}
-          disabled={appleLoading || googleLoading}
+          disabled={disabled || appleLoading || googleLoading}
           onPress={() => {
-            if (appleLoading || googleLoading) return;
+            if (disabled || appleLoading || googleLoading) return;
             void (async () => {
               setGoogleLoading(true);
               try {

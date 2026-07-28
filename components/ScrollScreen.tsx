@@ -4,6 +4,11 @@ import Animated from "react-native-reanimated";
 import { useFocusEffect } from "expo-router";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import {
+  DismissKeyboardArea,
+  dismissKeyboardOnScrollDrag,
+  keyboardAwareScrollProps,
+} from "@/components/DismissKeyboard";
+import {
   DEFAULT_TAB_HEADER_HEIGHT,
   FixedTabHeader,
   HomeSplitHeader,
@@ -106,13 +111,19 @@ export function ScrollScreen({
             scrollEventThrottle={16}
             decelerationRate="normal"
             onScroll={handleScroll}
-            onScrollBeginDrag={handleScrollBeginDrag}
+            onScrollBeginDrag={() => {
+              dismissKeyboardOnScrollDrag();
+              handleScrollBeginDrag();
+            }}
             onScrollEndDrag={handleScrollEndDrag}
             onMomentumScrollEnd={handleMomentumScrollEnd}
             contentContainerStyle={scrollContentStyle}
             refreshControl={refreshControl}
+            {...keyboardAwareScrollProps}
           >
-            <View className={contentClassName}>{children}</View>
+            <DismissKeyboardArea>
+              <View className={contentClassName}>{children}</View>
+            </DismissKeyboardArea>
           </Animated.ScrollView>
         </Animated.View>
       </View>
@@ -126,12 +137,15 @@ export function ScrollScreen({
         ref={scrollRef}
         className="flex-1"
         style={{ marginTop: headerHeight }}
-        showsVerticalScrollIndicator={false}
-        contentContainerClassName={contentClassName}
         contentContainerStyle={scrollContentStyle}
+        showsVerticalScrollIndicator={false}
         refreshControl={refreshControl}
+        onScrollBeginDrag={dismissKeyboardOnScrollDrag}
+        {...keyboardAwareScrollProps}
       >
-        {children}
+        <DismissKeyboardArea>
+          <View className={contentClassName}>{children}</View>
+        </DismissKeyboardArea>
       </ScrollView>
     </View>
   );

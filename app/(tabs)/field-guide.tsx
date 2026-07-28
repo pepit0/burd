@@ -19,6 +19,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Check, Filter, Search } from "lucide-react-native";
 import { HomeSplitHeader, REFRESH_GAP, useTabBarClearance } from "@/components/CollapsibleHeader";
+import {
+  dismissKeyboardOnScrollDrag,
+  keyboardAwareScrollProps,
+} from "@/components/DismissKeyboard";
 import { TabEmptyState } from "@/components/TabEmptyState";
 import { FilterSheet } from "@/components/FilterSheet";
 import { FieldGuideExploreTab } from "@/components/FieldGuideExploreTab";
@@ -582,7 +586,10 @@ export default function FieldGuideScreen() {
       {tab === "explore" && showExploreTab ? (
         <FieldGuideExploreTab
           onScroll={handleScroll}
-          onScrollBeginDrag={handleScrollBeginDrag}
+          onScrollBeginDrag={() => {
+            dismissKeyboardOnScrollDrag();
+            handleScrollBeginDrag();
+          }}
           onScrollEndDrag={handleScrollEndDrag}
           onMomentumScrollEnd={handleMomentumScrollEnd}
           listFrameStyle={listFrameStyle}
@@ -617,7 +624,10 @@ export default function FieldGuideScreen() {
             maxToRenderPerBatch={3}
             windowSize={5}
             onScroll={handleScroll}
-            onScrollBeginDrag={handleScrollBeginDrag}
+            onScrollBeginDrag={() => {
+              dismissKeyboardOnScrollDrag();
+              handleScrollBeginDrag();
+            }}
             onScrollEndDrag={handleListScrollEndDrag}
             onMomentumScrollEnd={handleListScrollEnd}
             refreshControl={
@@ -627,6 +637,7 @@ export default function FieldGuideScreen() {
                 tintColor="#5f9470"
               />
             }
+            {...keyboardAwareScrollProps}
             ListEmptyComponent={
               <TabEmptyState>
                 {activeFilterCount > 0 || search.trim()

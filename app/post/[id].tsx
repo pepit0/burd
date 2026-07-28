@@ -1,15 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  Image,
   Pressable,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { Gesture } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import {
   ArrowLeft,
@@ -20,6 +19,7 @@ import {
   Share2,
 } from "lucide-react-native";
 import { LikeBurstOverlay } from "@/components/LikeBurstOverlay";
+import { PinchZoomImage } from "@/components/PinchZoomImage";
 import { LikeIcon } from "@/components/LikeIcon";
 import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
 import { INACTIVE_ICON_COLOR_ON_DARK } from "@/lib/likeIconStyle";
@@ -111,57 +111,70 @@ export default function PostScreen() {
   const [burstKey, setBurstKey] = useState(0);
   const scrollRef = useRef<React.ElementRef<typeof KeyboardScreen>>(null);
   const commentsYRef = useRef(0);
+  const initialLoadDoneRef = useRef(false);
   const audioPlayback = useAudioPlayback(post?.audio_url ?? null);
   const { likeIconStyle } = useLikeIconStyle();
 
-  useEffect(() => {
+  const loadPost = useCallback(async (showSpinner: boolean) => {
     if (!id) {
       setError("Missing post.");
       setLoading(false);
       return;
     }
 
+    if (showSpinner) {
+      setLoading(true);
+    }
+    setError(null);
+    try {
+      const row = await getFeedPostById(id);
+      if (!row) {
+        setError("Post not found.");
+        setPost(null);
+        return;
+      }
+      setPost(row);
+      setLikeCount(row.like_count);
+      setRepostCount(row.repost_count ?? 0);
+      setCommentCount(
+        row.comment_count ?? (await getCommentCountForSighting(row.id)),
+      );
+      if (userId) {
+        const [likedIds, repostedIds] = await Promise.all([
+          getMyLikedIds(userId),
+          getMyRepostedIds(userId),
+        ]);
+        setLiked(likedIds.has(row.id));
+        setReposted(repostedIds.has(row.id));
+      }
+    } catch (e) {
+      setError(getLoadErrorMessage(e));
+    } finally {
+      if (showSpinner) {
+        setLoading(false);
+      }
+    }
+  }, [id, userId]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const row = await getFeedPostById(id);
-        if (cancelled) return;
-        if (!row) {
-          setError("Post not found.");
-          setPost(null);
-          return;
-        }
-        setPost(row);
-        setLikeCount(row.like_count);
-        setRepostCount(row.repost_count ?? 0);
-        if (!cancelled) {
-          setCommentCount(
-            row.comment_count ?? (await getCommentCountForSighting(row.id)),
-          );
-        }
-        if (userId) {
-          const [likedIds, repostedIds] = await Promise.all([
-            getMyLikedIds(userId),
-            getMyRepostedIds(userId),
-          ]);
-          if (!cancelled) {
-            setLiked(likedIds.has(row.id));
-            setReposted(repostedIds.has(row.id));
-          }
-        }
-      } catch (e) {
-        if (!cancelled) setError(getLoadErrorMessage(e));
-      } finally {
-        if (!cancelled) setLoading(false);
+      await loadPost(true);
+      if (!cancelled) {
+        initialLoadDoneRef.current = true;
       }
     })();
-
     return () => {
       cancelled = true;
     };
-  }, [id, userId]);
+  }, [loadPost]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!initialLoadDoneRef.current) return;
+      void loadPost(false);
+    }, [loadPost]),
+  );
 
   async function toggleLike() {
     if (!userId || !post || liking) return;
@@ -189,6 +202,18 @@ export default function PostScreen() {
     }
   }
 
+  const doubleTapLike = useMemo(
+    () =>
+      Gesture.Tap()
+        .numberOfTaps(2)
+        .onEnd(() => {
+          runOnJS(likeIfNeeded)();
+        }),
+    // likeIfNeeded closes over liked/toggleLike; recreate when like state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liked, liking, post?.id, userId],
+  );
+
   async function toggleRepost() {
     if (!userId || !post || reposting || post.user_id === userId) return;
     const next = !reposted;
@@ -207,12 +232,6 @@ export default function PostScreen() {
       setReposting(false);
     }
   }
-
-  const doubleTapLike = Gesture.Tap()
-    .numberOfTaps(2)
-    .onEnd(() => {
-      runOnJS(likeIfNeeded)();
-    });
 
   function scrollToComments() {
     scrollRef.current?.scrollTo({ y: commentsYRef.current, animated: true });
@@ -293,17 +312,18 @@ export default function PostScreen() {
             </View>
           ) : null}
 
-          <GestureDetector gesture={doubleTapLike}>
-            <View
-              className="bg-muted"
-              style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
-            >
-              {isPhotoSighting(post) && !isRemoved ? (
-                <Image
-                  source={{ uri: post.photo_url! }}
-                  style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
-                  resizeMode="cover"
-                />
+          <View
+            className="bg-muted"
+            style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
+          >
+            {isPhotoSighting(post) && !isRemoved ? (
+              <PinchZoomImage
+                uri={post.photo_url!}
+                width={PHOTO_SIZE}
+                height={PHOTO_SIZE}
+                contentFit="cover"
+                overlayGesture={doubleTapLike}
+              />
               ) : isAudioSighting(post) && !isRemoved ? (
                 <PlaybackWaveform
                   playback={audioPlayback}
@@ -317,8 +337,7 @@ export default function PostScreen() {
                 </View>
               )}
               <LikeBurstOverlay burstKey={burstKey} iconStyle={likeIconStyle} heroSize={88} />
-            </View>
-          </GestureDetector>
+          </View>
 
           {!isRemoved ? (
             <>

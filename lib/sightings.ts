@@ -2,12 +2,13 @@ import { decode } from "base64-arraybuffer";
 import { getCommentCountsForSightings } from "@/lib/comments";
 import { getMyFriendIds } from "@/lib/social";
 import { supabase } from "@/lib/supabase";
-import { observedDate } from "@/lib/sightingFormat";
+import { journalLogDate } from "@/lib/sightingFormat";
 import type {
   FeedSighting,
   JournalSightingUpdate,
   NewSightingInput,
   Profile,
+  PublishedPostUpdate,
   Sighting,
 } from "@/types";
 
@@ -25,19 +26,46 @@ export async function getNearbyFeed(
   return ((data ?? []) as FeedSighting[]).filter((row) => row.published_at);
 }
 
-export async function getFollowingFeed(): Promise<FeedSighting[]> {
-  const { data, error } = await supabase.rpc("following_feed");
-  if (error) throw error;
-  const rows = ((data ?? []) as FeedSighting[]).filter((row) => row.published_at);
-  return withCommentCounts(rows);
-}
-
-/** Newest published sightings worldwide (excluding the current user). */
-export async function getGlobalFeed(userId: string): Promise<FeedSighting[]> {
+async function getMyPublishedFeedRows(userId: string): Promise<FeedSighting[]> {
   const { data, error } = await supabase
     .from("sighting_feed")
     .select("*")
-    .neq("user_id", userId)
+    .eq("user_id", userId)
+    .not("published_at", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []) as FeedSighting[];
+}
+
+function mergeFeedRows(...lists: FeedSighting[][]): FeedSighting[] {
+  const byId = new Map<string, FeedSighting>();
+  for (const list of lists) {
+    for (const row of list) {
+      byId.set(row.id, row);
+    }
+  }
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+}
+
+export async function getFollowingFeed(userId: string): Promise<FeedSighting[]> {
+  const [{ data, error }, ownRows] = await Promise.all([
+    supabase.rpc("following_feed"),
+    getMyPublishedFeedRows(userId),
+  ]);
+  if (error) throw error;
+  const friendRows = ((data ?? []) as FeedSighting[]).filter((row) => row.published_at);
+  const rows = mergeFeedRows(friendRows, ownRows).slice(0, 100);
+  return withCommentCounts(rows);
+}
+
+/** Newest published sightings worldwide. */
+export async function getGlobalFeed(): Promise<FeedSighting[]> {
+  const { data, error } = await supabase
+    .from("sighting_feed")
+    .select("*")
     .not("published_at", "is", null)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -60,7 +88,17 @@ function forYouScore(row: FeedSighting): number {
   return row.like_count * 3 + recency * 2 + (row.photo_url ? 0.5 : 0);
 }
 
-/** Suggested posts from birders you do not follow yet. */
+function rankForYouCandidates(
+  candidates: FeedSighting[],
+  friendIds: Set<string>,
+): FeedSighting[] {
+  return candidates
+    .filter((row) => !friendIds.has(row.user_id))
+    .sort((a, b) => forYouScore(b) - forYouScore(a))
+    .slice(0, 100);
+}
+
+/** Nearby and suggested posts, including your own published sightings. */
 export async function getForYouFeed(
   userId: string,
   lat: number | null,
@@ -68,18 +106,22 @@ export async function getForYouFeed(
   radiusKm: number,
 ): Promise<FeedSighting[]> {
   const friendIds = await getMyFriendIds(userId);
+  const ownRows = await getMyPublishedFeedRows(userId);
 
-  const candidates =
+  let candidates = mergeFeedRows(
     lat != null && lng != null
       ? await getNearbyFeed(lat, lng, radiusKm * 1.5)
-      : await getGlobalFeed(userId);
+      : await getGlobalFeed(),
+    ownRows,
+  );
 
-  const filtered = candidates
-    .filter(
-      (row) => row.user_id !== userId && !friendIds.has(row.user_id),
-    )
-    .sort((a, b) => forYouScore(b) - forYouScore(a))
-    .slice(0, 100);
+  let filtered = rankForYouCandidates(candidates, friendIds);
+
+  // Nearby can be sparse — keep showing suggestions instead of an empty feed.
+  if (filtered.length === 0 && lat != null && lng != null) {
+    candidates = mergeFeedRows(await getGlobalFeed(), ownRows);
+    filtered = rankForYouCandidates(candidates, friendIds);
+  }
 
   return withCommentCounts(filtered);
 }
@@ -103,7 +145,7 @@ export async function getMySightings(
   if (error) throw error;
   const rows = ((data ?? []) as Sighting[]).filter((row) => row.user_id === userId);
   return rows.sort(
-    (a, b) => observedDate(b).getTime() - observedDate(a).getTime(),
+    (a, b) => journalLogDate(b).getTime() - journalLogDate(a).getTime(),
   );
 }
 
@@ -164,14 +206,25 @@ export async function updateMyJournalSighting(
     })
     .eq("id", sightingId)
     .eq("user_id", userId)
-    .is("published_at", null)
     .select("id")
     .maybeSingle();
 
   if (error) throw error;
   if (!data) {
-    throw new Error("This sighting can't be edited after posting to your profile.");
+    throw new Error("This sighting could not be updated.");
   }
+}
+
+export async function updateMyPublishedPost(
+  _userId: string,
+  sightingId: string,
+  input: PublishedPostUpdate,
+): Promise<void> {
+  const { error } = await supabase.rpc("update_my_published_post", {
+    p_sighting_id: sightingId,
+    p_notes: input.notes ?? "",
+  });
+  if (error) throw error;
 }
 
 export async function getFeedPostById(id: string): Promise<FeedSighting | null> {

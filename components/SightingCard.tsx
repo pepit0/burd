@@ -1,6 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
 import {
-  Image,
   Pressable,
   Text,
   View,
@@ -8,7 +7,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import {
   Feather,
@@ -16,6 +15,7 @@ import {
   MoreHorizontal,
 } from "lucide-react-native";
 import { LikeBurstOverlay } from "@/components/LikeBurstOverlay";
+import { PinchZoomImage } from "@/components/PinchZoomImage";
 import { LikeIcon } from "@/components/LikeIcon";
 import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
@@ -114,7 +114,9 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
   const userId = user?.id ?? null;
   const { isAdmin } = useAdmin(userId);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const openPost = () => router.push(`/post/${s.id}`);
+  const openPost = useCallback(() => {
+    router.push(`/post/${s.id}`);
+  }, [router, s.id]);
   const audioPlayback = useAudioPlayback(isAudioSighting(s) ? s.audio_url : null);
   const placeLine = sightingPlaceLine(s);
   const rarity = rarityForSighting(s);
@@ -124,19 +126,19 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
     onToggleLike,
   });
 
-  const doubleTapLike = Gesture.Tap()
-    .numberOfTaps(2)
-    .onEnd(() => {
-      runOnJS(likeWithBurstIfNeeded)();
-    });
-
-  const openPostTap = Gesture.Tap()
-    .numberOfTaps(1)
-    .onEnd(() => {
-      runOnJS(openPost)();
-    });
-
-  const photoGestures = Gesture.Exclusive(doubleTapLike, openPostTap);
+  const photoGestures = useMemo(() => {
+    const doubleTapLike = Gesture.Tap()
+      .numberOfTaps(2)
+      .onEnd(() => {
+        runOnJS(likeWithBurstIfNeeded)();
+      });
+    const openPostTap = Gesture.Tap()
+      .numberOfTaps(1)
+      .onEnd(() => {
+        runOnJS(openPost)();
+      });
+    return Gesture.Exclusive(doubleTapLike, openPostTap);
+  }, [likeWithBurstIfNeeded, openPost]);
 
   return (
     <View className="overflow-hidden rounded-3xl bg-card">
@@ -163,15 +165,15 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
           <CardRarityCorner rarity={rarity} />
         </View>
       ) : (
-        <GestureDetector gesture={photoGestures}>
-          <View className="active:opacity-98">
-            <View className="aspect-[4/5] bg-muted" style={{ aspectRatio: 4 / 5 }}>
-              {isPhotoSighting(s) ? (
-                <Image
-                  source={{ uri: s.photo_url! }}
-                  className="h-full w-full"
-                  resizeMode="cover"
-                />
+        <View className="active:opacity-98">
+          <View className="aspect-[4/5] bg-muted" style={{ aspectRatio: 4 / 5 }}>
+            {isPhotoSighting(s) ? (
+              <PinchZoomImage
+                uri={s.photo_url!}
+                className="h-full w-full"
+                contentFit="cover"
+                overlayGesture={photoGestures}
+              />
               ) : (
                 <View className="h-full w-full items-center justify-center">
                   <Feather size={36} color="#3a4e35" />
@@ -187,9 +189,8 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
                 <CardSpeciesOverlay sighting={s} />
               </View>
               <CardRarityCorner rarity={rarity} />
-            </View>
           </View>
-        </GestureDetector>
+        </View>
       )}
 
       <View className="gap-3 px-5 py-4">
