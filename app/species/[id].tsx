@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Check, ChevronRight, Camera, X } from "lucide-react-native";
-import { FieldGuideAttribution } from "@/components/FieldGuideAttribution";
+import { SpeciesSeenBy } from "@/components/SpeciesSeenBy";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesAskGuide } from "@/components/SpeciesAskGuide";
@@ -17,7 +17,7 @@ import { SpeciesImage } from "@/components/SpeciesImage";
 import { PinchZoomView } from "@/components/PinchZoomImage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
-import { useFieldGuideAuthor } from "@/hooks/useFieldGuideAuthor";
+import { useSpeciesObservers } from "@/hooks/useSpeciesObservers";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useSpeciesProfile } from "@/hooks/useSpeciesProfile";
 import { getSightingsForSpecies } from "@/lib/fieldGuide";
@@ -68,10 +68,10 @@ export default function SpeciesDetailScreen() {
     [species, sightings],
   );
 
-  const { author, loading: authorLoading } = useFieldGuideAuthor(
+  const { observers, loading: observersLoading } = useSpeciesObservers(
     species,
     authLoading,
-    userSightings.length + (fieldGuideLocked ? 0 : 1000),
+    userSightings.length,
   );
 
   const latestSighting = userSightings[0] ?? null;
@@ -160,13 +160,13 @@ export default function SpeciesDetailScreen() {
               </View>
               {!profileLoading && !profileGenerating ? (
                 <View className="mt-2">
-                  <FieldGuideAttribution
-                    author={author}
-                    fieldGuideLocked={fieldGuideLocked}
+                  <SpeciesSeenBy
+                    observers={observers}
+                    speciesName={species.species}
+                    loading={observersLoading}
                     fieldGuidePublished={
                       Boolean(profile && hasDetailedFieldGuide(profile))
                     }
-                    loading={authorLoading}
                   />
                 </View>
               ) : null}

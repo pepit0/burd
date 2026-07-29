@@ -65,6 +65,34 @@ Deno.serve(async (req) => {
     });
   }
 
+  const { data: recipientProfile } = await supabase
+    .from("profiles")
+    .select("notification_prefs")
+    .eq("id", activity.recipient_id)
+    .maybeSingle();
+
+  const prefs = (recipientProfile?.notification_prefs ?? {}) as Record<string, boolean>;
+  const type = activity.type as string;
+
+  const prefKey =
+    type === "like"
+      ? "likes"
+      : type === "comment"
+        ? "comments"
+        : type === "follow"
+          ? "follows"
+          : type === "repost"
+            ? "reposts"
+            : type === "milestone" || type === "log"
+              ? "nearby_rare"
+              : null;
+
+  if (prefKey && prefs[prefKey] === false) {
+    return new Response(JSON.stringify({ sent: 0, skipped: "pref_disabled" }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const actorName =
     (activity.actor as { username?: string } | null)?.username ?? "Someone";
   const title = "Burd";

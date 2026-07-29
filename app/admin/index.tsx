@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft, ShieldAlert, Trash2 } from "lucide-react-native";
 import { ModerationReasonModal } from "@/components/ModerationReasonModal";
+import { SearchBar } from "@/components/SearchBar";
 import {
   DismissKeyboardArea,
   dismissKeyboardOnScrollDrag,
@@ -329,13 +330,14 @@ export default function AdminHubScreen() {
             Manage admins
           </Text>
           <View className="mb-3 flex-row gap-2">
-            <TextInput
+            <SearchBar
               value={adminQuery}
               onChangeText={setAdminQuery}
               placeholder="Search by @username or display name"
               placeholderTextColor="#5a6e52"
               autoCapitalize="none"
-              className="flex-1 rounded-xl border border-border bg-card px-4 py-3 font-sans text-sm text-foreground"
+              showSearchIcon={false}
+              containerClassName="flex-1 px-4 py-3"
               onSubmitEditing={() => void handleSearchAdmins(adminQuery)}
             />
             <Pressable
@@ -389,13 +391,14 @@ export default function AdminHubScreen() {
             Change username
           </Text>
           <View className="mb-3 flex-row gap-2">
-            <TextInput
+            <SearchBar
               value={usernameQuery}
               onChangeText={setUsernameQuery}
               placeholder="Find by @username or display name"
               placeholderTextColor="#5a6e52"
               autoCapitalize="none"
-              className="flex-1 rounded-xl border border-border bg-card px-4 py-3 font-sans text-sm text-foreground"
+              showSearchIcon={false}
+              containerClassName="flex-1 px-4 py-3"
               onSubmitEditing={() => void handleSearchUsersForRename(usernameQuery)}
             />
             <Pressable

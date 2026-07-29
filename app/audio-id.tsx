@@ -44,7 +44,7 @@ export default function AudioIdentifyScreen() {
     statusLabel,
     micPermission,
     locationPermission,
-    meteringLevel,
+    meteringLevelRef,
     displayRows,
     sessionReview,
     selectedPrimaryKey,
@@ -216,7 +216,7 @@ export default function AudioIdentifyScreen() {
       <View className="px-2">
         <LiveSoundSpaceVisualizer
           key={visualizerKey}
-          level={meteringLevel}
+          levelRef={meteringLevelRef}
           active={isRecording}
           visible
         />

@@ -17,7 +17,7 @@ interface UseFeedArgs {
   filter: FeedFilter;
   userId: string | null;
   coords: Coords | null;
-  radiusKm: number;
+  radiusKm: number | null;
   enabled: boolean;
 }
 

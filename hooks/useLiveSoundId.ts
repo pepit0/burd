@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { Platform } from "react-native";
 import { Audio } from "expo-av";
 import {
@@ -39,6 +39,7 @@ import {
   liveRotateIntervalMs,
   LIVE_WINDOW_MS,
 } from "@/lib/audioChunkOverlap";
+import { runAnimationFrameLoop } from "@/lib/animationFrameLoop";
 
 export const LIVE_CHUNK_SECONDS = LIVE_WINDOW_MS / 1000;
 
@@ -119,7 +120,7 @@ export interface UseLiveSoundIdResult {
   statusLabel: string;
   micPermission: MicPermissionState;
   locationPermission: LocationPermissionState;
-  meteringLevel: number;
+  meteringLevelRef: MutableRefObject<number>;
   displayRows: LiveDisplayRow[];
   sessionReview: LiveSessionReview | null;
   selectedPrimaryKey: string | null;
@@ -158,7 +159,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
   const [status, setStatus] = useState<LiveSoundStatus>("idle");
   const [isRecording, setIsRecording] = useState(false);
   const [micPermission, setMicPermission] = useState<MicPermissionState>("undetermined");
-  const [meteringLevel, setMeteringLevel] = useState(0);
+  const meteringLevelRef = useRef(0);
   const [displayRows, setDisplayRows] = useState<LiveDisplayRow[]>([]);
   const [sessionReview, setSessionReview] = useState<LiveSessionReview | null>(
     null,
@@ -180,7 +181,9 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const meteringTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const meteringLoopCancelRef = useRef<(() => void) | null>(null);
+  const meteringPollInFlightRef = useRef(false);
+  const meteringPollBucketRef = useRef(-1);
   const pruneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionRef = useRef<PendingSession | null>(null);
   const activeRef = useRef(false);
@@ -198,10 +201,11 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
   }, []);
 
   const clearMeteringTimer = useCallback(() => {
-    if (meteringTimerRef.current) {
-      clearInterval(meteringTimerRef.current);
-      meteringTimerRef.current = null;
-    }
+    meteringLoopCancelRef.current?.();
+    meteringLoopCancelRef.current = null;
+    meteringPollInFlightRef.current = false;
+    meteringPollBucketRef.current = -1;
+    meteringLevelRef.current = 0;
   }, []);
 
   const clearPruneTimer = useCallback(() => {
@@ -444,7 +448,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     setSelectedPrimaryKey(null);
     setErrorMessage(null);
     setChunkWarning(null);
-    setMeteringLevel(0);
+    meteringLevelRef.current = 0;
     setIsRecording(false);
 
     const now = new Date().toISOString();
@@ -495,19 +499,33 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     }, 500);
 
     clearMeteringTimer();
-    meteringTimerRef.current = setInterval(async () => {
+    meteringLoopCancelRef.current = runAnimationFrameLoop((deltaMs, timestamp) => {
       const recording = recordingRef.current;
       if (!recording) {
-        setMeteringLevel(0);
+        meteringLevelRef.current = 0;
         return;
       }
-      try {
-        const recordingStatus = await recording.getStatusAsync();
-        setMeteringLevel(normalizeMetering(recordingStatus.metering));
-      } catch {
-        setMeteringLevel(0);
-      }
-    }, 50);
+
+      // Poll mic metering ~30 Hz — async status reads don't need to run every frame.
+      const pollEveryMs = 33;
+      const bucket = Math.floor(timestamp / pollEveryMs);
+      if (bucket === meteringPollBucketRef.current) return;
+      meteringPollBucketRef.current = bucket;
+      if (meteringPollInFlightRef.current) return;
+
+      meteringPollInFlightRef.current = true;
+      void recording
+        .getStatusAsync()
+        .then((recordingStatus) => {
+          meteringLevelRef.current = normalizeMetering(recordingStatus.metering);
+        })
+        .catch(() => {
+          meteringLevelRef.current = 0;
+        })
+        .finally(() => {
+          meteringPollInFlightRef.current = false;
+        });
+    });
 
     clearSegmentTimer();
     segmentTimerRef.current = setTimeout(() => {
@@ -615,7 +633,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     clearSegmentTimer();
     clearMeteringTimer();
     clearPruneTimer();
-    setMeteringLevel(0);
+    meteringLevelRef.current = 0;
     setStatus("processing");
 
     const finalSegment = await stopCurrentRecording();
@@ -664,7 +682,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     setSelectedPrimaryKey(null);
     setErrorMessage(null);
     setChunkWarning(null);
-    setMeteringLevel(0);
+    meteringLevelRef.current = 0;
   }, [
     clearMeteringTimer,
     clearPruneTimer,
@@ -763,7 +781,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     statusLabel,
     micPermission,
     locationPermission,
-    meteringLevel,
+    meteringLevelRef,
     displayRows,
     sessionReview,
     selectedPrimaryKey,

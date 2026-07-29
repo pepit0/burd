@@ -41,7 +41,10 @@ export function useUserProfile(
       const [p, counts, s, rel] = await Promise.all([
         getMyProfile(targetId),
         getFriendCounts(targetId),
-        getMySightings(targetId, { publishedOnly: true }),
+        getMySightings(targetId, {
+          publishedOnly: true,
+          viewerUserId: currentUserId,
+        }),
         !isSelf && currentUserId
           ? (await import("@/lib/social")).getFriendshipStatus(currentUserId, targetId)
           : Promise.resolve("none" as import("@/lib/social").FriendshipStatus),

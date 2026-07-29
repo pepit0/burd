@@ -7,17 +7,16 @@ import {
   RefreshControl,
   ScrollView,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  type TextStyle,
 } from "react-native";
 import Animated from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Check, Filter, Search } from "lucide-react-native";
+import { Check, Filter } from "lucide-react-native";
+import { SearchBar } from "@/components/SearchBar";
 import { HomeSplitHeader, REFRESH_GAP, useTabBarClearance } from "@/components/CollapsibleHeader";
 import {
   dismissKeyboardOnScrollDrag,
@@ -26,6 +25,11 @@ import {
 import { TabEmptyState } from "@/components/TabEmptyState";
 import { FilterSheet } from "@/components/FilterSheet";
 import { FieldGuideExploreTab } from "@/components/FieldGuideExploreTab";
+import {
+  IMAGE_OVERLAY_BADGE_SHADOW,
+  IMAGE_OVERLAY_GRADIENT,
+  ImageOverlayText,
+} from "@/components/ImageOverlayText";
 import { useCollapsibleToolbar } from "@/hooks/useCollapsibleToolbar";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesImage } from "@/components/SpeciesImage";
@@ -80,20 +84,6 @@ function guideRowHeight(screenWidth: number): number {
   return guideCardHeight(screenWidth) + GUIDE_ROW_PADDING;
 }
 
-const OVERLAY_TEXT_SHADOW: TextStyle = {
-  textShadowColor: "rgba(0,0,0,0.9)",
-  textShadowOffset: { width: 0, height: 0 },
-  textShadowRadius: 3,
-};
-
-const OVERLAY_BADGE_SHADOW = {
-  shadowColor: "#000",
-  shadowOpacity: 0.85,
-  shadowRadius: 3,
-  shadowOffset: { width: 0, height: 0 },
-  elevation: 4,
-};
-
 interface GuideRow {
   id: string;
   left: FieldGuideEntry;
@@ -138,7 +128,7 @@ const SpeciesCard = memo(function SpeciesCard({
         className="h-full w-full"
       />
       <LinearGradient
-        colors={["transparent", "rgba(24,30,22,0.55)", "rgba(24,30,22,0.95)"]}
+        colors={[...IMAGE_OVERLAY_GRADIENT]}
         className="absolute inset-0"
         pointerEvents="none"
       />
@@ -149,24 +139,24 @@ const SpeciesCard = memo(function SpeciesCard({
       ) : null}
       <View className="absolute bottom-0 left-0 right-0 p-2.5">
         <View className="flex-row items-end justify-between gap-2">
-          <Text
+          <ImageOverlayText
             className="min-w-0 flex-1 font-serif text-sm leading-tight text-foreground"
-            style={OVERLAY_TEXT_SHADOW}
+            containerClassName="min-w-0 flex-1"
             numberOfLines={2}
           >
             {entry.species}
-          </Text>
-          <View className="shrink-0" style={OVERLAY_BADGE_SHADOW}>
+          </ImageOverlayText>
+          <View className="shrink-0" style={IMAGE_OVERLAY_BADGE_SHADOW}>
             <RarityBadge rarity={entry.rarity} />
           </View>
         </View>
-        <Text
-          className="mt-0.5 font-serif-italic text-[10px] text-foreground/85"
-          style={OVERLAY_TEXT_SHADOW}
+        <ImageOverlayText
+          className="mt-0.5 font-serif-italic text-[10px] text-foreground"
+          containerClassName="w-full"
           numberOfLines={1}
         >
           {entry.scientific_name}
-        </Text>
+        </ImageOverlayText>
       </View>
     </Pressable>
   );
@@ -527,14 +517,11 @@ export default function FieldGuideScreen() {
       {tab !== "explore" ? (
         <View className="gap-3 px-4 pb-0 pt-3">
           <View className="flex-row items-center gap-2">
-            <View className="flex-1 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-              <Search size={14} color="#8a9e82" />
-              <TextInput
+            <View className="flex-1">
+              <SearchBar
                 value={search}
                 onChangeText={setSearch}
                 placeholder="Find a species..."
-                placeholderTextColor="#8a9e82"
-                className="flex-1 font-sans text-sm text-foreground"
               />
             </View>
             <Pressable

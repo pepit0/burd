@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "description": "Species whose locations are automatically obscured for conservation (eBird/iNaturalist convention).",
+  "species": [
+    { "scientific_name": "strix occidentalis", "common_name": "Northern Spotted Owl", "min_fuzz_km": 25 },
+    { "scientific_name": "setophaga kirtlandii", "common_name": "Kirtland's Warbler", "min_fuzz_km": 25 },
+    { "scientific_name": "vireo atricapilla", "common_name": "Black-capped Vireo", "min_fuzz_km": 25 },
+    { "scientific_name": "aphelocoma coerulescens", "common_name": "Florida Scrub-Jay", "min_fuzz_km": 10 },
+    { "scientific_name": "pipilo aberti", "common_name": "Abert's Towhee", "min_fuzz_km": 10 },
+    { "scientific_name": "aimophila ruficeps", "common_name": "Rufous-crowned Sparrow", "min_fuzz_km": 10 },
+    { "scientific_name": "charadrius nivosus", "common_name": "Snowy Plover", "min_fuzz_km": 10 },
+    { "scientific_name": "charadrius montanus", "common_name": "Mountain Plover", "min_fuzz_km": 10 },
+    { "scientific_name": "calidris mauri", "common_name": "Western Sandpiper", "min_fuzz_km": 5 },
+    { "scientific_name": "numenius borealis", "common_name": "Eskimo Curlew", "min_fuzz_km": 25 },
+    { "scientific_name": "grus americana", "common_name": "Whooping Crane", "min_fuzz_km": 25 },
+    { "scientific_name": "haliaeetus leucocephalus", "common_name": "Bald Eagle", "min_fuzz_km": 5 },
+    { "scientific_name": "aquila chrysaetos", "common_name": "Golden Eagle", "min_fuzz_km": 5 },
+    { "scientific_name": "falco peregrinus", "common_name": "Peregrine Falcon", "min_fuzz_km": 5 },
+    { "scientific_name": "bubo scandiacus", "common_name": "Snowy Owl", "min_fuzz_km": 10 },
+    { "scientific_name": "aegolius acadicus", "common_name": "Northern Saw-whet Owl", "min_fuzz_km": 5 },
+    { "scientific_name": "megascops kennicottii", "common_name": "Western Screech-Owl", "min_fuzz_km": 5 },
+    { "scientific_name": "coccyzus americanus", "common_name": "Yellow-billed Cuckoo", "min_fuzz_km": 5 },
+    { "scientific_name": "polioptila californica", "common_name": "California Gnatcatcher", "min_fuzz_km": 10 },
+    { "scientific_name": "vermivora chrysoptera", "common_name": "Golden-winged Warbler", "min_fuzz_km": 10 }
+  ]
+}

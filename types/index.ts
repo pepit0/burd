@@ -8,6 +8,20 @@ export type UserRole = "user" | "admin";
 
 export type LikeIconStyle = "heart" | "thumbs_up" | "bird" | "burd" | "leaf";
 
+export type SightingVisibility = "public" | "friends" | "private";
+
+export type LocationObscuredReason = "user_setting" | "sensitive_species";
+
+export type DistanceUnit = "km" | "mi";
+
+export interface NotificationPrefs {
+  likes: boolean;
+  comments: boolean;
+  follows: boolean;
+  reposts: boolean;
+  nearby_rare: boolean;
+}
+
 export type ModerationActionType =
   | "remove_post"
   | "edit_post"
@@ -35,8 +49,13 @@ export interface Profile {
   location_name: string | null;
   latitude: number | null;
   longitude: number | null;
-  search_radius_km: number;
+  search_radius_km: number | null;
   like_icon_style?: LikeIconStyle;
+  default_sighting_visibility?: SightingVisibility;
+  share_exact_coordinates?: boolean;
+  location_fuzz_km?: number;
+  distance_unit?: DistanceUnit;
+  notification_prefs?: NotificationPrefs;
   created_at: string;
   role?: UserRole;
   suspended?: boolean;
@@ -75,6 +94,12 @@ export interface Sighting {
   audio_predictions?: Prediction[] | null;
   /** Set when shared to profile / feed; null = journal-only. */
   published_at?: string | null;
+  visibility?: SightingVisibility | null;
+  share_exact_coordinates?: boolean | null;
+  location_fuzz_km?: number | null;
+  public_latitude?: number | null;
+  public_longitude?: number | null;
+  location_obscured_reason?: LocationObscuredReason | null;
 }
 
 export interface SoundLibraryEntry {
@@ -147,6 +172,9 @@ export interface NewSightingInput {
   sound_library_id?: string | null;
   /** When true, sighting appears on profile and in the public feed. */
   publish?: boolean;
+  visibility?: SightingVisibility;
+  share_exact_coordinates?: boolean;
+  location_fuzz_km?: number;
 }
 
 export interface AccountStatus {

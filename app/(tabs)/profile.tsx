@@ -12,17 +12,14 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
   Camera,
-  Check,
   ChevronRight,
   Database,
   FileText,
-  LogOut,
   Mail,
   Pencil,
   Settings,
   ShieldAlert,
   Shield,
-  Star,
   Users,
 } from "lucide-react-native";
 import { Linking } from "react-native";
@@ -30,6 +27,7 @@ import { ScrollScreen } from "@/components/ScrollScreen";
 import {
   ProfileBannerPickerSheet,
 } from "@/components/ProfileBannerPickerSheet";
+import { ProfileBadgesPreview } from "@/components/ProfileBadges";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
 import { ProfileDetailsEditSheet } from "@/components/ProfileDetailsEditSheet";
 import {
@@ -43,13 +41,12 @@ import { SightingPostsGrid } from "@/components/SightingPostsGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useMySightings } from "@/hooks/useMySightings";
+import { useProfileBadges } from "@/hooks/useProfileBadges";
 import { useReposts } from "@/hooks/useReposts";
 import { useProfile } from "@/hooks/useProfile";
 import { getUserFacingMessage } from "@/lib/errors";
-import { rarityForSighting } from "@/lib/rarity";
 import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
-import { supabase } from "@/lib/supabase";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 import {
   PRIVACY_POLICY_URL,
@@ -170,14 +167,7 @@ export default function ProfileScreen() {
     () => new Set(sightings.map((s) => s.species.toLowerCase())).size,
     [sightings],
   );
-  const photoCount = useMemo(
-    () => sightings.filter((s) => s.photo_url && !s.audio_url).length,
-    [sightings],
-  );
-  const rareCount = useMemo(
-    () => sightings.filter((s) => rarityForSighting(s) === "rare").length,
-    [sightings],
-  );
+  const { badges, earnedCount } = useProfileBadges(userId, sightings, friends);
 
   const publishedSightings = useMemo(
     () => sightings.filter((s) => s.published_at),
@@ -188,17 +178,6 @@ export default function ProfileScreen() {
     [publishedSightings, postsFilter],
   );
   const gridPosts = postsFilter === "reposts" ? reposts : filteredPosts;
-
-  const badges = useMemo(
-    () => [
-      { label: "First Flight", desc: "Logged your first sighting", earned: sightings.length >= 1 },
-      { label: "Shutterbug", desc: "Added a photo to a sighting", earned: photoCount >= 1 },
-      { label: "Rare Find", desc: "Spotted a rare bird", earned: rareCount >= 1 },
-      { label: "Prolific Birder", desc: "Logged 10+ sightings", earned: sightings.length >= 10 },
-      { label: "Social Flyer", desc: "Added another birder", earned: friends >= 1 },
-    ],
-    [sightings.length, photoCount, rareCount, friends],
-  );
 
   const displayName = profile?.full_name || profile?.username || "Birder";
   const displayNamePlain = stripDisplayNameColorCodes(displayName);
@@ -298,7 +277,7 @@ export default function ProfileScreen() {
 
   const settingsAction = (
     <Pressable
-      onPress={() => router.push("/profile-settings" as never)}
+      onPress={() => router.push("/preferences" as never)}
       className="rounded-full p-2 active:bg-card"
       accessibilityLabel="Profile settings"
     >
@@ -427,34 +406,12 @@ export default function ProfileScreen() {
         </View>
 
         <View className="mt-8 px-4">
-          <Text className="mb-3 font-serif-semibold text-base text-foreground">Badges</Text>
-          <View className="gap-2">
-            {badges.map((b) => (
-              <View
-                key={b.label}
-                className={`flex-row items-center gap-3 rounded-xl border bg-card p-3 ${
-                  b.earned ? "border-accent/30" : "border-border/30 opacity-50"
-                }`}
-              >
-                <View
-                  className={`h-9 w-9 items-center justify-center rounded-full ${
-                    b.earned ? "bg-accent/20" : "bg-muted"
-                  }`}
-                >
-                  <Star
-                    size={15}
-                    color={b.earned ? "#c8893a" : "#8a9e82"}
-                    fill={b.earned ? "rgba(200,137,58,0.3)" : "transparent"}
-                  />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-serif text-sm text-foreground">{b.label}</Text>
-                  <Text className="font-sans text-[11px] text-muted-foreground">{b.desc}</Text>
-                </View>
-                {b.earned && <Check size={13} color="#c8893a" />}
-              </View>
-            ))}
-          </View>
+          <ProfileBadgesPreview
+            badges={badges}
+            earnedCount={earnedCount}
+            userId={userId!}
+            username={profile?.username}
+          />
         </View>
 
         <View className="mt-8 px-4">
@@ -502,13 +459,6 @@ export default function ProfileScreen() {
               onPrivacy={() => Linking.openURL(PRIVACY_POLICY_URL)}
               onDataSources={() => router.push("/data-sources" as never)}
             />
-            <Pressable
-              onPress={() => supabase.auth.signOut()}
-              className="flex-row items-center justify-center gap-2 border-t border-border px-4 py-3.5 active:bg-card/80"
-            >
-              <LogOut size={15} color="#8a9e82" />
-              <Text className="font-sans-medium text-sm text-muted-foreground">Sign out</Text>
-            </Pressable>
           </View>
         </View>
       </ScrollScreen>

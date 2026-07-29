@@ -26,12 +26,25 @@ function BurdLogoIcon({
   inactiveColor: string;
   activeColor: string;
 }) {
-  const bg = liked ? activeColor : "#5f9470";
-  const stroke = liked ? "#f0ead6" : inactiveColor === INACTIVE_ICON_COLOR ? "#f0ead6" : inactiveColor;
+  const stroke = liked ? "#f0ead6" : inactiveColor;
+  const bg = liked ? activeColor : "transparent";
+  const border = liked ? "none" : inactiveColor;
 
   return (
     <Svg width={size} height={size} viewBox="0 0 28 28" fill="none">
-      <Rect width={28} height={28} rx={8} fill={bg} />
+      {liked ? <Rect width={28} height={28} rx={8} fill={bg} /> : null}
+      {!liked ? (
+        <Rect
+          width={26}
+          height={26}
+          x={1}
+          y={1}
+          rx={7}
+          stroke={border}
+          strokeWidth={1.5}
+          fill="transparent"
+        />
+      ) : null}
       <G
         stroke={stroke}
         strokeWidth={2}

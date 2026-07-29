@@ -17,7 +17,7 @@ export const DEFAULT_FEED_CONTENT_FILTERS: FeedContentFilters = {
 
 export interface FeedFilterContext {
   coords: { latitude: number; longitude: number } | null;
-  radiusKm: number;
+  radiusKm: number | null;
 }
 
 export function countActiveFeedFilters(filters: FeedContentFilters): number {
@@ -46,6 +46,7 @@ export function applyFeedContentFilters(
         return false;
       }
       if (
+        radiusKm != null &&
         kmBetween(
           coords.latitude,
           coords.longitude,

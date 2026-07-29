@@ -22,6 +22,7 @@ import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { usePostSendOff } from "@/hooks/usePostSendOff";
+import { useProfile } from "@/hooks/useProfile";
 import { identifyImage, isPhotoValidationError, PhotoValidationError } from "@/lib/identify";
 import {
   checkPhotoAuthenticity,
@@ -50,7 +51,10 @@ import {
   getCaptureDraft,
   readPhotoBase64,
 } from "@/lib/captureDrafts";
-import type { DetectedBy, Prediction, Rarity, SoundLibraryEntry } from "@/types";
+import { profilePrivacyDefaults } from "@/lib/profilePreferences";
+import { VISIBILITY_OPTIONS } from "@/lib/privacySettings";
+import { isSensitiveSpecies, getSensitiveSpeciesEntry } from "@/lib/sensitiveSpecies";
+import type { DetectedBy, Prediction, Rarity, SightingVisibility, SoundLibraryEntry } from "@/types";
 
 function parseCount(value: string | undefined): number {
   const n = Number(value);
@@ -204,6 +208,8 @@ export default function NewSightingScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const { profile } = useProfile(userId);
+  const privacyDefaults = profilePrivacyDefaults(profile);
   const { sendOffKey, playSendOff, onSendOffComplete } = usePostSendOff();
 
   const params = useLocalSearchParams<SightingParams>();
@@ -241,6 +247,15 @@ export default function NewSightingScreen() {
   const [libraryEntry, setLibraryEntry] = useState<SoundLibraryEntry | null>(null);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [publishToProfile, setPublishToProfile] = useState(false);
+  const [postVisibility, setPostVisibility] = useState<SightingVisibility>(
+    privacyDefaults.defaultVisibility,
+  );
+
+  useEffect(() => {
+    if (profile?.default_sighting_visibility) {
+      setPostVisibility(profile.default_sighting_visibility);
+    }
+  }, [profile?.default_sighting_visibility]);
 
   const audioOnly = params.audio_only === "1";
 
@@ -597,25 +612,30 @@ export default function NewSightingScreen() {
         audioUrl = await uploadSoundClip(userId, sessionAudio.uri);
       }
 
-      const sightingId = await createSighting(userId, {
-        species: species.trim(),
-        scientific_name: scientific.trim() || null,
-        location_name: locationName.trim() || null,
-        location_city: locationCity.trim() || null,
-        location_address: locationAddress.trim() || null,
-        latitude: coords?.latitude ?? null,
-        longitude: coords?.longitude ?? null,
-        observed_at: observedAt.toISOString(),
-        rarity,
-        count,
-        notes: notes.trim() || null,
-        photo_url: photoUrl,
-        audio_url: audioUrl,
-        audio_predictions: audioPredictions,
-        confidence,
-        detected_by: detectedBy,
-        publish: publishToProfile,
-      });
+      const sightingId = await createSighting(
+        userId,
+        {
+          species: species.trim(),
+          scientific_name: scientific.trim() || null,
+          location_name: locationName.trim() || null,
+          location_city: locationCity.trim() || null,
+          location_address: locationAddress.trim() || null,
+          latitude: coords?.latitude ?? null,
+          longitude: coords?.longitude ?? null,
+          observed_at: observedAt.toISOString(),
+          rarity,
+          count,
+          notes: notes.trim() || null,
+          photo_url: photoUrl,
+          audio_url: audioUrl,
+          audio_predictions: audioPredictions,
+          confidence,
+          detected_by: detectedBy,
+          publish: publishToProfile,
+          visibility: postVisibility,
+        },
+        profile,
+      );
 
       if (soundLibraryId) {
         await linkSoundToSighting(soundLibraryId, sightingId);
@@ -971,7 +991,7 @@ export default function NewSightingScreen() {
             </Text>
             <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
               Off saves to your journal only. Turn on to post to your profile and
-              the public feed.
+              feed.
             </Text>
           </View>
           <Switch
@@ -981,6 +1001,44 @@ export default function NewSightingScreen() {
             thumbColor="#f0ead6"
           />
         </View>
+
+        {publishToProfile ? (
+          <View className="rounded-xl border border-border bg-card p-3">
+            <Text className="mb-2 font-sans-medium text-sm text-foreground">Who can see this post</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {VISIBILITY_OPTIONS.filter((o) => o.id !== "private").map((option) => {
+                const active = postVisibility === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => setPostVisibility(option.id)}
+                    className={`rounded-full border px-3 py-1.5 ${
+                      active ? "border-primary bg-primary/15" : "border-border"
+                    }`}
+                  >
+                    <Text
+                      className={`font-sans text-xs ${
+                        active ? "font-sans-medium text-primary" : "text-muted-foreground"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {isSensitiveSpecies(scientific, species) ? (
+          <View className="rounded-xl border border-accent/30 bg-accent/10 px-4 py-3">
+            <Text className="font-sans-medium text-sm text-foreground">Sensitive species</Text>
+            <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
+              {getSensitiveSpeciesEntry(scientific, species)?.common_name ?? species} locations
+              are automatically obscured for conservation, regardless of your privacy settings.
+            </Text>
+          </View>
+        ) : null}
 
         <Pressable
           onPress={handleSubmit}

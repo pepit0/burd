@@ -43,6 +43,7 @@ import {
   setLike,
   setRepost,
 } from "@/lib/sightings";
+import { sightingPlaceLine } from "@/lib/sightingFormat";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import { timeAgo } from "@/lib/time";
 import type { FeedSighting } from "@/types";
@@ -255,6 +256,7 @@ export default function PostScreen() {
     !isRemoved &&
     (isAdmin || post.user_id === userId);
   const showPost = Boolean(post) && (!isRemoved || canSeeRemoval);
+  const publicPlaceLine = post ? sightingPlaceLine(post) : null;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -392,9 +394,9 @@ export default function PostScreen() {
               ) : null}
             </Text>
 
-            {post.location_name ? (
+            {publicPlaceLine ? (
               <Text className="mt-1 font-sans text-xs text-muted-foreground">
-                {post.location_name}
+                {publicPlaceLine}
               </Text>
             ) : null}
 
@@ -404,7 +406,7 @@ export default function PostScreen() {
           </View>
 
           <View className="mt-4">
-            <SightingDetailsSection sighting={post} />
+            <SightingDetailsSection sighting={post} viewerUserId={userId} />
           </View>
 
           <View

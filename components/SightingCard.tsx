@@ -1,11 +1,11 @@
 import { useMemo, useState, useCallback, type ReactNode } from "react";
-import {
-  Pressable,
-  Text,
-  View,
-  type TextStyle,
-} from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import {
+  IMAGE_OVERLAY_BADGE_SHADOW,
+  IMAGE_OVERLAY_GRADIENT,
+  ImageOverlayText,
+} from "@/components/ImageOverlayText";
 import { useRouter } from "expo-router";
 import { Gesture } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
@@ -33,20 +33,6 @@ import { timeAgo } from "@/lib/time";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import type { FeedSighting } from "@/types";
 
-const OVERLAY_TEXT_SHADOW: TextStyle = {
-  textShadowColor: "rgba(0,0,0,0.9)",
-  textShadowOffset: { width: 0, height: 0 },
-  textShadowRadius: 3,
-};
-
-const OVERLAY_BADGE_SHADOW = {
-  shadowColor: "#000",
-  shadowOpacity: 0.85,
-  shadowRadius: 3,
-  shadowOffset: { width: 0, height: 0 },
-  elevation: 4,
-};
-
 function CardSpeciesOverlay({ sighting: s }: { sighting: FeedSighting }) {
   const scientificName = s.scientific_name?.trim();
 
@@ -55,17 +41,17 @@ function CardSpeciesOverlay({ sighting: s }: { sighting: FeedSighting }) {
       <SpeciesNameLink
         species={s.species}
         scientificName={s.scientific_name}
+        overlay
         className="font-serif-semibold text-2xl leading-tight text-foreground"
-        style={OVERLAY_TEXT_SHADOW}
       />
       {scientificName ? (
-        <Text
-          className="mt-1 font-serif-italic text-sm text-foreground/65"
-          style={OVERLAY_TEXT_SHADOW}
+        <ImageOverlayText
+          className="mt-1 font-serif-italic text-sm text-foreground"
+          containerClassName="w-full"
           numberOfLines={1}
         >
           {scientificName}
-        </Text>
+        </ImageOverlayText>
       ) : null}
     </View>
   );
@@ -75,7 +61,7 @@ function CardRarityCorner({ rarity }: { rarity: FeedSighting["rarity"] }) {
   return (
     <View
       className="absolute bottom-5 right-5"
-      style={OVERLAY_BADGE_SHADOW}
+      style={IMAGE_OVERLAY_BADGE_SHADOW}
       pointerEvents="none"
     >
       <RarityBadge rarity={rarity} size="lg" />
@@ -151,7 +137,7 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
             interactive
           />
           <LinearGradient
-            colors={["transparent", "rgba(24,30,22,0.55)", "rgba(24,30,22,0.95)"]}
+            colors={[...IMAGE_OVERLAY_GRADIENT]}
             className="absolute inset-0"
             pointerEvents="none"
           />
@@ -180,7 +166,7 @@ export function SightingCard({ sighting: s, liked, onToggleLike }: SightingCardP
                 </View>
               )}
               <LinearGradient
-                colors={["transparent", "rgba(24,30,22,0.15)", "rgba(24,30,22,0.92)"]}
+                colors={[...IMAGE_OVERLAY_GRADIENT]}
                 className="absolute inset-0"
                 pointerEvents="none"
               />

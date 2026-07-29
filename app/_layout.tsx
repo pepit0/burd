@@ -31,6 +31,7 @@ import { LikeIconStyleProvider } from "@/components/LikeIconStyleProvider";
 import { SafeKeyboardProvider } from "@/components/SafeKeyboardProvider";
 import { WebDesktopFrame } from "@/components/WebDesktopFrame";
 import { ColorThemeProvider, useColorTheme } from "@/components/ColorThemeProvider";
+import { AccessibilityProvider } from "@/components/AccessibilityProvider";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
@@ -76,6 +77,8 @@ function AppShell() {
             <Stack.Screen name="follows" />
             <Stack.Screen name="user/[id]" />
             <Stack.Screen name="admin" />
+            <Stack.Screen name="badges" options={{ presentation: "modal" }} />
+            <Stack.Screen name="preferences" />
             <Stack.Screen name="profile-settings" />
             <Stack.Screen
               name="camera"
@@ -99,7 +102,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ColorThemeProvider>
-        <RootLayoutInner />
+        <AccessibilityProvider>
+          <RootLayoutInner />
+        </AccessibilityProvider>
       </ColorThemeProvider>
     </SafeAreaProvider>
   );

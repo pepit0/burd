@@ -3,12 +3,12 @@ import {
   ActivityIndicator,
   Pressable,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronLeft, Search, Users } from "lucide-react-native";
+import { ChevronLeft, Users } from "lucide-react-native";
+import { SearchBar } from "@/components/SearchBar";
 import { Avatar } from "@/components/Avatar";
 import { DisplayNameText } from "@/components/DisplayNameText";
 import { FollowButton } from "@/components/FollowButton";
@@ -172,18 +172,14 @@ export default function FollowsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerClassName="px-4 pb-12 pt-3"
       >
-        <View className="mb-3 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-          <Search size={14} color="#8a9e82" />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search by name or @username..."
-            placeholderTextColor="#8a9e82"
-            autoCapitalize="none"
-            autoCorrect={false}
-            className="flex-1 font-sans text-sm text-foreground"
-          />
-        </View>
+        <SearchBar
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search by name or @username..."
+          autoCapitalize="none"
+          autoCorrect={false}
+          containerClassName="mb-3"
+        />
 
         {loading && rows.length === 0 ? (
           <ActivityIndicator className="mt-12" color="#5f9470" />

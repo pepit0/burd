@@ -4,11 +4,11 @@ import {
   RefreshControl,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Filter, Search } from "lucide-react-native";
+import { Filter } from "lucide-react-native";
+import { SearchBar } from "@/components/SearchBar";
 import { ActivityRow } from "@/components/ActivityRow";
 import { FilterSheet } from "@/components/FilterSheet";
 import { ScrollScreen } from "@/components/ScrollScreen";
@@ -77,7 +77,7 @@ export default function HomeScreen() {
   const userId = user?.id ?? null;
 
   const { coords, status: locStatus, refresh: refreshLocation } = useCurrentLocation();
-  const [radiusKm, setRadiusKm] = useState(25);
+  const [radiusKm, setRadiusKm] = useState<number | null>(25);
   const [tab, setTab] = useState<Tab>("for_you");
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -90,7 +90,7 @@ export default function HomeScreen() {
     if (!userId) return;
     getMyProfile(userId)
       .then((p) => {
-        if (p?.search_radius_km) setRadiusKm(p.search_radius_km);
+        if (p) setRadiusKm(p.search_radius_km ?? null);
       })
       .catch(() => {});
   }, [userId]);
@@ -168,16 +168,11 @@ export default function HomeScreen() {
   const toolbar = (
     <View className="gap-3 px-4">
       {!isActivity && (
-        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-          <Search size={14} color="#8a9e82" />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search sightings, species, locations..."
-            placeholderTextColor="#8a9e82"
-            className="flex-1 font-sans text-sm text-foreground"
-          />
-        </View>
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search sightings, species, locations..."
+        />
       )}
 
       <ScrollView

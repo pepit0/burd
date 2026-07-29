@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, ShieldAlert } from "lucide-react-native";
 import { FollowButton } from "@/components/FollowButton";
 import { DisplayNameText } from "@/components/DisplayNameText";
-import { ProfileBadges } from "@/components/ProfileBadges";
+import { ProfileBadgesPreview } from "@/components/ProfileBadges";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
 import {
   filterProfileSightings,
@@ -24,10 +24,9 @@ import { SightingPostsGrid } from "@/components/SightingPostsGrid";
 import { UserModerationSheet } from "@/components/UserModerationSheet";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useProfileBadges } from "@/hooks/useProfileBadges";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useReposts } from "@/hooks/useReposts";
-import { buildProfileBadges } from "@/lib/profileBadges";
-import { rarityForSighting } from "@/lib/rarity";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 
@@ -64,25 +63,7 @@ export default function UserProfileScreen() {
     () => new Set(sightings.map((s) => s.species.toLowerCase())).size,
     [sightings],
   );
-  const photoCount = useMemo(
-    () => sightings.filter((s) => s.photo_url).length,
-    [sightings],
-  );
-  const rareCount = useMemo(
-    () => sightings.filter((s) => rarityForSighting(s) === "rare").length,
-    [sightings],
-  );
-
-  const badges = useMemo(
-    () =>
-      buildProfileBadges({
-        sightingsCount: sightings.length,
-        photoCount,
-        rareCount,
-        following: friends,
-      }),
-    [sightings.length, photoCount, rareCount, friends],
-  );
+  const { badges, earnedCount } = useProfileBadges(id ?? null, sightings, friends);
 
   const filteredSightings = useMemo(
     () => filterProfileSightings(sightings, postsFilter),
@@ -236,8 +217,12 @@ export default function UserProfileScreen() {
           </View>
 
           <View className="mt-8 px-4">
-            <Text className="mb-3 font-serif-semibold text-base text-foreground">Badges</Text>
-            <ProfileBadges badges={badges} />
+            <ProfileBadgesPreview
+              badges={badges}
+              earnedCount={earnedCount}
+              userId={profileId}
+              username={profile.username}
+            />
           </View>
         </ScrollView>
       )}

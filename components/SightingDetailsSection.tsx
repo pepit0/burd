@@ -11,6 +11,11 @@ import {
 import { RarityBadge } from "@/components/RarityBadge";
 import { detectionSourceLabel, formatPhotoAccuracy } from "@/lib/fusePredictions";
 import {
+  canViewPreciseSightingLocation,
+  publicSightingArea,
+  resolvePublicSightingArea,
+} from "@/lib/locationPrivacy";
+import {
   formatDetailDate,
   formatDetailTime,
   observedDate,
@@ -35,33 +40,55 @@ function DetailLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function SightingDetailsSection({ sighting }: { sighting: Sighting }) {
+export function SightingDetailsSection({
+  sighting,
+  viewerUserId,
+}: {
+  sighting: Sighting;
+  viewerUserId?: string | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [resolvedCity, setResolvedCity] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
+  const [resolvedArea, setResolvedArea] = useState<string | null>(null);
+
+  const isOwner = canViewPreciseSightingLocation(sighting, viewerUserId ?? null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [city, address] = await Promise.all([
-        resolveSightingCity(sighting),
-        resolveSightingAddress(sighting),
-      ]);
+      if (isOwner) {
+        const [city, address] = await Promise.all([
+          resolveSightingCity(sighting),
+          resolveSightingAddress(sighting),
+        ]);
+        if (!cancelled) {
+          setResolvedCity(city);
+          setResolvedAddress(address);
+          setResolvedArea(null);
+        }
+        return;
+      }
+
+      const area =
+        publicSightingArea(sighting) ?? (await resolvePublicSightingArea(sighting));
       if (!cancelled) {
-        setResolvedCity(city);
-        setResolvedAddress(address);
+        setResolvedArea(area);
+        setResolvedCity(null);
+        setResolvedAddress(null);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [sighting]);
+  }, [isOwner, sighting]);
 
   const when = observedDate(sighting);
   const rarity = rarityForSighting(sighting);
   const displayCity = resolvedCity ?? sightingCity(sighting);
   const displayAddress = resolvedAddress ?? sightingAddress(sighting);
+  const displayArea = resolvedArea ?? publicSightingArea(sighting);
   const photoAccuracy = formatPhotoAccuracy(sighting);
   const showSoundBanner =
     sighting.detected_by === "audio" && sighting.confidence != null;
@@ -113,25 +140,33 @@ export function SightingDetailsSection({ sighting }: { sighting: Sighting }) {
             {photoAccuracy ? (
               <DetailLine label="Photo accuracy" value={photoAccuracy} />
             ) : null}
-            {displayCity ? <DetailLine label="City" value={displayCity} /> : null}
-            {displayAddress ? (
-              <DetailLine label="Address" value={displayAddress} />
-            ) : null}
-            {sighting.location_name &&
-            sighting.location_name !== displayAddress ? (
-              <DetailLine label="Place" value={sighting.location_name} />
+            {isOwner ? (
+              <>
+                {displayCity ? <DetailLine label="City" value={displayCity} /> : null}
+                {displayAddress ? (
+                  <DetailLine label="Address" value={displayAddress} />
+                ) : null}
+                {sighting.location_name &&
+                sighting.location_name !== displayAddress ? (
+                  <DetailLine label="Place" value={sighting.location_name} />
+                ) : null}
+              </>
+            ) : displayArea ? (
+              <DetailLine label="Area" value={displayArea} />
             ) : null}
           </View>
 
-          <Pressable
-            onPress={() => router.push(`/sighting/${sighting.id}`)}
-            className="flex-row items-center justify-center gap-2 rounded-xl border border-border bg-card py-2.5 active:opacity-80"
-          >
-            <ExternalLink size={14} color="#5f9470" />
-            <Text className="font-sans-medium text-sm text-primary">
-              Open full sighting record
-            </Text>
-          </Pressable>
+          {isOwner ? (
+            <Pressable
+              onPress={() => router.push(`/sighting/${sighting.id}`)}
+              className="flex-row items-center justify-center gap-2 rounded-xl border border-border bg-card py-2.5 active:opacity-80"
+            >
+              <ExternalLink size={14} color="#5f9470" />
+              <Text className="font-sans-medium text-sm text-primary">
+                Open full sighting record
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>

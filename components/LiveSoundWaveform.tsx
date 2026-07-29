@@ -43,7 +43,7 @@ function WaveBar({
         barMinHeight,
         Math.min(barMaxHeight, level * jitter * barMaxHeight + barMinHeight + 4),
       );
-      height.value = withTiming(target, { duration: 120 });
+      height.value = withTiming(target, { duration: 16 });
       return;
     }
 

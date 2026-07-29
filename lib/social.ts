@@ -241,7 +241,7 @@ function attachStatus(
 export async function getNearbyBirders(
   lat: number,
   lng: number,
-  radiusKm: number,
+  radiusKm: number | null,
   currentUserId: string,
   query = "",
 ): Promise<UserListItem[]> {
@@ -272,7 +272,7 @@ export async function getNearbyBirders(
       profile.latitude as number,
       profile.longitude as number,
     );
-    if (distance > radiusKm) continue;
+    if (radiusKm != null && distance > radiusKm) continue;
 
     const existing = map.get(profile.id as string);
     if (existing) {

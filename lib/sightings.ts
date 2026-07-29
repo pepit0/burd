@@ -1,5 +1,8 @@
 import { decode } from "base64-arraybuffer";
 import { getCommentCountsForSightings } from "@/lib/comments";
+import { redactSightingLocation, redactSightingLocations } from "@/lib/locationPrivacy";
+import { effectiveLocationPolicy } from "@/lib/privacySettings";
+import { profilePrivacyDefaults } from "@/lib/profilePreferences";
 import { getMyFriendIds } from "@/lib/social";
 import { supabase } from "@/lib/supabase";
 import { journalLogDate } from "@/lib/sightingFormat";
@@ -10,12 +13,13 @@ import type {
   Profile,
   PublishedPostUpdate,
   Sighting,
+  SightingVisibility,
 } from "@/types";
 
 export async function getNearbyFeed(
   lat: number,
   lng: number,
-  radiusKm: number,
+  radiusKm: number | null,
 ): Promise<FeedSighting[]> {
   const { data, error } = await supabase.rpc("nearby_sightings", {
     in_lat: lat,
@@ -61,8 +65,8 @@ export async function getFollowingFeed(userId: string): Promise<FeedSighting[]> 
   return withCommentCounts(rows);
 }
 
-/** Newest published sightings worldwide. */
-export async function getGlobalFeed(): Promise<FeedSighting[]> {
+/** Newest published sightings worldwide (raw rows). */
+async function fetchGlobalFeedRows(): Promise<FeedSighting[]> {
   const { data, error } = await supabase
     .from("sighting_feed")
     .select("*")
@@ -70,65 +74,66 @@ export async function getGlobalFeed(): Promise<FeedSighting[]> {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
-  return withCommentCounts((data ?? []) as FeedSighting[]);
+  return (data ?? []) as FeedSighting[];
+}
+
+/** Newest published sightings worldwide. */
+export async function getGlobalFeed(): Promise<FeedSighting[]> {
+  return withCommentCounts(await fetchGlobalFeedRows());
+}
+
+async function getViewerUserId(): Promise<string | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user?.id ?? null;
 }
 
 async function withCommentCounts(rows: FeedSighting[]): Promise<FeedSighting[]> {
+  const viewerUserId = await getViewerUserId();
   const counts = await getCommentCountsForSightings(rows.map((row) => row.id));
-  return rows.map((row) => ({
+  const withCounts = rows.map((row) => ({
     ...row,
     comment_count: counts.get(row.id) ?? 0,
   }));
+  return redactSightingLocations(withCounts, viewerUserId);
 }
 
-function forYouScore(row: FeedSighting): number {
-  const ageHours =
-    (Date.now() - new Date(row.created_at).getTime()) / (1000 * 60 * 60);
-  const recency = Math.max(0, 72 - ageHours) / 72;
-  return row.like_count * 3 + recency * 2 + (row.photo_url ? 0.5 : 0);
+function sortFeedNewestFirst(rows: FeedSighting[]): FeedSighting[] {
+  return [...rows].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
 }
 
-function rankForYouCandidates(
-  candidates: FeedSighting[],
-  friendIds: Set<string>,
-): FeedSighting[] {
-  return candidates
-    .filter((row) => !friendIds.has(row.user_id))
-    .sort((a, b) => forYouScore(b) - forYouScore(a))
-    .slice(0, 100);
-}
-
-/** Nearby and suggested posts, including your own published sightings. */
+/** Discovery feed: global + nearby suggestions and your posts (friends excluded). */
 export async function getForYouFeed(
   userId: string,
   lat: number | null,
   lng: number | null,
-  radiusKm: number,
+  radiusKm: number | null,
 ): Promise<FeedSighting[]> {
   const friendIds = await getMyFriendIds(userId);
-  const ownRows = await getMyPublishedFeedRows(userId);
 
-  let candidates = mergeFeedRows(
+  const [ownRows, globalRows, nearbyRows] = await Promise.all([
+    getMyPublishedFeedRows(userId),
+    fetchGlobalFeedRows(),
     lat != null && lng != null
-      ? await getNearbyFeed(lat, lng, radiusKm * 1.5)
-      : await getGlobalFeed(),
-    ownRows,
-  );
+      ? getNearbyFeed(lat, lng, radiusKm != null ? radiusKm * 1.5 : null)
+      : Promise.resolve([] as FeedSighting[]),
+  ]);
 
-  let filtered = rankForYouCandidates(candidates, friendIds);
-
-  // Nearby can be sparse — keep showing suggestions instead of an empty feed.
-  if (filtered.length === 0 && lat != null && lng != null) {
-    candidates = mergeFeedRows(await getGlobalFeed(), ownRows);
-    filtered = rankForYouCandidates(candidates, friendIds);
-  }
+  const filtered = sortFeedNewestFirst(
+    mergeFeedRows(globalRows, nearbyRows, ownRows).filter(
+      (row) => !friendIds.has(row.user_id),
+    ),
+  ).slice(0, 100);
 
   return withCommentCounts(filtered);
 }
 
 export async function getMySightings(
   userId: string,
-  options?: { publishedOnly?: boolean },
+  options?: { publishedOnly?: boolean; viewerUserId?: string | null },
 ): Promise<Sighting[]> {
   let query = supabase
     .from("sightings")
@@ -144,18 +149,27 @@ export async function getMySightings(
   const { data, error } = await query;
   if (error) throw error;
   const rows = ((data ?? []) as Sighting[]).filter((row) => row.user_id === userId);
-  return rows.sort(
+  const sorted = rows.sort(
     (a, b) => journalLogDate(b).getTime() - journalLogDate(a).getTime(),
   );
+  const viewerUserId = options?.viewerUserId ?? userId;
+  return redactSightingLocations(sorted, viewerUserId);
 }
 
 export async function publishSighting(
   userId: string,
   sightingId: string,
+  visibility?: SightingVisibility,
 ): Promise<void> {
+  const update: Record<string, unknown> = {
+    published_at: new Date().toISOString(),
+  };
+  if (visibility) {
+    update.visibility = visibility;
+  }
   const { data, error } = await supabase
     .from("sightings")
-    .update({ published_at: new Date().toISOString() })
+    .update(update)
     .eq("id", sightingId)
     .eq("user_id", userId)
     .is("published_at", null)
@@ -187,32 +201,23 @@ export async function unpublishSighting(
 }
 
 export async function updateMyJournalSighting(
-  userId: string,
+  _userId: string,
   sightingId: string,
   input: JournalSightingUpdate,
 ): Promise<void> {
-  const { data, error } = await supabase
-    .from("sightings")
-    .update({
-      species: input.species,
-      scientific_name: input.scientific_name ?? null,
-      location_name: input.location_name ?? null,
-      location_city: input.location_city ?? null,
-      location_address: input.location_address ?? null,
-      observed_at: input.observed_at ?? null,
-      rarity: input.rarity,
-      count: input.count,
-      notes: input.notes ?? null,
-    })
-    .eq("id", sightingId)
-    .eq("user_id", userId)
-    .select("id")
-    .maybeSingle();
-
+  const { error } = await supabase.rpc("update_my_journal_sighting", {
+    p_sighting_id: sightingId,
+    p_species: input.species,
+    p_scientific_name: input.scientific_name ?? "",
+    p_notes: input.notes ?? "",
+    p_location_name: input.location_name ?? "",
+    p_location_city: input.location_city ?? "",
+    p_location_address: input.location_address ?? "",
+    p_observed_at: input.observed_at ?? null,
+    p_rarity: input.rarity,
+    p_count: input.count,
+  });
   if (error) throw error;
-  if (!data) {
-    throw new Error("This sighting could not be updated.");
-  }
 }
 
 export async function updateMyPublishedPost(
@@ -288,7 +293,9 @@ export async function getSightingById(id: string): Promise<Sighting | null> {
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
-  return data as Sighting | null;
+  if (!data) return null;
+  const viewerUserId = await getViewerUserId();
+  return redactSightingLocation(data as Sighting, viewerUserId);
 }
 
 export async function getMyLikedIds(userId: string): Promise<Set<string>> {
@@ -385,9 +392,12 @@ export async function getRepostedSightings(userId: string): Promise<Sighting[]> 
     ((sightings ?? []) as Sighting[]).map((row) => [row.id, row]),
   );
 
-  return orderedIds
+  const rows = orderedIds
     .map((id) => byId.get(id))
     .filter((row): row is Sighting => row != null);
+
+  const viewerUserId = await getViewerUserId();
+  return redactSightingLocations(rows, viewerUserId);
 }
 
 export async function getMyProfile(userId: string): Promise<Profile | null> {
@@ -423,7 +433,7 @@ export async function getFollowCounts(
 
 export async function updateSearchRadius(
   userId: string,
-  km: number,
+  km: number | null,
 ): Promise<void> {
   const { error } = await supabase
     .from("profiles")
@@ -501,10 +511,106 @@ export async function uploadSightingPhoto(
   return data.publicUrl;
 }
 
+export async function updateSightingPrivacy(
+  userId: string,
+  sightingId: string,
+  fields: {
+    visibility?: SightingVisibility;
+    share_exact_coordinates?: boolean;
+    location_fuzz_km?: number;
+  },
+  profile?: Profile | null,
+): Promise<void> {
+  const { data: existing, error: fetchError } = await supabase
+    .from("sightings")
+    .select("*")
+    .eq("id", sightingId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+  if (!existing) throw new Error("Sighting not found.");
+
+  const sighting = existing as Sighting;
+  const defaults = profilePrivacyDefaults(profile ?? null);
+  const shareExact =
+    fields.share_exact_coordinates ??
+    sighting.share_exact_coordinates ??
+    defaults.shareExactCoordinates;
+  const fuzzKm =
+    fields.location_fuzz_km ?? sighting.location_fuzz_km ?? defaults.locationFuzzKm;
+
+  const policy = effectiveLocationPolicy({
+    latitude: sighting.latitude,
+    longitude: sighting.longitude,
+    shareExactCoordinates: shareExact,
+    locationFuzzKm: fuzzKm,
+    scientificName: sighting.scientific_name,
+    species: sighting.species,
+  });
+
+  const { error } = await supabase
+    .from("sightings")
+    .update({
+      ...fields,
+      public_latitude: policy.publicLatitude,
+      public_longitude: policy.publicLongitude,
+      location_obscured_reason: policy.locationObscuredReason,
+    })
+    .eq("id", sightingId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+function buildLocationFields(
+  input: NewSightingInput,
+  profile: Profile | null,
+): {
+  public_latitude: number | null;
+  public_longitude: number | null;
+  location_obscured_reason: Sighting["location_obscured_reason"];
+  share_exact_coordinates: boolean;
+  location_fuzz_km: number;
+  visibility: SightingVisibility | null;
+} {
+  const defaults = profilePrivacyDefaults(profile);
+  const shareExact = input.share_exact_coordinates ?? defaults.shareExactCoordinates;
+  const fuzzKm = input.location_fuzz_km ?? defaults.locationFuzzKm;
+  const policy = effectiveLocationPolicy({
+    latitude: input.latitude,
+    longitude: input.longitude,
+    shareExactCoordinates: shareExact,
+    locationFuzzKm: fuzzKm,
+    scientificName: input.scientific_name,
+    species: input.species,
+  });
+
+  const visibility = input.publish
+    ? input.visibility ?? defaults.defaultVisibility
+    : input.visibility ?? null;
+
+  return {
+    public_latitude: policy.publicLatitude,
+    public_longitude: policy.publicLongitude,
+    location_obscured_reason: policy.locationObscuredReason,
+    share_exact_coordinates: shareExact,
+    location_fuzz_km: policy.effectiveFuzzKm,
+    visibility: visibility === "private" && input.publish ? "public" : visibility,
+  };
+}
+
 export async function createSighting(
   userId: string,
   input: NewSightingInput,
+  profile?: Profile | null,
 ): Promise<string> {
+  let ownerProfile = profile;
+  if (!ownerProfile) {
+    ownerProfile = await getMyProfile(userId);
+  }
+
+  const locationFields = buildLocationFields(input, ownerProfile);
+  const publish = input.publish && locationFields.visibility !== "private";
+
   const { data, error } = await supabase
     .from("sightings")
     .insert({
@@ -525,7 +631,13 @@ export async function createSighting(
       audio_predictions: input.audio_predictions ?? null,
       confidence: input.confidence ?? null,
       detected_by: input.detected_by ?? "manual",
-      published_at: input.publish ? new Date().toISOString() : null,
+      published_at: publish ? new Date().toISOString() : null,
+      visibility: publish ? locationFields.visibility : null,
+      share_exact_coordinates: locationFields.share_exact_coordinates,
+      location_fuzz_km: locationFields.location_fuzz_km,
+      public_latitude: locationFields.public_latitude,
+      public_longitude: locationFields.public_longitude,
+      location_obscured_reason: locationFields.location_obscured_reason,
     })
     .select("id")
     .single();

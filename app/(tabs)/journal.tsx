@@ -5,7 +5,6 @@ import {
   Pressable,
   RefreshControl,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -18,12 +17,12 @@ import {
   Filter,
   MapPin,
   Plus,
-  Search,
   Trash2,
   Volume2,
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
+import { SearchBar } from "@/components/SearchBar";
 import { FilterSheet } from "@/components/FilterSheet";
 import { RarityBadge } from "@/components/RarityBadge";
 import { ScrollScreen } from "@/components/ScrollScreen";
@@ -280,7 +279,7 @@ export default function JournalScreen() {
     mediaTab === "sounds"
       ? "No sound sightings yet. Use Sound ID or the camera mic to log one."
       : mediaTab === "drafts"
-        ? "No drafts yet. Photos saved offline or when ID is slow will show up here."
+        ? "No drafts yet. Photos saved while offline or on a poor connection will show up here."
         : "No photo sightings yet. Tap the + to log your first bird.";
 
   function renderJournalEntry(e: Sighting) {
@@ -383,14 +382,11 @@ export default function JournalScreen() {
       </View>
 
       <View className="flex-row items-center gap-2">
-        <View className="flex-1 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-          <Search size={14} color="#8a9e82" />
-          <TextInput
+        <View className="flex-1">
+          <SearchBar
             value={search}
             onChangeText={setSearch}
             placeholder="Search species, locations..."
-            placeholderTextColor="#8a9e82"
-            className="flex-1 font-sans text-sm text-foreground"
           />
         </View>
         <Pressable

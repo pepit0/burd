@@ -6,7 +6,6 @@ import {
   RefreshControl,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import {
@@ -22,12 +21,12 @@ import {
   Clock,
   Feather,
   MapPin,
-  Search,
   Volume2,
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
 import { AudioPostThumb } from "@/components/AudioPostThumb";
+import { SearchBar } from "@/components/SearchBar";
 import { useAuth } from "@/hooks/useAuth";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useResolvedCities } from "@/hooks/useResolvedCities";
@@ -188,16 +187,11 @@ export default function UserJournalScreen() {
           })}
         </View>
 
-        <View className="flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-          <Search size={14} color="#8a9e82" />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search species, locations..."
-            placeholderTextColor="#8a9e82"
-            className="flex-1 font-sans text-sm text-foreground"
-          />
-        </View>
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search species, locations..."
+        />
 
         <View className="flex-row items-center justify-start gap-2">
           {MEDIA_TABS.map((tab) => {

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Line, Polyline, Rect } from "react-native-svg";
-import { LiveSoundFeatureStream } from "@/lib/liveSoundFeatures";
+import { runAnimationFrameLoop, smoothStep } from "@/lib/animationFrameLoop";
+import { LiveSoundFeatureStream, MAX_SPEC_COLUMNS } from "@/lib/liveSoundFeatures";
 
 const FREQ_BINS = 24;
 const FREQ_LABELS = ["4k", "2k", "0"] as const;
@@ -10,9 +11,11 @@ const STRIP_HEIGHT = 52;
 const WAVE_BARS = 48;
 const PANEL_PAD = 8;
 const STRIP_GAP = 4;
+/** New spectrogram column cadence — keeps heatmap smooth without 60 cols/sec. */
+const SPEC_COLUMN_MS = 33;
 
 interface LiveSoundSpaceVisualizerProps {
-  level: number;
+  levelRef: MutableRefObject<number>;
   /** Live mic updates while recording. */
   active: boolean;
   /** Keep showing the last capture until the session is cleared. */
@@ -35,16 +38,122 @@ function waveBarColor(amp: number): string {
   )}, ${0.45 + t * 0.55})`;
 }
 
+const SpectrogramStrip = memo(function SpectrogramStrip({
+  columns,
+  plotWidth,
+  revision,
+}: {
+  columns: readonly number[][];
+  plotWidth: number;
+  revision: number;
+}) {
+  void revision;
+  const visibleColumns = columns.slice(-MAX_SPEC_COLUMNS);
+  const cellW = plotWidth / Math.max(visibleColumns.length, 1);
+  const cellH = STRIP_HEIGHT / FREQ_BINS;
+
+  if (plotWidth <= 0) return null;
+
+  return (
+    <Svg width={plotWidth} height={STRIP_HEIGHT}>
+      <Rect x={0} y={0} width={plotWidth} height={STRIP_HEIGHT} fill="#0e130e" />
+      <Line
+        x1={0}
+        y1={STRIP_HEIGHT / 2}
+        x2={plotWidth}
+        y2={STRIP_HEIGHT / 2}
+        stroke="rgba(138, 158, 130, 0.14)"
+        strokeWidth={1}
+      />
+      {visibleColumns.map((bins, colIndex) =>
+        bins.map((energy, binIndex) => {
+          if (energy <= 0) return null;
+          const x = colIndex * cellW;
+          if (x >= plotWidth) return null;
+          const w = Math.min(Math.max(1, cellW - 0.15), plotWidth - x);
+          return (
+            <Rect
+              key={`${colIndex}-${binIndex}`}
+              x={x}
+              y={STRIP_HEIGHT - (binIndex + 1) * cellH}
+              width={w}
+              height={cellH + 0.15}
+              fill={specColor(energy)}
+            />
+          );
+        }),
+      )}
+    </Svg>
+  );
+});
+
+const WaveformStrip = memo(function WaveformStrip({
+  waveSamples,
+  wavePoints,
+  plotWidth,
+  revision,
+}: {
+  waveSamples: readonly number[];
+  wavePoints: string;
+  plotWidth: number;
+  revision: number;
+}) {
+  void revision;
+  if (plotWidth <= 0) return null;
+
+  const barW = plotWidth / WAVE_BARS;
+
+  return (
+    <Svg width={plotWidth} height={STRIP_HEIGHT}>
+      <Rect x={0} y={0} width={plotWidth} height={STRIP_HEIGHT} fill="#0e130e" />
+      <Line
+        x1={0}
+        y1={STRIP_HEIGHT / 2}
+        x2={plotWidth}
+        y2={STRIP_HEIGHT / 2}
+        stroke="rgba(138, 158, 130, 0.2)"
+        strokeWidth={1}
+      />
+      {waveSamples.map((amp, index) => {
+        const h = Math.max(2, amp * STRIP_HEIGHT * 0.88);
+        const x = index * barW;
+        const y = (STRIP_HEIGHT - h) / 2;
+        return (
+          <Rect
+            key={`wave-${index}`}
+            x={x + barW * 0.12}
+            y={y}
+            width={Math.max(1.5, barW * 0.76)}
+            height={h}
+            rx={1}
+            fill={waveBarColor(amp)}
+          />
+        );
+      })}
+      {wavePoints ? (
+        <Polyline
+          points={wavePoints}
+          fill="none"
+          stroke="rgba(168, 212, 180, 0.55)"
+          strokeWidth={1.25}
+        />
+      ) : null}
+    </Svg>
+  );
+});
+
 export function LiveSoundSpaceVisualizer({
-  level,
+  levelRef,
   active,
   visible,
 }: LiveSoundSpaceVisualizerProps) {
   const streamRef = useRef(new LiveSoundFeatureStream(FREQ_BINS));
   const startedAtRef = useRef<number | null>(null);
+  const displayLevelRef = useRef(0);
   const [sampleHz, setSampleHz] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [frame, setFrame] = useState(0);
+  const [waveFrame, setWaveFrame] = useState(0);
+  const [specFrame, setSpecFrame] = useState(0);
   const [panelWidth, setPanelWidth] = useState(0);
 
   const plotWidth = Math.max(
@@ -55,9 +164,11 @@ export function LiveSoundSpaceVisualizer({
   useEffect(() => {
     if (!visible) {
       streamRef.current.reset();
+      displayLevelRef.current = 0;
       setSampleHz(0);
       setElapsedSec(0);
-      setFrame(0);
+      setWaveFrame(0);
+      setSpecFrame(0);
       startedAtRef.current = null;
       return;
     }
@@ -69,36 +180,50 @@ export function LiveSoundSpaceVisualizer({
       return;
     }
 
-    const sample = streamRef.current.push(level);
-    setSampleHz(sample.hz);
-    setFrame((tick) => tick + 1);
-  }, [visible, active, level]);
-
-  useEffect(() => {
-    if (!visible || !active) return;
     if (startedAtRef.current == null) {
       startedAtRef.current = Date.now();
     }
-    const timer = setInterval(() => {
-      if (startedAtRef.current == null) return;
-      setElapsedSec((Date.now() - startedAtRef.current) / 1000);
-    }, 250);
-    return () => clearInterval(timer);
-  }, [visible, active]);
 
-  const levels = streamRef.current.getLevels();
+    let specAccumulator = 0;
+    let elapsedAccumulator = 0;
+
+    const cancel = runAnimationFrameLoop((deltaMs) => {
+      const target = levelRef.current;
+      const blend = smoothStep(deltaMs, 28);
+      displayLevelRef.current +=
+        (target - displayLevelRef.current) * blend;
+
+      streamRef.current.pushWave(displayLevelRef.current);
+      setWaveFrame((tick) => tick + 1);
+
+      specAccumulator += deltaMs;
+      if (specAccumulator >= SPEC_COLUMN_MS) {
+        specAccumulator = 0;
+        const sample = streamRef.current.pushSpectrogramColumn();
+        setSampleHz((current) =>
+          Math.abs(current - sample.hz) >= 1 ? sample.hz : current,
+        );
+        setSpecFrame((tick) => tick + 1);
+      }
+
+      elapsedAccumulator += deltaMs;
+      if (elapsedAccumulator >= 250 && startedAtRef.current != null) {
+        elapsedAccumulator = 0;
+        setElapsedSec((Date.now() - startedAtRef.current) / 1000);
+      }
+    });
+
+    return cancel;
+  }, [visible, active, levelRef]);
+
   const columns = streamRef.current.getColumns();
-  void frame;
-
-  const hasCapture = columns.length > 0 || startedAtRef.current != null;
-
-  const cellW = plotWidth / Math.max(columns.length, 1);
-  const cellH = STRIP_HEIGHT / FREQ_BINS;
-  const waveSamples = levels.slice(-WAVE_BARS);
+  const waveSamples = streamRef.current.getWaveLevels().slice(-WAVE_BARS);
+  void waveFrame;
+  void specFrame;
 
   const wavePoints = useMemo(() => {
-    const samples = streamRef.current.getLevels().slice(-WAVE_BARS);
-    if (samples.length < 2) return "";
+    const samples = streamRef.current.getWaveLevels().slice(-WAVE_BARS);
+    if (samples.length < 2 || plotWidth <= 0) return "";
     const midY = STRIP_HEIGHT / 2;
     const step = plotWidth / Math.max(samples.length - 1, 1);
     return samples
@@ -108,7 +233,9 @@ export function LiveSoundSpaceVisualizer({
         return `${x},${y}`;
       })
       .join(" ");
-  }, [plotWidth, frame]);
+  }, [plotWidth, waveFrame]);
+
+  const hasCapture = columns.length > 0 || startedAtRef.current != null;
 
   if (!visible) return null;
 
@@ -150,44 +277,11 @@ export function LiveSoundSpaceVisualizer({
           </View>
 
           <View style={[styles.plotClip, { width: plotWidth, height: STRIP_HEIGHT }]}>
-            {plotWidth > 0 ? (
-            <Svg width={plotWidth} height={STRIP_HEIGHT}>
-              <Rect
-                x={0}
-                y={0}
-                width={plotWidth}
-                height={STRIP_HEIGHT}
-                fill="#0e130e"
-              />
-              <Line
-                x1={0}
-                y1={STRIP_HEIGHT / 2}
-                x2={plotWidth}
-                y2={STRIP_HEIGHT / 2}
-                stroke="rgba(138, 158, 130, 0.14)"
-                strokeWidth={1}
-              />
-
-              {columns.map((bins, colIndex) =>
-                bins.map((energy, binIndex) => {
-                  if (energy <= 0) return null;
-                  const x = colIndex * cellW;
-                  if (x >= plotWidth) return null;
-                  const w = Math.min(Math.max(1, cellW - 0.15), plotWidth - x);
-                  return (
-                    <Rect
-                      key={`${colIndex}-${binIndex}`}
-                      x={x}
-                      y={STRIP_HEIGHT - (binIndex + 1) * cellH}
-                      width={w}
-                      height={cellH + 0.15}
-                      fill={specColor(energy)}
-                    />
-                  );
-                }),
-              )}
-            </Svg>
-            ) : null}
+            <SpectrogramStrip
+              columns={columns}
+              plotWidth={plotWidth}
+              revision={specFrame}
+            />
           </View>
         </View>
 
@@ -198,52 +292,12 @@ export function LiveSoundSpaceVisualizer({
             <Text className="font-mono text-[8px] text-muted-foreground/70">lvl</Text>
           </View>
           <View style={[styles.plotClip, { width: plotWidth, height: STRIP_HEIGHT }]}>
-            {plotWidth > 0 ? (
-            <Svg width={plotWidth} height={STRIP_HEIGHT}>
-              <Rect
-                x={0}
-                y={0}
-                width={plotWidth}
-                height={STRIP_HEIGHT}
-                fill="#0e130e"
-              />
-              <Line
-                x1={0}
-                y1={STRIP_HEIGHT / 2}
-                x2={plotWidth}
-                y2={STRIP_HEIGHT / 2}
-                stroke="rgba(138, 158, 130, 0.2)"
-                strokeWidth={1}
-              />
-
-              {waveSamples.map((amp, index) => {
-                const barW = plotWidth / WAVE_BARS;
-                const h = Math.max(2, amp * STRIP_HEIGHT * 0.88);
-                const x = index * barW;
-                const y = (STRIP_HEIGHT - h) / 2;
-                return (
-                  <Rect
-                    key={`wave-${index}`}
-                    x={x + barW * 0.12}
-                    y={y}
-                    width={Math.max(1.5, barW * 0.76)}
-                    height={h}
-                    rx={1}
-                    fill={waveBarColor(amp)}
-                  />
-                );
-              })}
-
-              {wavePoints ? (
-                <Polyline
-                  points={wavePoints}
-                  fill="none"
-                  stroke="rgba(168, 212, 180, 0.55)"
-                  strokeWidth={1.25}
-                />
-              ) : null}
-            </Svg>
-            ) : null}
+            <WaveformStrip
+              waveSamples={waveSamples}
+              wavePoints={wavePoints}
+              plotWidth={plotWidth}
+              revision={waveFrame}
+            />
           </View>
         </View>
 

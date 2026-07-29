@@ -24,7 +24,7 @@ interface UseProfile {
   refresh: () => Promise<void>;
   /** Reload in the background (e.g. when tab refocuses). */
   silentRefresh: () => Promise<void>;
-  setRadius: (km: number) => Promise<void>;
+  setRadius: (km: number | null) => Promise<void>;
   updateAvatar: (base64: string, ext?: string) => Promise<void>;
   updateDetails: (fields: ProfileDetailsUpdate) => Promise<void>;
 }
@@ -76,7 +76,7 @@ export function useProfile(userId: string | null): UseProfile {
   }, [load]);
 
   const setRadius = useCallback(
-    async (km: number) => {
+    async (km: number | null) => {
       if (!userId || !profile) return;
       const prev = profile.search_radius_km;
       setProfile({ ...profile, search_radius_km: km });

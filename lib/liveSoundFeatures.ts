@@ -7,7 +7,14 @@ export interface SoundSpaceSample {
   hz: number;
 }
 
-const HISTORY_MAX = 72;
+/** Waveform ring buffer — enough for the visible bar strip. */
+const WAVE_HISTORY = 64;
+
+/** Analysis window for pitch / timbre heuristics. */
+const ANALYSIS_HISTORY = 32;
+
+/** Cap spectrogram columns so SVG render cost stays flat over time. */
+export const MAX_SPEC_COLUMNS = 72;
 
 function mean(values: number[]): number {
   if (values.length === 0) return 0;
@@ -38,7 +45,7 @@ function slopeEnergy(values: number[]): number {
   return energy / Math.max(1, values.length - 1);
 }
 
-export function analyzeLevelHistory(levels: number[]): SoundSpaceSample {
+export function analyzeLevelHistory(levels: readonly number[]): SoundSpaceSample {
   const recent = levels.slice(-24);
   const amplitude = recent[recent.length - 1] ?? 0;
 
@@ -87,7 +94,8 @@ export function buildSpectrogramColumn(
 }
 
 export class LiveSoundFeatureStream {
-  private levels: number[] = [];
+  private waveLevels: number[] = [];
+  private analysisLevels: number[] = [];
   private columns: number[][] = [];
   private readonly freqBins: number;
 
@@ -96,28 +104,51 @@ export class LiveSoundFeatureStream {
   }
 
   reset(): void {
-    this.levels = [];
+    this.waveLevels = [];
+    this.analysisLevels = [];
     this.columns = [];
   }
 
-  push(level: number): SoundSpaceSample {
-    this.levels.push(level);
-    if (this.levels.length > HISTORY_MAX) {
-      this.levels.shift();
-      this.columns.shift();
+  /** High-rate waveform sample (call every animation frame). */
+  pushWave(level: number): void {
+    this.waveLevels.push(level);
+    if (this.waveLevels.length > WAVE_HISTORY) {
+      this.waveLevels.shift();
     }
-    const index = this.levels.length - 1;
-    this.columns.push(
-      buildSpectrogramColumn(this.levels, index, this.freqBins),
-    );
-    return analyzeLevelHistory(this.levels);
+
+    this.analysisLevels.push(level);
+    if (this.analysisLevels.length > ANALYSIS_HISTORY) {
+      this.analysisLevels.shift();
+    }
   }
 
-  getLevels(): readonly number[] {
-    return this.levels;
+  /** Lower-rate spectrogram column (call ~30 Hz). Returns latest pitch readout. */
+  pushSpectrogramColumn(): SoundSpaceSample {
+    const index = this.analysisLevels.length - 1;
+    if (index < 0) {
+      return { timbre: 0.5, pitch: 0.5, amplitude: 0, hz: 0 };
+    }
+
+    this.columns.push(
+      buildSpectrogramColumn(this.analysisLevels, index, this.freqBins),
+    );
+    if (this.columns.length > MAX_SPEC_COLUMNS) {
+      this.columns.shift();
+    }
+
+    return analyzeLevelHistory(this.analysisLevels);
+  }
+
+  getWaveLevels(): readonly number[] {
+    return this.waveLevels;
   }
 
   getColumns(): readonly number[][] {
     return this.columns;
+  }
+
+  /** @deprecated Use getWaveLevels */
+  getLevels(): readonly number[] {
+    return this.waveLevels;
   }
 }

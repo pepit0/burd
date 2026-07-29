@@ -1,26 +1,26 @@
 import { useEffect, useState } from "react";
 import type { CatalogSpecies } from "@/lib/speciesCatalog";
 import {
-  fetchFieldGuideAuthor,
-  type FieldGuideAuthor,
-} from "@/lib/speciesFieldGuideAuthor";
+  fetchSpeciesObservers,
+  type SpeciesObserver,
+} from "@/lib/speciesObservers";
 
-interface UseFieldGuideAuthorResult {
-  author: FieldGuideAuthor | null;
+interface UseSpeciesObserversResult {
+  observers: SpeciesObserver[];
   loading: boolean;
 }
 
-export function useFieldGuideAuthor(
+export function useSpeciesObservers(
   species: CatalogSpecies | undefined,
   authLoading: boolean,
   refreshKey = 0,
-): UseFieldGuideAuthorResult {
-  const [author, setAuthor] = useState<FieldGuideAuthor | null>(null);
+): UseSpeciesObserversResult {
+  const [observers, setObservers] = useState<SpeciesObserver[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!species || authLoading) {
-      setAuthor(null);
+      setObservers([]);
       setLoading(Boolean(species && authLoading));
       return;
     }
@@ -28,9 +28,9 @@ export function useFieldGuideAuthor(
     let cancelled = false;
     setLoading(true);
 
-    fetchFieldGuideAuthor(species)
+    fetchSpeciesObservers(species)
       .then((result) => {
-        if (!cancelled) setAuthor(result);
+        if (!cancelled) setObservers(result);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -41,5 +41,5 @@ export function useFieldGuideAuthor(
     };
   }, [species?.id, authLoading, refreshKey]);
 
-  return { author, loading };
+  return { observers, loading };
 }

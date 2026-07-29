@@ -493,7 +493,9 @@ export default function SightingDetailScreen() {
                   value={sighting.location_name}
                 />
               ) : null}
-              {sighting.latitude != null && sighting.longitude != null ? (
+              {sighting.latitude != null &&
+              sighting.longitude != null &&
+              isOwner ? (
                 <DetailRow
                   icon={MapPin}
                   label="Coordinates"

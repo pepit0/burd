@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
@@ -12,6 +12,15 @@ import {
 export function usePushNotifications(userId: string | null) {
   const router = useRouter();
   const tokenRef = useRef<string | null>(null);
+  const [permissionGranted, setPermissionGranted] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    void Notifications.getPermissionsAsync().then(({ status }) => {
+      setPermissionGranted(status === "granted");
+    });
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -25,7 +34,11 @@ export function usePushNotifications(userId: string | null) {
     let cancelled = false;
     (async () => {
       const token = await registerForPushNotifications(userId);
-      if (!cancelled) tokenRef.current = token;
+      if (!cancelled) {
+        tokenRef.current = token;
+        const { status } = await Notifications.getPermissionsAsync();
+        setPermissionGranted(status === "granted");
+      }
     })();
 
     return () => {
@@ -54,4 +67,6 @@ export function usePushNotifications(userId: string | null) {
       sub.remove();
     };
   }, [router]);
+
+  return { permissionGranted };
 }
