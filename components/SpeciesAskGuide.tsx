@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { Send } from "lucide-react-native";
+import { IdDisclaimerBanner } from "@/components/IdDisclaimerBanner";
 import { askSpeciesGuide, type SpeciesChatMessage } from "@/lib/speciesAsk";
 import { getUserFacingMessage } from "@/lib/errors";
 
@@ -54,6 +55,7 @@ export function SpeciesAskGuide({
 
   return (
     <View className="gap-3 rounded-2xl border border-border bg-card p-4">
+        <IdDisclaimerBanner />
         <View>
           <Text className="font-sans-medium text-sm text-foreground">
             Ask about this bird

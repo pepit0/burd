@@ -14,6 +14,11 @@ export function observedDate(sighting: Sighting): Date {
   return new Date(sighting.observed_at ?? sighting.created_at);
 }
 
+/** When a post appeared on the feed or profile. Use for cards and post headers. */
+export function postedDate(sighting: Sighting): Date {
+  return new Date(sighting.published_at ?? sighting.created_at);
+}
+
 /** When the journal entry was added. Use for journal list sort, grouping, and row dates. */
 export function journalLogDate(sighting: Sighting): Date {
   return new Date(sighting.created_at);

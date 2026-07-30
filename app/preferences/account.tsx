@@ -12,7 +12,8 @@ import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Camera, Pencil } from "lucide-react-native";
-import { DisplayNameText } from "@/components/DisplayNameText";
+import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
+import { LinkableText } from "@/components/LinkableText";
 import { ProfileDetailsEditSheet } from "@/components/ProfileDetailsEditSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SettingsGroup } from "@/components/settings/SettingsGroup";
@@ -107,15 +108,18 @@ export default function AccountPreferencesScreen() {
                     )}
                   </View>
                 </Pressable>
-                <DisplayNameText
+                <DisplayNameWithBadges
                   text={displayName}
-                  className="mt-3 font-serif-semibold text-lg text-foreground"
+                  isVerified={profile?.is_verified}
+                  isBeta={profile?.is_beta}
+                  containerClassName="mt-3 justify-center"
+                  className="font-serif-semibold text-lg text-foreground"
                 />
                 <Text className="font-mono text-xs text-muted-foreground">@{profile?.username}</Text>
                 {profile?.bio ? (
-                  <Text className="mt-2 text-center font-sans text-sm text-muted-foreground">
+                  <LinkableText className="mt-2 text-center font-sans text-sm text-muted-foreground">
                     {profile.bio}
-                  </Text>
+                  </LinkableText>
                 ) : null}
                 <Pressable
                   onPress={() => setDetailsEditOpen(true)}

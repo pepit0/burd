@@ -7,16 +7,28 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Minus, Plus } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
+import { SightingPhotoCropModal } from "@/components/SightingPhotoCropModal";
 import { useAuth } from "@/hooks/useAuth";
+import { readPhotoBase64 } from "@/lib/captureDrafts";
 import { getUserFacingMessage } from "@/lib/errors";
 import { observedDate } from "@/lib/sightingFormat";
 import { lookupRegionalRarity, rarityForSighting } from "@/lib/rarity";
-import { getSightingById, updateMyJournalSighting } from "@/lib/sightings";
+import { isPhotoSighting } from "@/lib/sightingMedia";
+import {
+  SIGHTING_PHOTO_ASPECT,
+  type CroppedSightingPhoto,
+} from "@/lib/sightingPhotoFrame";
+import {
+  getSightingById,
+  updateMyJournalSighting,
+  uploadSightingPhoto,
+} from "@/lib/sightings";
 import type { Sighting } from "@/types";
 
 function toDateInputValue(date: Date): string {
@@ -61,6 +73,13 @@ export default function EditJournalSightingScreen() {
   const [count, setCount] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [photoDisplayUri, setPhotoDisplayUri] = useState<string | null>(null);
+  const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
+  const [cropSourceUri, setCropSourceUri] = useState<string | null>(null);
+  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
+  const [pendingPhotoBase64, setPendingPhotoBase64] = useState<string | null>(null);
+  const [photoChanged, setPhotoChanged] = useState(false);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
 
   useEffect(() => {
     if (!id || !userId) return;
@@ -90,6 +109,11 @@ export default function EditJournalSightingScreen() {
         setObservedDateInput(toDateInputValue(when));
         setObservedTimeInput(toTimeInputValue(when));
         setCount(row.count);
+        if (row.photo_url) {
+          setPhotoDisplayUri(row.photo_url);
+          setOriginalPhotoUri(row.photo_url);
+          setCropSourceUri(row.photo_url);
+        }
       } catch (e) {
         if (!cancelled) {
           Alert.alert("Could not load", getUserFacingMessage(e), [
@@ -105,6 +129,21 @@ export default function EditJournalSightingScreen() {
       cancelled = true;
     };
   }, [id, userId, router]);
+
+  function openPhotoCrop() {
+    const uri = originalPhotoUri ?? sighting?.photo_url ?? null;
+    if (!uri) return;
+    setCropSourceUri(uri);
+    setCropModalOpen(true);
+  }
+
+  function applyCroppedPhoto(cropped: CroppedSightingPhoto) {
+    setPendingPhotoUri(cropped.uri);
+    setPendingPhotoBase64(cropped.base64);
+    setPhotoDisplayUri(cropped.uri);
+    setPhotoChanged(true);
+    setCropModalOpen(false);
+  }
 
   async function handleSave() {
     if (!id || !userId || !species.trim() || submitting || !sighting) return;
@@ -124,6 +163,19 @@ export default function EditJournalSightingScreen() {
         lng: sighting.longitude,
         observedAt,
       });
+
+      let photoUrl: string | undefined;
+      if (photoChanged) {
+        let base64 = pendingPhotoBase64;
+        if (!base64 && pendingPhotoUri) {
+          base64 = await readPhotoBase64(pendingPhotoUri);
+        }
+        if (!base64) {
+          throw new Error("Could not read the cropped photo.");
+        }
+        photoUrl = await uploadSightingPhoto(userId, base64);
+      }
+
       await updateMyJournalSighting(userId, id, {
         species: species.trim(),
         scientific_name: scientific.trim() || null,
@@ -134,6 +186,7 @@ export default function EditJournalSightingScreen() {
         observed_at: observedAt,
         rarity,
         count,
+        photo_url: photoUrl ?? null,
       });
       Alert.alert(
         "Saved",
@@ -192,6 +245,26 @@ export default function EditJournalSightingScreen() {
             <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
               Changes here update your public post too. Remove from profile only if you want to hide
               it from the feed without deleting your journal entry.
+            </Text>
+          </View>
+        ) : null}
+
+        {isPhotoSighting(sighting) && photoDisplayUri ? (
+          <View className="mb-5 gap-2">
+            <Text className="font-sans text-xs text-muted-foreground">Photo</Text>
+            <Pressable
+              onPress={openPhotoCrop}
+              className="overflow-hidden rounded-2xl border border-border bg-muted/40 active:opacity-95"
+            >
+              <Image
+                source={{ uri: photoDisplayUri }}
+                style={{ width: "100%", aspectRatio: SIGHTING_PHOTO_ASPECT }}
+                contentFit="contain"
+                transition={200}
+              />
+            </Pressable>
+            <Text className="text-center font-sans text-xs text-muted-foreground">
+              Tap photo to crop or zoom
             </Text>
           </View>
         ) : null}
@@ -290,6 +363,13 @@ export default function EditJournalSightingScreen() {
           textAlignVertical="top"
         />
       </KeyboardScreen>
+
+      <SightingPhotoCropModal
+        visible={cropModalOpen}
+        uri={cropSourceUri}
+        onCancel={() => setCropModalOpen(false)}
+        onConfirm={applyCroppedPhoto}
+      />
     </SafeAreaView>
   );
 }

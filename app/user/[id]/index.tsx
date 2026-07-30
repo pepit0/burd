@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   Text,
@@ -9,9 +8,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronLeft, ShieldAlert } from "lucide-react-native";
+import { ChevronLeft, MoreHorizontal, ShieldAlert } from "lucide-react-native";
 import { FollowButton } from "@/components/FollowButton";
-import { DisplayNameText } from "@/components/DisplayNameText";
+import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
+import { ProfileAvatarPeek } from "@/components/ProfileAvatarPeek";
 import { ProfileBadgesPreview } from "@/components/ProfileBadges";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
 import {
@@ -20,8 +20,10 @@ import {
   type ProfilePostsFilter,
 } from "@/components/ProfilePostsFilter";
 import { ProfileStatsRow } from "@/components/ProfileStatsRow";
+import { LinkableText } from "@/components/LinkableText";
 import { SightingPostsGrid } from "@/components/SightingPostsGrid";
 import { UserModerationSheet } from "@/components/UserModerationSheet";
+import { UserOptionsMenu } from "@/components/UserOptionsMenu";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useProfileBadges } from "@/hooks/useProfileBadges";
@@ -37,6 +39,7 @@ export default function UserProfileScreen() {
   const currentUserId = user?.id ?? null;
   const { isAdmin } = useAdmin(currentUserId);
   const [moderationOpen, setModerationOpen] = useState(false);
+  const [userOptionsOpen, setUserOptionsOpen] = useState(false);
   const [postsFilter, setPostsFilter] = useState<ProfilePostsFilter>("all");
 
   const {
@@ -143,23 +146,12 @@ export default function UserProfileScreen() {
           <ProfileCoverBanner coverUrl={profile.cover_url} />
 
           <View className="-mt-9 px-4">
-            <View
-              className="mb-3 h-[72px] w-[72px] overflow-hidden rounded-full border-[3px] border-background"
-              style={{ backgroundColor: profile.avatar_color }}
-            >
-              {profile.avatar_url ? (
-                <Image
-                  source={{ uri: profile.avatar_url }}
-                  className="h-full w-full"
-                  resizeMode="cover"
-                />
-              ) : (
-                <View className="h-full w-full items-center justify-center">
-                  <Text className="font-serif-semibold text-2xl text-primary-foreground">
-                    {displayNamePlain.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
+            <View className="mb-3">
+              <ProfileAvatarPeek
+                avatarUrl={profile.avatar_url}
+                avatarColor={profile.avatar_color}
+                displayName={displayNamePlain}
+              />
             </View>
 
             {!isSelf ? (
@@ -179,13 +171,23 @@ export default function UserProfileScreen() {
                   onSecondaryPress={declineRequest}
                   size="md"
                 />
+                <Pressable
+                  onPress={() => setUserOptionsOpen(true)}
+                  className="rounded-full border border-border bg-card/90 p-2 active:opacity-90"
+                  accessibilityLabel="User options"
+                >
+                  <MoreHorizontal size={18} color="#8a9e82" />
+                </Pressable>
               </View>
             ) : null}
 
             <View className="flex-row items-center justify-between gap-3">
               <View className="min-w-0 flex-1">
-                <DisplayNameText
+                <DisplayNameWithBadges
                   text={displayName}
+                  isVerified={profile.is_verified}
+                  isBeta={profile.is_beta}
+                  badgeSize="md"
                   className="font-serif-semibold text-xl text-foreground"
                 />
                 <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
@@ -199,9 +201,9 @@ export default function UserProfileScreen() {
             </View>
 
             {profile.bio ? (
-              <Text className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
+              <LinkableText className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
                 {profile.bio}
-              </Text>
+              </LinkableText>
             ) : null}
           </View>
 
@@ -233,6 +235,17 @@ export default function UserProfileScreen() {
         onClose={() => setModerationOpen(false)}
         onUpdated={() => void refresh()}
       />
+
+      {profile ? (
+        <UserOptionsMenu
+          targetUserId={profile.id}
+          targetUsername={profile.username}
+          viewerUserId={currentUserId}
+          visible={userOptionsOpen}
+          onClose={() => setUserOptionsOpen(false)}
+          onBlocked={() => router.back()}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

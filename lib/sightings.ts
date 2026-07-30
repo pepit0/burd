@@ -5,7 +5,8 @@ import { effectiveLocationPolicy } from "@/lib/privacySettings";
 import { profilePrivacyDefaults } from "@/lib/profilePreferences";
 import { getMyFriendIds } from "@/lib/social";
 import { supabase } from "@/lib/supabase";
-import { journalLogDate } from "@/lib/sightingFormat";
+import { journalLogDate, postedDate } from "@/lib/sightingFormat";
+import { getSightingPhotos, insertSightingPhotos, isSightingPhotosSchemaMissing, sightingPhotosForDisplay } from "@/lib/sightingPhotos";
 import type {
   FeedSighting,
   JournalSightingUpdate,
@@ -36,7 +37,7 @@ async function getMyPublishedFeedRows(userId: string): Promise<FeedSighting[]> {
     .select("*")
     .eq("user_id", userId)
     .not("published_at", "is", null)
-    .order("created_at", { ascending: false })
+    .order("published_at", { ascending: false })
     .limit(100);
   if (error) throw error;
   return (data ?? []) as FeedSighting[];
@@ -50,7 +51,7 @@ function mergeFeedRows(...lists: FeedSighting[][]): FeedSighting[] {
     }
   }
   return [...byId.values()].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    (a, b) => postedDate(b).getTime() - postedDate(a).getTime(),
   );
 }
 
@@ -71,7 +72,7 @@ async function fetchGlobalFeedRows(): Promise<FeedSighting[]> {
     .from("sighting_feed")
     .select("*")
     .not("published_at", "is", null)
-    .order("created_at", { ascending: false })
+    .order("published_at", { ascending: false })
     .limit(100);
   if (error) throw error;
   return (data ?? []) as FeedSighting[];
@@ -101,7 +102,7 @@ async function withCommentCounts(rows: FeedSighting[]): Promise<FeedSighting[]> 
 
 function sortFeedNewestFirst(rows: FeedSighting[]): FeedSighting[] {
   return [...rows].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    (a, b) => postedDate(b).getTime() - postedDate(a).getTime(),
   );
 }
 
@@ -149,9 +150,12 @@ export async function getMySightings(
   const { data, error } = await query;
   if (error) throw error;
   const rows = ((data ?? []) as Sighting[]).filter((row) => row.user_id === userId);
-  const sorted = rows.sort(
-    (a, b) => journalLogDate(b).getTime() - journalLogDate(a).getTime(),
-  );
+  const sorted = rows.sort((a, b) => {
+    if (options?.publishedOnly) {
+      return postedDate(b).getTime() - postedDate(a).getTime();
+    }
+    return journalLogDate(b).getTime() - journalLogDate(a).getTime();
+  });
   const viewerUserId = options?.viewerUserId ?? userId;
   return redactSightingLocations(sorted, viewerUserId);
 }
@@ -205,7 +209,7 @@ export async function updateMyJournalSighting(
   sightingId: string,
   input: JournalSightingUpdate,
 ): Promise<void> {
-  const { error } = await supabase.rpc("update_my_journal_sighting", {
+  const payload = {
     p_sighting_id: sightingId,
     p_species: input.species,
     p_scientific_name: input.scientific_name ?? "",
@@ -216,7 +220,14 @@ export async function updateMyJournalSighting(
     p_observed_at: input.observed_at ?? null,
     p_rarity: input.rarity,
     p_count: input.count,
-  });
+    p_photo_url: input.photo_url ?? null,
+  };
+
+  let { error } = await supabase.rpc("update_my_journal_sighting", payload);
+  if (error && input.photo_url && isSightingPhotosSchemaMissing(error)) {
+    const { p_photo_url: _photoUrl, ...legacyPayload } = payload;
+    ({ error } = await supabase.rpc("update_my_journal_sighting", legacyPayload));
+  }
   if (error) throw error;
 }
 
@@ -269,6 +280,8 @@ export async function getFeedPostById(id: string): Promise<FeedSighting | null> 
     like_count: likesRes.count ?? 0,
     repost_count: repostsRes.count ?? 0,
     comment_count: commentCounts.get(id) ?? 0,
+    photos: sighting.photos,
+    photo_count: sighting.photo_count,
   };
 }
 
@@ -295,7 +308,26 @@ export async function getSightingById(id: string): Promise<Sighting | null> {
   if (error) throw error;
   if (!data) return null;
   const viewerUserId = await getViewerUserId();
-  return redactSightingLocation(data as Sighting, viewerUserId);
+  const sighting = await redactSightingLocation(data as Sighting, viewerUserId);
+
+  let photos: Sighting["photos"] = [];
+  try {
+    photos = await getSightingPhotos(id);
+  } catch {
+    photos = [];
+  }
+
+  const displayPhotos =
+    photos.length > 0 ? photos : sighting.photo_url ? sightingPhotosForDisplay(sighting) : [];
+
+  return {
+    ...sighting,
+    photos: displayPhotos,
+    photo_count:
+      displayPhotos.length > 0
+        ? displayPhotos.length
+        : sighting.photo_count ?? (sighting.photo_url ? 1 : 0),
+  };
 }
 
 export async function getMyLikedIds(userId: string): Promise<Set<string>> {
@@ -610,37 +642,65 @@ export async function createSighting(
 
   const locationFields = buildLocationFields(input, ownerProfile);
   const publish = input.publish && locationFields.visibility !== "private";
+  const photoRows =
+    input.photos?.filter((photo) => photo.photo_url?.trim()) ??
+    (input.photo_url
+      ? [
+          {
+            photo_url: input.photo_url,
+            captured_at: input.observed_at ?? null,
+            species: input.species,
+            scientific_name: input.scientific_name ?? null,
+            count: input.count,
+            confidence: input.confidence ?? null,
+            detected_by: input.detected_by ?? "manual",
+          },
+        ]
+      : []);
+  const primaryPhoto = photoRows[0] ?? null;
 
-  const { data, error } = await supabase
-    .from("sightings")
-    .insert({
-      user_id: userId,
-      species: input.species,
-      scientific_name: input.scientific_name ?? null,
-      location_name: input.location_name ?? null,
-      location_city: input.location_city ?? null,
-      location_address: input.location_address ?? null,
-      latitude: input.latitude ?? null,
-      longitude: input.longitude ?? null,
-      observed_at: input.observed_at ?? new Date().toISOString(),
-      rarity: input.rarity,
-      count: input.count,
-      notes: input.notes ?? null,
-      photo_url: input.photo_url ?? null,
-      audio_url: input.audio_url ?? null,
-      audio_predictions: input.audio_predictions ?? null,
-      confidence: input.confidence ?? null,
-      detected_by: input.detected_by ?? "manual",
-      published_at: publish ? new Date().toISOString() : null,
-      visibility: publish ? locationFields.visibility : null,
-      share_exact_coordinates: locationFields.share_exact_coordinates,
-      location_fuzz_km: locationFields.location_fuzz_km,
-      public_latitude: locationFields.public_latitude,
-      public_longitude: locationFields.public_longitude,
-      location_obscured_reason: locationFields.location_obscured_reason,
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return data.id as string;
+  const insertRow = {
+    user_id: userId,
+    species: primaryPhoto?.species?.trim() || input.species,
+    scientific_name:
+      primaryPhoto?.scientific_name?.trim() ||
+      input.scientific_name?.trim() ||
+      null,
+    location_name: input.location_name ?? null,
+    location_city: input.location_city ?? null,
+    location_address: input.location_address ?? null,
+    latitude: input.latitude ?? null,
+    longitude: input.longitude ?? null,
+    observed_at: input.observed_at ?? new Date().toISOString(),
+    rarity: input.rarity,
+    count: primaryPhoto?.count ?? input.count,
+    notes: input.notes ?? null,
+    photo_url: primaryPhoto?.photo_url ?? input.photo_url ?? null,
+    photo_count: photoRows.length,
+    audio_url: input.audio_url ?? null,
+    audio_predictions: input.audio_predictions ?? null,
+    confidence: primaryPhoto?.confidence ?? input.confidence ?? null,
+    detected_by: primaryPhoto?.detected_by ?? input.detected_by ?? "manual",
+    published_at: publish ? new Date().toISOString() : null,
+    visibility: publish ? locationFields.visibility : null,
+    share_exact_coordinates: locationFields.share_exact_coordinates,
+    location_fuzz_km: locationFields.location_fuzz_km,
+    public_latitude: locationFields.public_latitude,
+    public_longitude: locationFields.public_longitude,
+    location_obscured_reason: locationFields.location_obscured_reason,
+  };
+
+  let insertResult = await supabase.from("sightings").insert(insertRow).select("id").single();
+  if (insertResult.error && isSightingPhotosSchemaMissing(insertResult.error)) {
+    const { photo_count: _photoCount, ...legacyRow } = insertRow;
+    insertResult = await supabase.from("sightings").insert(legacyRow).select("id").single();
+  }
+  if (insertResult.error) throw insertResult.error;
+
+  const sightingId = insertResult.data!.id as string;
+  if (photoRows.length > 0) {
+    await insertSightingPhotos(sightingId, photoRows);
+  }
+
+  return sightingId;
 }

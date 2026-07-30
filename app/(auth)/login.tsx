@@ -35,6 +35,7 @@ export default function LoginScreen() {
     setError(null);
     setResendNote(null);
     setNeedsConfirmation(false);
+
     setLoading(true);
     track("sign_in_started", { sign_in_method: "email" });
 
@@ -102,6 +103,8 @@ export default function LoginScreen() {
           Sign in to log your sightings and follow the flock.
         </Text>
 
+        <SocialAuthButtons onError={setError} showDivider className="mb-2" />
+
         <Text className="mb-1 font-sans-medium text-sm text-foreground/80">Email</Text>
         <TextInput
           autoCapitalize="none"
@@ -149,7 +152,7 @@ export default function LoginScreen() {
         ) : null}
 
         <Pressable
-          className="mb-4 items-center rounded-xl bg-primary py-3.5 active:opacity-90"
+          className="mb-6 items-center rounded-xl bg-primary py-3.5 active:opacity-90"
           disabled={loading}
           onPress={handleSignIn}
         >
@@ -161,8 +164,6 @@ export default function LoginScreen() {
             </Text>
           )}
         </Pressable>
-
-        <SocialAuthButtons onError={setError} className="mb-6" />
 
         <Link href="/(auth)/register" asChild>
           <Pressable>

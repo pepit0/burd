@@ -18,23 +18,32 @@ import {
   dismissKeyboardOnScrollDrag,
   keyboardAwareScrollProps,
 } from "@/components/DismissKeyboard";
-import { DisplayNameText } from "@/components/DisplayNameText";
+import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
+import { UserBadgeAdminPanel } from "@/components/UserBadgeAdminPanel";
+import { UserModerationSheet } from "@/components/UserModerationSheet";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { getUserFacingMessage } from "@/lib/errors";
 import {
+  dismissReport,
+  getPendingCommentReports,
   getPendingReports,
+  getPendingUserReports,
   getRecentModerationLog,
+  getAutoBetaBadgeEnabled,
+  setAutoBetaBadgeEnabled,
   adminUpdateUsername,
   grantAdmin,
   listAdmins,
   removePostAsAdmin,
+  resolveReport,
   revokeAdmin,
 } from "@/lib/moderation";
 import { searchUsers, searchUsersForAdmin, type UserListItem } from "@/lib/social";
+import { getMyProfile } from "@/lib/sightings";
 import { normalizeUsername, validateUsername } from "@/lib/signup";
 import { timeAgo } from "@/lib/time";
-import type { ModerationAction, PostReport, Profile } from "@/types";
+import type { CommentReport, ModerationAction, PostReport, Profile, UserReport } from "@/types";
 
 export default function AdminHubScreen() {
   const router = useRouter();
@@ -43,6 +52,8 @@ export default function AdminHubScreen() {
   const { isAdmin, loading: adminLoading, refresh: refreshAdmin } = useAdmin(userId);
 
   const [reports, setReports] = useState<PostReport[]>([]);
+  const [userReports, setUserReports] = useState<UserReport[]>([]);
+  const [commentReports, setCommentReports] = useState<CommentReport[]>([]);
   const [log, setLog] = useState<ModerationAction[]>([]);
   const [admins, setAdmins] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,18 +68,30 @@ export default function AdminHubScreen() {
   const [renaming, setRenaming] = useState(false);
   const [removeReport, setRemoveReport] = useState<PostReport | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [autoBetaEnabled, setAutoBetaEnabled] = useState(true);
+  const [autoBetaSaving, setAutoBetaSaving] = useState(false);
+  const [moderateProfile, setModerateProfile] = useState<Profile | null>(null);
+  const [moderateReportId, setModerateReportId] = useState<string | null>(null);
+  const [moderateLoading, setModerateLoading] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
-      const [reportRows, logRows, adminRows] = await Promise.all([
+      const [reportRows, userReportRows, commentReportRows, logRows, adminRows, autoBeta] =
+        await Promise.all([
         getPendingReports(),
+        getPendingUserReports(),
+        getPendingCommentReports(),
         getRecentModerationLog(),
         listAdmins(),
+        getAutoBetaBadgeEnabled(),
       ]);
       setReports(reportRows);
+      setUserReports(userReportRows);
+      setCommentReports(commentReportRows);
       setLog(logRows);
       setAdmins(adminRows);
+      setAutoBetaEnabled(autoBeta);
     } catch (e) {
       Alert.alert("Could not load admin data", getUserFacingMessage(e));
     } finally {
@@ -79,6 +102,21 @@ export default function AdminHubScreen() {
   useEffect(() => {
     if (isAdmin) void load();
   }, [isAdmin]);
+
+  async function handleToggleAutoBeta() {
+    if (autoBetaSaving) return;
+    setAutoBetaSaving(true);
+    try {
+      const next = !autoBetaEnabled;
+      await setAutoBetaBadgeEnabled(next);
+      setAutoBetaEnabled(next);
+      void load();
+    } catch (e) {
+      Alert.alert("Could not update beta setting", getUserFacingMessage(e));
+    } finally {
+      setAutoBetaSaving(false);
+    }
+  }
 
   async function handleSearchAdmins(query: string) {
     const q = query.trim();
@@ -222,6 +260,7 @@ export default function AdminHubScreen() {
     setRemoving(true);
     try {
       await removePostAsAdmin(removeReport.sighting_id, reason);
+      await resolveReport("post", removeReport.id);
       setRemoveReport(null);
       await load();
     } catch (e) {
@@ -306,6 +345,7 @@ export default function AdminHubScreen() {
                 <Text className="mt-1 font-sans text-xs text-muted-foreground">
                   Reported by @{report.reporter?.username ?? "unknown"} ·{" "}
                   {timeAgo(report.created_at)}
+                  {report.reason ? ` · ${report.reason}` : ""}
                 </Text>
                 <View className="mt-3 flex-row gap-2">
                   <Pressable
@@ -326,7 +366,185 @@ export default function AdminHubScreen() {
             ))
           )}
 
+          <View className="mb-2 mt-6 flex-row items-center gap-2">
+            <ShieldAlert size={16} color="#c8893a" />
+            <Text className="font-serif-semibold text-lg text-foreground">Reported users</Text>
+          </View>
+          {userReports.length === 0 ? (
+            <Text className="mb-6 font-sans text-sm text-muted-foreground">
+              No user reports yet.
+            </Text>
+          ) : (
+            userReports.map((report) => (
+              <View
+                key={report.id}
+                className="mb-3 rounded-xl border border-border bg-card p-3"
+              >
+                <Text className="font-sans-medium text-sm text-foreground">
+                  @{report.reported_user?.username ?? "unknown"}
+                </Text>
+                <Text className="mt-1 font-sans text-xs text-muted-foreground">
+                  Reported by @{report.reporter?.username ?? "unknown"} ·{" "}
+                  {report.source === "block" ? "block" : "report"} ·{" "}
+                  {timeAgo(report.created_at)}
+                </Text>
+                {report.reason ? (
+                  <Text className="mt-1 font-sans text-xs text-foreground/75">
+                    {report.reason}
+                  </Text>
+                ) : null}
+                <View className="mt-3 flex-row flex-wrap gap-2">
+                  <Pressable
+                    onPress={() =>
+                      router.push(`/user/${report.reported_user_id}`)
+                    }
+                    className="min-w-[30%] flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
+                  >
+                    <Text className="font-sans-medium text-xs text-foreground">View profile</Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={moderateLoading}
+                    onPress={() => {
+                      void (async () => {
+                        setModerateLoading(true);
+                        try {
+                          const profile = await getMyProfile(report.reported_user_id);
+                          if (!profile) {
+                            Alert.alert("User not found", "Could not load this profile.");
+                            return;
+                          }
+                          setModerateReportId(report.id);
+                          setModerateProfile(profile);
+                        } catch (e) {
+                          Alert.alert("Could not load user", getUserFacingMessage(e));
+                        } finally {
+                          setModerateLoading(false);
+                        }
+                      })();
+                    }}
+                    className="min-w-[30%] flex-1 items-center rounded-lg border border-destructive/40 bg-destructive/10 py-2 active:opacity-90"
+                  >
+                    <Text className="font-sans-medium text-xs text-destructive">Moderate</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      void (async () => {
+                        try {
+                          await dismissReport("user", report.id);
+                          await load();
+                        } catch (e) {
+                          Alert.alert("Could not dismiss report", getUserFacingMessage(e));
+                        }
+                      })();
+                    }}
+                    className="min-w-[30%] flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
+                  >
+                    <Text className="font-sans-medium text-xs text-foreground">Dismiss</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))
+          )}
+
+          <View className="mb-2 mt-6 flex-row items-center gap-2">
+            <ShieldAlert size={16} color="#c8893a" />
+            <Text className="font-serif-semibold text-lg text-foreground">Reported comments</Text>
+          </View>
+          {commentReports.length === 0 ? (
+            <Text className="mb-6 font-sans text-sm text-muted-foreground">
+              No comment reports yet.
+            </Text>
+          ) : (
+            commentReports.map((report) => {
+              const snippet =
+                report.comment?.body?.trim().slice(0, 120) ?? "Comment unavailable";
+              return (
+                <View
+                  key={report.id}
+                  className="mb-3 rounded-xl border border-border bg-card p-3"
+                >
+                  <Text className="font-sans-medium text-sm text-foreground" numberOfLines={3}>
+                    {snippet}
+                    {(report.comment?.body?.length ?? 0) > 120 ? "…" : ""}
+                  </Text>
+                  <Text className="mt-1 font-sans text-xs text-muted-foreground">
+                    Reported by @{report.reporter?.username ?? "unknown"} ·{" "}
+                    {timeAgo(report.created_at)}
+                    {report.reason ? ` · ${report.reason}` : ""}
+                  </Text>
+                  <View className="mt-3 flex-row flex-wrap gap-2">
+                    {report.comment?.sighting_id ? (
+                      <Pressable
+                        onPress={() => router.push(`/post/${report.comment!.sighting_id}`)}
+                        className="min-w-[30%] flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
+                      >
+                        <Text className="font-sans-medium text-xs text-foreground">View post</Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      onPress={() => {
+                        void (async () => {
+                          try {
+                            await resolveReport("comment", report.id);
+                            await load();
+                          } catch (e) {
+                            Alert.alert("Could not resolve report", getUserFacingMessage(e));
+                          }
+                        })();
+                      }}
+                      className="min-w-[30%] flex-1 items-center rounded-lg border border-destructive/40 bg-destructive/10 py-2 active:opacity-90"
+                    >
+                      <Text className="font-sans-medium text-xs text-destructive">Resolve</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        void (async () => {
+                          try {
+                            await dismissReport("comment", report.id);
+                            await load();
+                          } catch (e) {
+                            Alert.alert("Could not dismiss report", getUserFacingMessage(e));
+                          }
+                        })();
+                      }}
+                      className="min-w-[30%] flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
+                    >
+                      <Text className="font-sans-medium text-xs text-foreground">Dismiss</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })
+          )}
+
           <Text className="mb-2 mt-4 font-serif-semibold text-lg text-foreground">
+            Profile badges
+          </Text>
+          <Pressable
+            onPress={() => void handleToggleAutoBeta()}
+            disabled={autoBetaSaving}
+            className={`mb-4 flex-row items-center justify-between rounded-xl border px-4 py-3 active:opacity-90 ${
+              autoBetaEnabled ? "border-primary/40 bg-primary/10" : "border-border bg-card"
+            }`}
+          >
+            <View className="min-w-0 flex-1 pr-3">
+              <Text className="font-sans-medium text-sm text-foreground">
+                Auto beta badge for new signups
+              </Text>
+              <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
+                When on, new accounts get the beta badge automatically.
+              </Text>
+            </View>
+            {autoBetaSaving ? (
+              <ActivityIndicator color="#5f9470" size="small" />
+            ) : (
+              <Text className="font-sans-medium text-xs text-primary">
+                {autoBetaEnabled ? "On" : "Off"}
+              </Text>
+            )}
+          </Pressable>
+
+          <Text className="mb-2 font-serif-semibold text-lg text-foreground">
             Manage admins
           </Text>
           <View className="mb-3 flex-row gap-2">
@@ -361,8 +579,10 @@ export default function AdminHubScreen() {
               <View>
                 <Text className="font-sans-medium text-sm text-foreground">@{result.username}</Text>
                 {result.full_name ? (
-                  <DisplayNameText
+                  <DisplayNameWithBadges
                     text={result.full_name}
+                    isVerified={result.is_verified}
+                    isBeta={result.is_beta}
                     className="font-sans text-xs text-muted-foreground"
                   />
                 ) : null}
@@ -429,8 +649,10 @@ export default function AdminHubScreen() {
               <View>
                 <Text className="font-sans-medium text-sm text-foreground">@{result.username}</Text>
                 {result.full_name ? (
-                  <DisplayNameText
+                  <DisplayNameWithBadges
                     text={result.full_name}
+                    isVerified={result.is_verified}
+                    isBeta={result.is_beta}
                     className="font-sans text-xs text-muted-foreground"
                   />
                 ) : null}
@@ -470,6 +692,29 @@ export default function AdminHubScreen() {
                   </Text>
                 )}
               </Pressable>
+              <View className="mt-4 border-t border-border/60 pt-4">
+                <UserBadgeAdminPanel
+                  profile={{
+                    id: renameTarget.id,
+                    username: renameTarget.username,
+                    is_verified: renameTarget.is_verified,
+                    is_beta: renameTarget.is_beta,
+                  }}
+                  onUpdated={() => {
+                    void (async () => {
+                      const refreshed = await getMyProfile(renameTarget.id);
+                      if (refreshed) {
+                        setRenameTarget({
+                          ...renameTarget,
+                          is_verified: refreshed.is_verified,
+                          is_beta: refreshed.is_beta,
+                        });
+                      }
+                      void load();
+                    })();
+                  }}
+                />
+              </View>
             </View>
           ) : null}
 
@@ -504,6 +749,29 @@ export default function AdminHubScreen() {
         submitting={removing}
         onClose={() => setRemoveReport(null)}
         onConfirm={handleRemoveReportedPost}
+      />
+
+      <UserModerationSheet
+        visible={moderateProfile != null}
+        profile={moderateProfile}
+        onClose={() => {
+          setModerateProfile(null);
+          setModerateReportId(null);
+        }}
+        onUpdated={() => {
+          void (async () => {
+            if (moderateReportId) {
+              try {
+                await resolveReport("user", moderateReportId);
+              } catch {
+                // Moderation succeeded; report resolve is best-effort.
+              }
+            }
+            setModerateProfile(null);
+            setModerateReportId(null);
+            await load();
+          })();
+        }}
       />
     </SafeAreaView>
   );

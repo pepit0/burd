@@ -11,6 +11,8 @@ import { Edit3, EyeOff, Flag, ShieldAlert, Trash2, UserX, X } from "lucide-react
 import { ModerationReasonModal } from "@/components/ModerationReasonModal";
 import { getUserFacingMessage } from "@/lib/errors";
 import { removePostAsAdmin, removePostAuthorAsAdmin } from "@/lib/moderation";
+import { blockUser } from "@/lib/blocks";
+import { pickReportReason } from "@/lib/reportReasons";
 import { reportPost } from "@/lib/reports";
 import { unpublishSighting } from "@/lib/sightings";
 
@@ -18,6 +20,7 @@ interface PostOptionsMenuProps {
   sightingId: string;
   userId: string | null;
   ownerUserId?: string | null;
+  ownerUsername?: string | null;
   hasPhoto?: boolean;
   authorDisqualified?: boolean;
   isAdmin?: boolean;
@@ -25,6 +28,7 @@ interface PostOptionsMenuProps {
   onClose: () => void;
   onPostRemoved?: () => void;
   onAuthorRemoved?: () => void;
+  onUserBlocked?: () => void;
 }
 
 type OptionVariant = "default" | "destructive" | "accent";
@@ -87,6 +91,7 @@ export function PostOptionsMenu({
   sightingId,
   userId,
   ownerUserId = null,
+  ownerUsername = null,
   hasPhoto = false,
   authorDisqualified = false,
   isAdmin = false,
@@ -94,6 +99,7 @@ export function PostOptionsMenu({
   onClose,
   onPostRemoved,
   onAuthorRemoved,
+  onUserBlocked,
 }: PostOptionsMenuProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -150,30 +156,78 @@ export function PostOptionsMenu({
       return;
     }
 
+    void (async () => {
+      const reason = await pickReportReason("Report post");
+      if (!reason) return;
+
+      Alert.alert(
+        "Report this post?",
+        "Our moderators review reports within 24 hours.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Report",
+            style: "destructive",
+            onPress: () => {
+              void submitReport(reason);
+            },
+          },
+        ],
+      );
+    })();
+  }
+
+  async function submitReport(reason: string) {
+    if (!userId || submitting) return;
+    setSubmitting(true);
+    try {
+      await reportPost(userId, sightingId, reason);
+      Alert.alert("Report submitted", "Thanks — we'll take a look within 24 hours.");
+    } catch (e) {
+      Alert.alert("Could not report", getUserFacingMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleBlockAuthorPress() {
+    onClose();
+    if (!userId || !ownerUserId || userId === ownerUserId) return;
+
+    const handle = ownerUsername ? `@${ownerUsername}` : "this user";
     Alert.alert(
-      "Report this post?",
-      "We'll review this sighting for policy violations.",
+      `Block ${handle}?`,
+      "Their posts will disappear from your feed immediately. We'll be notified to review this account.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Report",
+          text: "Block",
           style: "destructive",
           onPress: () => {
-            void submitReport();
+            void confirmBlockAuthor();
           },
         },
       ],
     );
   }
 
-  async function submitReport() {
-    if (!userId || submitting) return;
+  async function confirmBlockAuthor() {
+    if (!userId || !ownerUserId || submitting) return;
     setSubmitting(true);
     try {
-      await reportPost(userId, sightingId);
-      Alert.alert("Report submitted", "Thanks — we'll take a look.");
+      await blockUser(
+        ownerUserId,
+        `Blocked from post ${sightingId} — user-initiated block with moderation review`,
+      );
+      onUserBlocked?.();
+      Alert.alert(
+        "User blocked",
+        ownerUsername
+          ? `@${ownerUsername} has been blocked and removed from your feed.`
+          : "This user has been blocked and removed from your feed.",
+      );
     } catch (e) {
-      Alert.alert("Could not report", getUserFacingMessage(e));
+      Alert.alert("Could not block user", getUserFacingMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -270,6 +324,16 @@ export function PostOptionsMenu({
                 icon={<Flag size={18} color="#f87171" />}
                 label="Report this post"
               />
+              {!isOwner && ownerUserId ? (
+                <OptionRow
+                  onPress={handleBlockAuthorPress}
+                  disabled={submitting}
+                  icon={<UserX size={18} color="#f87171" />}
+                  label={
+                    ownerUsername ? `Block @${ownerUsername}` : "Block user"
+                  }
+                />
+              ) : null}
             </OptionSection>
 
             {isAdmin ? (

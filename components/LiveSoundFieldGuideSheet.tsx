@@ -213,8 +213,7 @@ export function LiveSoundFieldGuideSheet({
             <Text className="font-sans-medium text-sm text-foreground">Compare call</Text>
           </View>
           <Text className="mt-2 font-sans text-xs leading-relaxed text-muted-foreground">
-            Reference recordings are coming soon. Play a typical call for this species here
-            while Burd listens, to verify the ID.
+            Use the field guide while Burd listens to help verify the ID.
           </Text>
         </View>
 

@@ -2,7 +2,7 @@ import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { X } from "lucide-react-native";
 import { Avatar } from "@/components/Avatar";
-import { DisplayNameText } from "@/components/DisplayNameText";
+import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import type { SpeciesObserver } from "@/lib/speciesObservers";
 import { formatDetailDate } from "@/lib/sightingFormat";
 
@@ -60,8 +60,10 @@ export function SpeciesObserversSheet({
                     size={42}
                   />
                   <View className="min-w-0 flex-1">
-                    <DisplayNameText
+                    <DisplayNameWithBadges
                       text={observer.fullName || observer.username}
+                      isVerified={observer.isVerified}
+                      isBeta={observer.isBeta}
                       className="font-sans-medium text-sm text-foreground"
                       numberOfLines={1}
                     />

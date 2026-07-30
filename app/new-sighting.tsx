@@ -18,6 +18,7 @@ import { Camera, Mic, Minus, Plus, Sparkles, Volume2, X } from "lucide-react-nat
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { SoundLibraryPicker } from "@/components/SoundLibraryPicker";
 import { PostSendOffOverlay } from "@/components/PostSendOffOverlay";
+import { SightingPhotoCropModal } from "@/components/SightingPhotoCropModal";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -52,9 +53,18 @@ import {
   readPhotoBase64,
 } from "@/lib/captureDrafts";
 import { profilePrivacyDefaults } from "@/lib/profilePreferences";
+import {
+  buildInitialPhotoEntries,
+  createPhotoEntryDraft,
+  newPhotoEntryId,
+  syncActivePhotoMetadata,
+  updatePhotoEntryDraft,
+  type PhotoEntryDraft,
+} from "@/lib/photoEntryDraft";
+import { SIGHTING_PHOTO_ASPECT, type CroppedSightingPhoto } from "@/lib/sightingPhotoFrame";
 import { VISIBILITY_OPTIONS } from "@/lib/privacySettings";
 import { isSensitiveSpecies, getSensitiveSpeciesEntry } from "@/lib/sensitiveSpecies";
-import type { DetectedBy, Prediction, Rarity, SightingVisibility, SoundLibraryEntry } from "@/types";
+import type { DetectedBy, Prediction, Rarity, SightingPhotoInput, SightingVisibility, SoundLibraryEntry } from "@/types";
 
 function parseCount(value: string | undefined): number {
   const n = Number(value);
@@ -230,13 +240,17 @@ export default function NewSightingScreen() {
   const [locationAddress, setLocationAddress] = useState("");
   const [observedAt, setObservedAt] = useState<Date>(bootstrap.observedAt);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [photoUri, setPhotoUri] = useState<string | null>(bootstrap.photoUri);
-  const [photoBase64, setPhotoBase64] = useState<string | null>(bootstrap.photoBase64);
-  const [photoDisplayUri, setPhotoDisplayUri] = useState<string | null>(() =>
-    normalizeSightingPhotoUri(bootstrap.photoUri, bootstrap.photoBase64),
+  const [photoEntries, setPhotoEntries] = useState<PhotoEntryDraft[]>(() =>
+    buildInitialPhotoEntries(bootstrap, normalizeSightingPhotoUri),
   );
-  const [sessionPhotos, setSessionPhotos] = useState<SessionPhoto[]>(bootstrap.sessionPhotos);
-  const [primaryPhotoId, setPrimaryPhotoId] = useState<string | null>(bootstrap.primaryPhotoId);
+  const [activePhotoId, setActivePhotoId] = useState<string | null>(
+    bootstrap.primaryPhotoId ?? bootstrap.sessionPhotos[0]?.id ?? null,
+  );
+  const activePhoto =
+    photoEntries.find((entry) => entry.id === activePhotoId) ?? photoEntries[0] ?? null;
+  const photoUri = activePhoto?.uri ?? null;
+  const photoBase64 = activePhoto?.base64 ?? null;
+  const photoDisplayUri = activePhoto?.displayUri ?? null;
   const [sessionAudio, setSessionAudio] = useState<PendingCapture["audio"]>(bootstrap.sessionAudio);
   const [heardSpecies, setHeardSpecies] = useState<Prediction[]>(bootstrap.heardSpecies);
   const [soundLibraryId, setSoundLibraryId] = useState<string | null>(
@@ -262,14 +276,25 @@ export default function NewSightingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [photoAuthStatus, setPhotoAuthStatus] = useState<PhotoAuthStatus>("idle");
   const [photoAuthMessage, setPhotoAuthMessage] = useState<string | null>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropSourceUri, setCropSourceUri] = useState<string | null>(null);
 
   const [detectedBy, setDetectedBy] = useState<DetectedBy>(bootstrap.detectedBy);
   const [confidence, setConfidence] = useState<number | null>(bootstrap.confidence);
   const photoSoundAgreed = bootstrap.photoSoundAgreed;
 
   useEffect(() => {
-    setPhotoDisplayUri(normalizeSightingPhotoUri(photoUri, photoBase64));
-  }, [photoUri, photoBase64]);
+    if (!activePhotoId) return;
+    setPhotoEntries((prev) =>
+      syncActivePhotoMetadata(prev, activePhotoId, {
+        species,
+        scientific,
+        count,
+        confidence,
+        detectedBy,
+      }),
+    );
+  }, [species, scientific, count, confidence, detectedBy, activePhotoId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -281,12 +306,26 @@ export default function NewSightingScreen() {
       const draft = await getCaptureDraft(draftId);
       if (cancelled || !draft) return;
 
-      setSessionPhotos(draft.photos);
+      setPhotoEntries(
+        draft.photos.map((photo, index) =>
+          createPhotoEntryDraft(
+            photo,
+            normalizeSightingPhotoUri(photo.uri, photo.base64),
+            index === draft.primaryIndex
+              ? {
+                  species,
+                  scientific,
+                  count,
+                  confidence,
+                  detectedBy,
+                }
+              : undefined,
+          ),
+        ),
+      );
       const primary = draft.photos[draft.primaryIndex] ?? draft.photos[0];
       if (primary) {
-        setPrimaryPhotoId(primary.id);
-        setPhotoUri(primary.uri);
-        setPhotoBase64(primary.base64);
+        setActivePhotoId(primary.id);
         if (primary.capturedAt) {
           setObservedAt(new Date(primary.capturedAt));
         }
@@ -409,24 +448,54 @@ export default function NewSightingScreen() {
 
   const hasAudio = Boolean(libraryEntry?.audio_url || sessionAudio || soundLibraryId);
   const libraryLoading = Boolean(soundLibraryId && !libraryEntry);
+  const hasPhotos = photoEntries.length > 0;
   const canSubmit =
     !submitting &&
     !libraryLoading &&
     species.trim().length > 0 &&
-    (hasAudio || photoUri) &&
+    (hasAudio || hasPhotos) &&
     (!photoUri || !PHOTO_AUTHENTICITY_ENABLED || photoAuthStatus === "passed");
 
-  function selectSessionPhoto(photo: SessionPhoto) {
-    setPrimaryPhotoId(photo.id);
-    setPhotoUri(photo.uri);
-    setPhotoBase64(photo.base64);
-    setPhotoDisplayUri(normalizeSightingPhotoUri(photo.uri, photo.base64));
-    setPhotoAuthStatus("checking");
+  function openPhotoCrop() {
+    const entry = activePhoto;
+    if (!entry) return;
+    setCropSourceUri(entry.sourceUri);
+    setCropModalOpen(true);
+  }
+
+  function applyCroppedPhoto(cropped: CroppedSightingPhoto) {
+    if (!activePhotoId) return;
+    setPhotoEntries((prev) =>
+      updatePhotoEntryDraft(prev, activePhotoId, {
+        uri: cropped.uri,
+        base64: cropped.base64,
+        displayUri: normalizeSightingPhotoUri(cropped.uri, cropped.base64),
+        framed: true,
+      }),
+    );
+    setCropModalOpen(false);
+    setPhotoAuthStatus(PHOTO_AUTHENTICITY_ENABLED ? "checking" : "passed");
     setPhotoAuthMessage(null);
-    if (photo.capturedAt) {
-      setObservedAt(new Date(photo.capturedAt));
-    }
-    analyzePhoto(photo.uri, photo.base64);
+    void analyzePhoto(cropped.uri, cropped.base64);
+  }
+
+  function selectPhotoEntry(entry: PhotoEntryDraft) {
+    setPhotoEntries((prev) =>
+      syncActivePhotoMetadata(prev, activePhotoId, {
+        species,
+        scientific,
+        count,
+        confidence,
+        detectedBy,
+      }),
+    );
+    setActivePhotoId(entry.id);
+    setSpecies(entry.species);
+    setScientific(entry.scientific);
+    setCount(entry.count);
+    setConfidence(entry.confidence);
+    setDetectedBy(entry.detectedBy);
+    setObservedAt(new Date(entry.capturedAt));
   }
 
   async function resolveLocation(
@@ -510,10 +579,10 @@ export default function NewSightingScreen() {
           "Photo not accepted",
           validationFailureMessage(e.validation) || e.message,
         );
-        setPhotoUri(null);
-        setPhotoBase64(null);
-        setSessionPhotos([]);
-        setPrimaryPhotoId(null);
+        setPhotoEntries((prev) =>
+          activePhotoId ? prev.filter((entry) => entry.id !== activePhotoId) : [],
+        );
+        setActivePhotoId(null);
         setCountFromPhoto(false);
         setDetectedBy("manual");
         setConfidence(null);
@@ -524,34 +593,54 @@ export default function NewSightingScreen() {
     }
   }
 
-  async function pickPhoto() {
+  async function pickPhoto(append = false) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 0.6,
       base64: true,
       exif: true,
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      setSessionPhotos([]);
-      setPrimaryPhotoId(null);
-      setPhotoUri(asset.uri);
-      setPhotoBase64(asset.base64 ?? null);
-      setPhotoDisplayUri(
+      const takenAt = await photoTakenAt(asset);
+      const capturedAt = takenAt?.toISOString() ?? new Date().toISOString();
+      const entry = createPhotoEntryDraft(
+        {
+          id: newPhotoEntryId(),
+          uri: asset.uri,
+          base64: asset.base64 ?? null,
+          capturedAt,
+        },
         normalizeSightingPhotoUri(asset.uri, asset.base64 ?? null),
+        { framed: true },
       );
-      setPhotoAuthStatus("checking");
+
+      if (append) {
+        setPhotoEntries((prev) => [...prev, entry]);
+      } else {
+        setPhotoEntries([entry]);
+      }
+      setActivePhotoId(entry.id);
+      setPhotoAuthStatus(PHOTO_AUTHENTICITY_ENABLED ? "checking" : "passed");
       setPhotoAuthMessage(null);
       setSpecies("");
       setScientific("");
       setDetectedBy("manual");
       setConfidence(null);
       setCountFromPhoto(false);
-      const takenAt = await photoTakenAt(asset);
       if (takenAt) setObservedAt(takenAt);
       await analyzePhoto(asset.uri, asset.base64 ?? null);
     }
+  }
+
+  function handlePhotoPress() {
+    if (audioOnly) return;
+    if (photoUri) {
+      openPhotoCrop();
+      return;
+    }
+    void pickPhoto(false);
   }
 
   function attachLibraryEntry(entry: SoundLibraryEntry) {
@@ -578,6 +667,13 @@ export default function NewSightingScreen() {
       Alert.alert("Species required", "Please enter the species you spotted.");
       return;
     }
+    const entriesForSave = syncActivePhotoMetadata(photoEntries, activePhotoId, {
+      species,
+      scientific,
+      count,
+      confidence,
+      detectedBy,
+    });
     if (photoUri && PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus !== "passed") {
       Alert.alert(
         "Photo not accepted",
@@ -593,14 +689,26 @@ export default function NewSightingScreen() {
       }
 
       let photoUrl: string | null = null;
-      if (!(audioOnly || detectedBy === "audio")) {
-        let base64 = photoBase64;
-        if (!base64 && photoUri) {
-          base64 = await readPhotoBase64(photoUri);
+      let uploadedPhotos: SightingPhotoInput[] = [];
+      if (!(audioOnly || detectedBy === "audio") && entriesForSave.length > 0) {
+        uploadedPhotos = [];
+        for (const entry of entriesForSave) {
+          let base64 = entry.base64;
+          if (!base64) {
+            base64 = await readPhotoBase64(entry.uri);
+          }
+          const url = await uploadSightingPhoto(userId, base64);
+          uploadedPhotos.push({
+            photo_url: url,
+            captured_at: entry.capturedAt,
+            species: entry.species.trim() || species.trim(),
+            scientific_name: entry.scientific.trim() || null,
+            count: entry.count,
+            confidence: entry.confidence,
+            detected_by: entry.detectedBy,
+          });
         }
-        if (base64) {
-          photoUrl = await uploadSightingPhoto(userId, base64);
-        }
+        photoUrl = uploadedPhotos[0]?.photo_url ?? null;
       }
 
       let audioUrl: string | null = libraryEntry?.audio_url ?? null;
@@ -627,6 +735,7 @@ export default function NewSightingScreen() {
           count,
           notes: notes.trim() || null,
           photo_url: photoUrl,
+          photos: uploadedPhotos,
           audio_url: audioUrl,
           audio_predictions: audioPredictions,
           confidence,
@@ -667,51 +776,72 @@ export default function NewSightingScreen() {
     }
   }
 
+  const showAiIdentificationBanner = detectedBy !== "manual" && confidence !== null;
+  const inputClassName =
+    "min-h-[48px] rounded-xl border border-border bg-background px-4 py-3 font-sans text-base leading-5 text-foreground";
+  const sectionClassName = "mb-8";
+  const cardClassName = "rounded-2xl border border-border bg-card p-5";
+  const cardStyle = { gap: 20 } as const;
+  const fieldClassName = "";
+  const fieldStyle = { gap: 10 } as const;
+  const sectionLabelClassName =
+    "font-sans-medium text-xs uppercase tracking-wide text-muted-foreground";
+  const fieldLabelClassName = "font-sans-medium text-sm leading-5 text-foreground";
+
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between border-b border-border px-4 pb-3 pt-2">
-        <Pressable onPress={() => router.back()} className="p-1">
+    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+      <View className="flex-row items-center justify-between border-b border-border px-4 pb-4 pt-1">
+        <Pressable onPress={() => router.back()} className="rounded-full p-2 active:bg-card">
           <X size={22} color="#8a9e82" />
         </Pressable>
-        <Text className="font-serif-semibold text-lg text-foreground">
-          {audioOnly ? "Log sound sighting" : "Log a Sighting"}
+        <Text className="font-serif-semibold text-base text-foreground">
+          {audioOnly ? "Log sound sighting" : "Log a sighting"}
         </Text>
-        <View className="w-7" />
+        <View className="w-10" />
       </View>
 
       <KeyboardScreen
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="px-4 pb-12 pt-4 gap-5"
+        contentContainerClassName="px-5 pb-24 pt-6"
       >
-        <View className="gap-3">
+        <View className={sectionClassName}>
+          <Text className={`${sectionLabelClassName} mb-3`}>Photo</Text>
           <Pressable
-            onPress={audioOnly ? undefined : pickPhoto}
+            onPress={handlePhotoPress}
             disabled={audioOnly}
-            className="overflow-hidden rounded-2xl border border-border bg-muted/40"
+            className="overflow-hidden rounded-2xl border border-border bg-black/30"
           >
             {photoDisplayUri && !audioOnly ? (
               <Image
                 source={{ uri: photoDisplayUri }}
-                style={{ width: "100%", aspectRatio: 4 / 3 }}
+                style={{ width: "100%", aspectRatio: SIGHTING_PHOTO_ASPECT }}
                 contentFit="contain"
                 transition={200}
                 onError={() => {
                   const fallback = normalizeSightingPhotoUri(null, photoBase64);
-                  if (fallback && fallback !== photoDisplayUri) {
-                    setPhotoDisplayUri(fallback);
+                  if (fallback && fallback !== photoDisplayUri && activePhotoId) {
+                    setPhotoEntries((prev) =>
+                      updatePhotoEntryDraft(prev, activePhotoId, { displayUri: fallback }),
+                    );
                   }
                 }}
               />
             ) : audioOnly ? (
-              <View className="aspect-[4/3] items-center justify-center gap-2 px-6">
+              <View
+                className="items-center justify-center gap-2 px-6"
+                style={{ aspectRatio: SIGHTING_PHOTO_ASPECT }}
+              >
                 <Mic size={28} color="#5f9470" />
                 <Text className="text-center font-sans text-sm text-muted-foreground">
                   Sound-only sighting
                 </Text>
               </View>
             ) : (
-              <View className="aspect-[4/3] items-center justify-center gap-2">
+              <View
+                className="items-center justify-center gap-2"
+                style={{ aspectRatio: SIGHTING_PHOTO_ASPECT }}
+              >
                 <Camera size={26} color="#8a9e82" />
                 <Text className="font-sans text-sm text-muted-foreground">
                   Tap to add a photo
@@ -719,128 +849,121 @@ export default function NewSightingScreen() {
               </View>
             )}
           </Pressable>
+          {photoDisplayUri && !audioOnly ? (
+            <Text className="mt-3 text-center font-sans text-xs leading-5 text-muted-foreground">
+              Tap photo to crop or zoom
+            </Text>
+          ) : null}
 
-          {sessionPhotos.length > 1 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerClassName="gap-2"
-            >
-              {sessionPhotos.map((photo) => {
-                const selected = photo.id === primaryPhotoId;
-                return (
-                  <Pressable
-                    key={photo.id}
-                    onPress={() => selectSessionPhoto(photo)}
-                    className={`overflow-hidden rounded-lg ${
-                      selected ? "border-2 border-primary" : "border border-border"
-                    }`}
-                  >
-                    <Image
-                      source={{
-                        uri:
-                          normalizeSightingPhotoUri(photo.uri, photo.base64) ??
-                          photo.uri,
-                      }}
-                      style={{ width: 64, height: 64 }}
-                      contentFit="cover"
-                    />
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+          {photoEntries.length > 0 && !audioOnly ? (
+            <View className={`${cardClassName} mt-5`} style={cardStyle}>
+              <View className="flex-row items-start justify-between gap-3">
+                <Text className={`${fieldLabelClassName} min-w-0 flex-1 shrink leading-relaxed`}>
+                  {photoEntries.length} photo{photoEntries.length === 1 ? "" : "s"} in this entry
+                </Text>
+                <Pressable
+                  onPress={() => void pickPhoto(true)}
+                  className="shrink-0 rounded-full border border-border px-3 py-2 active:opacity-80"
+                >
+                  <Text className="font-sans-medium text-xs text-primary">Add photo</Text>
+                </Pressable>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerClassName="gap-3 py-1"
+              >
+                {photoEntries.map((entry, index) => {
+                  const selected = entry.id === activePhotoId;
+                  return (
+                    <Pressable
+                      key={entry.id}
+                      onPress={() => selectPhotoEntry(entry)}
+                      className={`overflow-hidden rounded-lg ${
+                        selected ? "border-2 border-primary" : "border border-border"
+                      }`}
+                    >
+                      <Image
+                        source={{
+                          uri: entry.displayUri ?? entry.uri,
+                        }}
+                        style={{ width: 64, height: 64 }}
+                        contentFit="cover"
+                      />
+                      <View className="absolute bottom-0 left-0 right-0 bg-black/55 py-0.5">
+                        <Text className="text-center font-mono text-[10px] text-white">
+                          {index + 1}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <Text className="font-sans text-xs leading-5 text-muted-foreground">
+                Select a photo to edit its species and count before saving.
+              </Text>
+            </View>
           ) : null}
         </View>
 
-        {(detectedBy !== "manual" && confidence !== null) || countLoading ? (
-          <View className="gap-3 rounded-2xl border border-border bg-card p-4">
-            {detectedBy !== "manual" && confidence !== null ? (
-              <View className="flex-row items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5">
-                <Sparkles size={15} color="#5f9470" />
-                <Text className="flex-1 font-sans text-xs text-foreground/80">
-                  Identified by {detectionSourceLabel(detectedBy)} ·{" "}
-                  {Math.round(confidence * 100)}% match
-                  {photoSoundAgreed ? " · photo and sound agree" : ""}. Edit
-                  anything that looks off.
+        <View className={`${cardClassName} ${sectionClassName}`} style={cardStyle}>
+          <Text className={sectionLabelClassName}>Identification</Text>
+
+          {showAiIdentificationBanner ? (
+            <View className="flex-row items-start gap-3 rounded-xl bg-primary/10 px-4 py-3.5">
+              <Sparkles size={15} color="#5f9470" style={{ marginTop: 2 }} />
+              <Text className="min-w-0 flex-1 shrink font-sans text-xs leading-5 text-foreground/80">
+                Identified by {detectionSourceLabel(detectedBy)} ·{" "}
+                {Math.round(confidence! * 100)}% match
+                {photoSoundAgreed ? " · photo and sound agree" : ""}. Edit anything that
+                looks off.
+              </Text>
+            </View>
+          ) : null}
+
+          <View className={fieldClassName} style={fieldStyle}>
+            <Text className={fieldLabelClassName}>Species</Text>
+            {countLoading && !species.trim() ? (
+              <View className="min-h-[48px] flex-row items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
+                <ActivityIndicator size="small" color="#5f9470" />
+                <Text className="min-w-0 flex-1 shrink font-sans text-sm leading-5 text-muted-foreground">
+                  Identifying species from photo…
                 </Text>
               </View>
-            ) : null}
-
-            <View>
-              <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
-                Species
-              </Text>
-              {countLoading && !species.trim() ? (
-                <View className="flex-row items-center gap-2 rounded-xl border border-border bg-background px-4 py-3">
-                  <ActivityIndicator size="small" color="#5f9470" />
-                  <Text className="font-sans text-sm text-muted-foreground">
-                    Identifying species from photo…
-                  </Text>
-                </View>
-              ) : (
-                <TextInput
-                  value={species}
-                  onChangeText={setSpecies}
-                  placeholder="e.g. Cedar Waxwing"
-                  placeholderTextColor="#8a9e82"
-                  className="rounded-xl border border-border bg-background px-4 py-3 font-sans text-base text-foreground"
-                />
-              )}
-            </View>
-
-            <View>
-              <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
-                Scientific name (optional)
-              </Text>
-              <TextInput
-                value={scientific}
-                onChangeText={setScientific}
-                placeholder="e.g. Bombycilla cedrorum"
-                placeholderTextColor="#8a9e82"
-                autoCapitalize="none"
-                className="rounded-xl border border-border bg-background px-4 py-3 font-serif-italic text-base text-foreground"
-              />
-            </View>
-          </View>
-        ) : (
-          <>
-            <View>
-              <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
-                Species
-              </Text>
+            ) : (
               <TextInput
                 value={species}
                 onChangeText={setSpecies}
                 placeholder="e.g. Cedar Waxwing"
                 placeholderTextColor="#8a9e82"
-                className="rounded-xl border border-border bg-card px-4 py-3 font-sans text-base text-foreground"
+                className={inputClassName}
               />
-            </View>
+            )}
+          </View>
 
-            <View>
-              <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
-                Scientific name (optional)
-              </Text>
-              <TextInput
-                value={scientific}
-                onChangeText={setScientific}
-                placeholder="e.g. Bombycilla cedrorum"
-                placeholderTextColor="#8a9e82"
-                autoCapitalize="none"
-                className="rounded-xl border border-border bg-card px-4 py-3 font-serif-italic text-base text-foreground"
-              />
-            </View>
-          </>
-        )}
+          <View className={fieldClassName} style={fieldStyle}>
+            <Text className={fieldLabelClassName}>Scientific name</Text>
+            <Text className="-mt-1 font-sans text-xs leading-5 text-muted-foreground">
+              Optional
+            </Text>
+            <TextInput
+              value={scientific}
+              onChangeText={setScientific}
+              placeholder="e.g. Bombycilla cedrorum"
+              placeholderTextColor="#8a9e82"
+              autoCapitalize="none"
+              className={`${inputClassName} font-serif-italic`}
+            />
+          </View>
+        </View>
 
         {sessionAudio || libraryEntry ? (
-          <View className="gap-2 rounded-xl border border-border bg-card px-3 py-3">
-            <View className="flex-row items-center justify-between gap-2">
-              <View className="flex-row items-center gap-2">
-                <Mic size={14} color="#5f9470" />
-                <Text className="font-sans-medium text-sm text-foreground">
-                  Bird call attached
-                </Text>
+          <View className={`${cardClassName} ${sectionClassName}`} style={cardStyle}>
+            <Text className={sectionLabelClassName}>Bird call</Text>
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="min-w-0 flex-1 shrink flex-row items-center gap-2">
+                <Mic size={15} color="#5f9470" />
+                <Text className={fieldLabelClassName}>Attached</Text>
               </View>
               {libraryEntry && !sessionAudio ? (
                 <Pressable
@@ -864,18 +987,21 @@ export default function NewSightingScreen() {
                   uri={sessionAudio.uri}
                   durationMs={sessionAudio.durationMs}
                 />
-                <Text className="font-sans text-xs text-muted-foreground">
+                <Text className="font-sans text-xs leading-5 text-muted-foreground">
                   Audio uploads when you log this sighting.
                 </Text>
               </>
             ) : null}
             {heardSpecies.length > 0 ? (
-              <View className="mt-1 gap-1">
-                <Text className="font-sans text-xs text-muted-foreground">
-                  Perch heard:
+              <View className="gap-2 border-t border-border pt-4">
+                <Text className="font-sans-medium text-xs leading-5 text-muted-foreground">
+                  Perch heard
                 </Text>
                 {heardSpecies.slice(0, 4).map((prediction, index) => (
-                  <Text key={`${prediction.species}-${index}`} className="font-sans text-xs text-foreground/80">
+                  <Text
+                    key={`${prediction.species}-${index}`}
+                    className="font-sans text-xs leading-5 text-foreground/80"
+                  >
                     · {displaySpeciesName(prediction)}
                     {displayScientificName(prediction)
                       ? ` (${displayScientificName(prediction)})`
@@ -889,7 +1015,7 @@ export default function NewSightingScreen() {
         ) : !sessionAudio ? (
           <Pressable
             onPress={() => setLibraryPickerOpen(true)}
-            className="flex-row items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 active:opacity-90"
+            className={`${sectionClassName} flex-row items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary/5 px-5 py-5 active:opacity-90`}
           >
             <Volume2 size={16} color="#5f9470" />
             <Text className="font-sans-medium text-sm text-foreground">
@@ -898,175 +1024,191 @@ export default function NewSightingScreen() {
           </Pressable>
         ) : null}
 
-        <View>
-          <Text className="mb-1.5 font-sans-medium text-sm text-foreground/80">Rarity</Text>
-          <View className="flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-            {rarityLoading ? (
-              <ActivityIndicator size="small" color="#5f9470" />
-            ) : (
-              <RarityBadge rarity={rarity} />
-            )}
-            <Text className="flex-1 font-sans text-xs leading-relaxed text-muted-foreground">
-              {coords
-                ? "Based on species rarity and recent sightings near you."
-                : "Waiting for location to estimate regional rarity."}
-            </Text>
-          </View>
-        </View>
+        <View className={`${cardClassName} ${sectionClassName}`} style={cardStyle}>
+          <Text className={sectionLabelClassName}>Sighting details</Text>
 
-        <View>
-          <Text className="mb-1.5 font-sans-medium text-sm text-foreground/80">Count</Text>
-          <View className="flex-row items-center gap-4">
-            <Pressable
-              onPress={() => {
-                setCountFromPhoto(false);
-                setCount((c) => Math.max(1, c - 1));
-              }}
-              className="h-10 w-10 items-center justify-center rounded-xl border border-border bg-card"
-            >
-              <Minus size={16} color="#eee8d4" />
-            </Pressable>
-            {countLoading ? (
-              <ActivityIndicator color="#5f9470" />
-            ) : (
-              <Text className="font-serif-semibold text-xl text-foreground">{count}</Text>
-            )}
-            <Pressable
-              onPress={() => {
-                setCountFromPhoto(false);
-                setCount((c) => Math.min(99, c + 1));
-              }}
-              className="h-10 w-10 items-center justify-center rounded-xl border border-border bg-card"
-            >
-              <Plus size={16} color="#eee8d4" />
-            </Pressable>
-          </View>
-          <Text className="mt-1.5 font-sans text-xs text-muted-foreground">
-            {countLoading
-              ? "Identifying birds in your photo..."
-              : countFromPhoto
-                ? "From your photo · adjust if needed."
-                : photoUri
-                  ? "Adjust the count if the photo estimate looks off."
-                  : "Add a photo to auto-estimate count, or set manually."}
-          </Text>
-        </View>
-
-        <View>
-          <Text className="mb-1 font-sans-medium text-sm text-foreground/80">Location</Text>
-          <TextInput
-            value={locationName}
-            onChangeText={setLocationName}
-            placeholder="Where did you spot it?"
-            placeholderTextColor="#8a9e82"
-            className="rounded-xl border border-border bg-card px-4 py-3 font-sans text-base text-foreground"
-          />
-          <Text className="mt-1 font-mono text-[10px] text-muted-foreground/60">
-            {coords
-              ? `GPS attached · ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`
-              : "Location not attached"}
-          </Text>
-        </View>
-
-        <View>
-          <Text className="mb-1 font-sans-medium text-sm text-foreground/80">
-            Notes (optional)
-          </Text>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Behavior, plumage, habitat..."
-            placeholderTextColor="#8a9e82"
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            className="min-h-24 rounded-xl border border-border bg-card px-4 py-3 font-sans text-base text-foreground"
-          />
-        </View>
-
-        <View className="flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
-          <View className="min-w-0 flex-1 pr-3">
-            <Text className="font-sans-medium text-sm text-foreground">
-              Share on profile
-            </Text>
-            <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
-              Off saves to your journal only. Turn on to post to your profile and
-              feed.
-            </Text>
-          </View>
-          <Switch
-            value={publishToProfile}
-            onValueChange={setPublishToProfile}
-            trackColor={{ false: "#3a4e35", true: "#5f9470" }}
-            thumbColor="#f0ead6"
-          />
-        </View>
-
-        {publishToProfile ? (
-          <View className="rounded-xl border border-border bg-card p-3">
-            <Text className="mb-2 font-sans-medium text-sm text-foreground">Who can see this post</Text>
-            <View className="flex-row flex-wrap gap-2">
-              {VISIBILITY_OPTIONS.filter((o) => o.id !== "private").map((option) => {
-                const active = postVisibility === option.id;
-                return (
-                  <Pressable
-                    key={option.id}
-                    onPress={() => setPostVisibility(option.id)}
-                    className={`rounded-full border px-3 py-1.5 ${
-                      active ? "border-primary bg-primary/15" : "border-border"
-                    }`}
-                  >
-                    <Text
-                      className={`font-sans text-xs ${
-                        active ? "font-sans-medium text-primary" : "text-muted-foreground"
-                      }`}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
-
-        {isSensitiveSpecies(scientific, species) ? (
-          <View className="rounded-xl border border-accent/30 bg-accent/10 px-4 py-3">
-            <Text className="font-sans-medium text-sm text-foreground">Sensitive species</Text>
-            <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
-              {getSensitiveSpeciesEntry(scientific, species)?.common_name ?? species} locations
-              are automatically obscured for conservation, regardless of your privacy settings.
-            </Text>
-          </View>
-        ) : null}
-
-        <Pressable
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          className={`mt-2 items-center rounded-xl py-3.5 ${
-            canSubmit ? "bg-primary active:opacity-90" : "bg-primary/40"
-          }`}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#f0ead6" />
-          ) : PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus === "checking" ? (
-            <View className="flex-row items-center gap-2">
-              <ActivityIndicator color="#f0ead6" size="small" />
-              <Text className="font-sans-bold text-base text-primary-foreground">
-                Checking photo…
+          <View className={fieldClassName} style={fieldStyle}>
+            <Text className={fieldLabelClassName}>Rarity</Text>
+            <View className="flex-row items-start gap-3 rounded-xl border border-border bg-background px-4 py-4">
+              <View className="shrink-0 pt-0.5">
+                {rarityLoading ? (
+                  <ActivityIndicator size="small" color="#5f9470" />
+                ) : (
+                  <RarityBadge rarity={rarity} />
+                )}
+              </View>
+              <Text className="min-w-0 flex-1 shrink font-sans text-xs leading-5 text-muted-foreground">
+                {coords
+                  ? "Based on species rarity and recent sightings near you."
+                  : "Waiting for location to estimate regional rarity."}
               </Text>
             </View>
-          ) : (
-            <Text className="font-sans-bold text-base text-primary-foreground">
-              {publishToProfile ? "Save & post" : "Save to journal"}
+          </View>
+
+          <View className={fieldClassName} style={fieldStyle}>
+            <Text className={fieldLabelClassName}>Count</Text>
+            <View className="flex-row items-center gap-5 py-1">
+              <Pressable
+                onPress={() => {
+                  setCountFromPhoto(false);
+                  setCount((c) => Math.max(1, c - 1));
+                }}
+                className="h-11 w-11 items-center justify-center rounded-xl border border-border bg-background"
+              >
+                <Minus size={16} color="#eee8d4" />
+              </Pressable>
+              {countLoading ? (
+                <ActivityIndicator color="#5f9470" />
+              ) : (
+                <Text className="min-w-[2rem] text-center font-serif-semibold text-2xl text-foreground">
+                  {count}
+                </Text>
+              )}
+              <Pressable
+                onPress={() => {
+                  setCountFromPhoto(false);
+                  setCount((c) => Math.min(99, c + 1));
+                }}
+                className="h-11 w-11 items-center justify-center rounded-xl border border-border bg-background"
+              >
+                <Plus size={16} color="#eee8d4" />
+              </Pressable>
+            </View>
+            <Text className="font-sans text-xs leading-5 text-muted-foreground">
+              {countLoading
+                ? "Identifying birds in your photo..."
+                : countFromPhoto
+                  ? "From your photo · adjust if needed."
+                  : photoUri
+                    ? "Adjust the count if the photo estimate looks off."
+                    : "Add a photo to auto-estimate count, or set manually."}
             </Text>
-          )}
-        </Pressable>
-        {PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus === "failed" && photoAuthMessage ? (
-          <Text className="text-center font-sans text-xs text-red-400/90">
-            {photoAuthMessage}
-          </Text>
-        ) : null}
+          </View>
+        </View>
+
+        <View className={`${cardClassName} ${sectionClassName}`} style={cardStyle}>
+          <Text className={sectionLabelClassName}>Location & notes</Text>
+
+          <View className={fieldClassName} style={fieldStyle}>
+            <Text className={fieldLabelClassName}>Location</Text>
+            <TextInput
+              value={locationName}
+              onChangeText={setLocationName}
+              placeholder="Where did you spot it?"
+              placeholderTextColor="#8a9e82"
+              className={inputClassName}
+            />
+            <Text className="font-mono text-[11px] leading-5 text-muted-foreground/70">
+              {coords
+                ? `GPS attached · ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`
+                : "Location not attached"}
+            </Text>
+          </View>
+
+          <View className={fieldClassName} style={fieldStyle}>
+            <Text className={fieldLabelClassName}>Notes</Text>
+            <Text className="-mt-1 font-sans text-xs leading-5 text-muted-foreground">
+              Optional
+            </Text>
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Behavior, plumage, habitat..."
+              placeholderTextColor="#8a9e82"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              className={`min-h-[120px] ${inputClassName} py-3`}
+            />
+          </View>
+        </View>
+
+        <View className={sectionClassName}>
+          <View className="flex-row items-start justify-between rounded-2xl border border-border bg-card px-5 py-5">
+            <View className="min-w-0 flex-1 shrink pr-4">
+              <Text className={fieldLabelClassName}>Share on profile</Text>
+              <Text className="mt-2 font-sans text-xs leading-5 text-muted-foreground">
+                Off saves to your journal only. Turn on to post to your profile and feed.
+              </Text>
+            </View>
+            <View className="shrink-0 pt-1">
+              <Switch
+                value={publishToProfile}
+                onValueChange={setPublishToProfile}
+                trackColor={{ false: "#3a4e35", true: "#5f9470" }}
+                thumbColor="#f0ead6"
+              />
+            </View>
+          </View>
+
+          {publishToProfile ? (
+            <View className={`${cardClassName} mt-5`} style={cardStyle}>
+              <Text className={fieldLabelClassName}>Who can see this post</Text>
+              <View className="flex-row flex-wrap gap-2.5">
+                {VISIBILITY_OPTIONS.filter((o) => o.id !== "private").map((option) => {
+                  const active = postVisibility === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => setPostVisibility(option.id)}
+                      className={`rounded-full border px-3 py-2 ${
+                        active ? "border-primary bg-primary/15" : "border-border bg-background"
+                      }`}
+                    >
+                      <Text
+                        className={`font-sans text-xs ${
+                          active ? "font-sans-medium text-primary" : "text-muted-foreground"
+                        }`}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {isSensitiveSpecies(scientific, species) ? (
+            <View className="mt-5 rounded-2xl border border-accent/30 bg-accent/10 px-5 py-5">
+              <Text className={fieldLabelClassName}>Sensitive species</Text>
+              <Text className="mt-2 font-sans text-xs leading-5 text-muted-foreground">
+                {getSensitiveSpeciesEntry(scientific, species)?.common_name ?? species} locations
+                are automatically obscured for conservation, regardless of your privacy settings.
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View className="gap-4">
+          <Pressable
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            className={`items-center rounded-2xl px-5 py-4 ${
+              canSubmit ? "bg-primary active:opacity-90" : "bg-primary/40"
+            }`}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#f0ead6" />
+            ) : PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus === "checking" ? (
+              <View className="flex-row items-center gap-2">
+                <ActivityIndicator color="#f0ead6" size="small" />
+                <Text className="font-sans-bold text-base text-primary-foreground">
+                  Checking photo…
+                </Text>
+              </View>
+            ) : (
+              <Text className="font-sans-bold text-base text-primary-foreground">
+                {publishToProfile ? "Save & post" : "Save to journal"}
+              </Text>
+            )}
+          </Pressable>
+          {PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus === "failed" && photoAuthMessage ? (
+            <Text className="px-1 text-center font-sans text-xs leading-5 text-red-400/90">
+              {photoAuthMessage}
+            </Text>
+          ) : null}
+        </View>
       </KeyboardScreen>
 
       <SoundLibraryPicker
@@ -1074,6 +1216,13 @@ export default function NewSightingScreen() {
         userId={userId}
         onClose={() => setLibraryPickerOpen(false)}
         onSelect={attachLibraryEntry}
+      />
+
+      <SightingPhotoCropModal
+        visible={cropModalOpen}
+        uri={cropSourceUri}
+        onCancel={() => setCropModalOpen(false)}
+        onConfirm={applyCroppedPhoto}
       />
 
       <PostSendOffOverlay sendOffKey={sendOffKey} onComplete={onSendOffComplete} />

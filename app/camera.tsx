@@ -61,6 +61,7 @@ import { soundConfirmsPhoto } from "@/lib/speciesMatch";
 import { getErrorMessage, getUserFacingMessage } from "@/lib/errors";
 import { canReuseLivePhotoDetection } from "@/lib/livePhotoSession";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
+import { IdDisclaimerBanner } from "@/components/IdDisclaimerBanner";
 import { LivePhotoOverlay } from "@/components/LivePhotoOverlay";
 import { LiveSoundConfirmationOverlay } from "@/components/LiveSoundConfirmationOverlay";
 import { CameraZoomIndicator } from "@/components/CameraZoomIndicator";
@@ -629,16 +630,19 @@ export default function CameraScreen() {
         pointerEvents="box-none"
       >
         <CameraOriented rotation={uiRotation} align="center">
-          <LocationAccuracyBanner
-            permission={locationPermission}
-            onEnablePress={() => {
-              if (locationPermission === "denied") {
-                openLocationSettings();
-                return;
-              }
-              void refreshLocation();
-            }}
-          />
+          <View className="w-full gap-2">
+            <IdDisclaimerBanner variant="dark" />
+            <LocationAccuracyBanner
+              permission={locationPermission}
+              onEnablePress={() => {
+                if (locationPermission === "denied") {
+                  openLocationSettings();
+                  return;
+                }
+                void refreshLocation();
+              }}
+            />
+          </View>
         </CameraOriented>
       </View>
 

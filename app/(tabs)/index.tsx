@@ -107,6 +107,7 @@ export default function HomeScreen() {
     refresh: refreshFeed,
     silentRefresh: silentRefreshFeed,
     toggleLike,
+    removeBlockedAuthor,
   } = useFeed({
     filter: feedFilter,
     userId,
@@ -268,6 +269,7 @@ export default function HomeScreen() {
               sighting={s}
               liked={likedIds.has(s.id)}
               onToggleLike={() => toggleLike(s.id)}
+              onUserBlocked={removeBlockedAuthor}
             />
           ))
         )}

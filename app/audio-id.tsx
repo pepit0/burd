@@ -17,6 +17,7 @@ import {
 } from "@/components/LiveSoundFieldGuideSheet";
 import { LiveSpeciesRow } from "@/components/LiveSpeciesRow";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
+import { IdDisclaimerBanner } from "@/components/IdDisclaimerBanner";
 import {
   DismissKeyboardArea,
   dismissKeyboardOnScrollDrag,
@@ -200,7 +201,8 @@ export default function AudioIdentifyScreen() {
         <View className="w-7" />
       </View>
 
-      <View className="px-4 pb-2">
+      <View className="gap-2 px-4 pb-2">
+        <IdDisclaimerBanner />
         <LocationAccuracyBanner
           permission={locationPermission}
           onEnablePress={() => {

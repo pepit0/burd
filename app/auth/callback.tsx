@@ -5,6 +5,14 @@ import { getUserFacingMessage } from "@/lib/errors";
 import { completeOAuthFromUrl } from "@/lib/googleAuth";
 import { supabase } from "@/lib/supabase";
 
+function cleanOAuthParamsFromUrl(): void {
+  if (Platform.OS !== "web" || typeof window === "undefined") return;
+  const path = window.location.pathname;
+  if (path.endsWith("/auth/callback")) {
+    window.history.replaceState({}, "", path);
+  }
+}
+
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +27,7 @@ export default function AuthCallbackScreen() {
         } = await supabase.auth.getSession();
         if (cancelled) return;
         if (existing) {
+          cleanOAuthParamsFromUrl();
           router.replace("/");
           return;
         }
@@ -26,6 +35,9 @@ export default function AuthCallbackScreen() {
         if (Platform.OS === "web" && typeof window !== "undefined") {
           const href = window.location.href;
           if (href.includes("code=") || href.includes("access_token=")) {
+            await completeOAuthFromUrl(href);
+            cleanOAuthParamsFromUrl();
+          } else if (href.includes("error=")) {
             await completeOAuthFromUrl(href);
           }
         }

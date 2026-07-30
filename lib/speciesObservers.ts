@@ -7,6 +7,8 @@ export interface SpeciesObserver {
   fullName: string | null;
   avatarColor: string;
   avatarUrl: string | null;
+  isVerified: boolean;
+  isBeta: boolean;
   firstSeenAt: string;
 }
 
@@ -29,6 +31,8 @@ export async function fetchSpeciesObservers(
     full_name: string | null;
     avatar_color: string;
     avatar_url: string | null;
+    is_verified: boolean;
+    is_beta: boolean;
     first_seen_at: string;
   }[])
     .filter((row) => row.user_id && row.username)
@@ -38,6 +42,8 @@ export async function fetchSpeciesObservers(
       fullName: row.full_name,
       avatarColor: row.avatar_color,
       avatarUrl: row.avatar_url,
+      isVerified: Boolean(row.is_verified),
+      isBeta: Boolean(row.is_beta),
       firstSeenAt: row.first_seen_at,
     }));
 }

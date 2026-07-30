@@ -12,6 +12,7 @@ interface CommentRow {
     username: string;
     avatar_color: string;
     avatar_url: string | null;
+    is_verified: boolean;
   };
 }
 
@@ -27,6 +28,7 @@ function mapRow(row: CommentRow): Comment & { parent_id: string | null } {
     username: row.profiles.username,
     avatar_color: row.profiles.avatar_color,
     avatar_url: row.profiles.avatar_url,
+    is_verified: row.profiles.is_verified,
     body: row.body,
     created_at: row.created_at,
     like_count: 0,
@@ -44,6 +46,7 @@ function buildCommentTree(flat: (Comment & { parent_id: string | null })[]): Com
       username: row.username,
       avatar_color: row.avatar_color,
       avatar_url: row.avatar_url,
+      is_verified: row.is_verified,
       body: row.body,
       created_at: row.created_at,
       like_count: row.like_count,
@@ -131,7 +134,7 @@ export async function getCommentsForSighting(
   const { data, error } = await supabase
     .from("comments")
     .select(
-      "id, sighting_id, user_id, parent_id, body, created_at, profiles!user_id(username, avatar_color, avatar_url)",
+      "id, sighting_id, user_id, parent_id, body, created_at, profiles!user_id(username, avatar_color, avatar_url, is_verified)",
     )
     .eq("sighting_id", sightingId)
     .order("created_at", { ascending: true });
@@ -172,7 +175,7 @@ export async function createComment(
       body: trimmed,
     })
     .select(
-      "id, sighting_id, user_id, parent_id, body, created_at, profiles!user_id(username, avatar_color, avatar_url)",
+      "id, sighting_id, user_id, parent_id, body, created_at, profiles!user_id(username, avatar_color, avatar_url, is_verified)",
     )
     .single();
 

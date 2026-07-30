@@ -1,5 +1,7 @@
 -- Distinct users who have logged a species, ordered by first sighting.
 
+drop function if exists public.get_species_observers(text, text);
+
 create or replace function public.get_species_observers(
   in_scientific_name text,
   in_common_name text

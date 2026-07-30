@@ -35,7 +35,14 @@ async function createAppleNonce(): Promise<{ raw: string; hashed: string }> {
  * Native Sign in with Apple → Supabase session via identity token.
  * Returns `{ cancelled: true }` if the user dismissed the Apple sheet.
  */
-export async function signInWithApple(): Promise<{ cancelled: boolean }> {
+export interface AppleSignInOptions {
+  /** Persist Terms/Privacy + age-13 consent timestamps on the auth user. */
+  recordConsent?: boolean;
+}
+
+export async function signInWithApple(
+  options?: AppleSignInOptions,
+): Promise<{ cancelled: boolean }> {
   if (Platform.OS !== "ios") {
     throw new Error("Sign in with Apple is only available on iOS.");
   }
@@ -118,6 +125,16 @@ export async function signInWithApple(): Promise<{ cancelled: boolean }> {
           if (isNewUser && !signedIn.user_metadata?.signup_platform) {
             metadata.signup_platform = getSignupPlatform();
             metadata.signup_method = "apple";
+          }
+
+          if (options?.recordConsent) {
+            const now = new Date().toISOString();
+            if (!signedIn.user_metadata?.privacy_policy_accepted_at) {
+              metadata.privacy_policy_accepted_at = now;
+            }
+            if (!signedIn.user_metadata?.age_confirmed_at) {
+              metadata.age_confirmed_at = now;
+            }
           }
 
           if (Object.keys(metadata).length > 0) {

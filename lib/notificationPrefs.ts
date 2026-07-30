@@ -64,6 +64,6 @@ export const NOTIFICATION_PREF_LABELS: {
   {
     key: "nearby_rare",
     label: "Nearby rare sightings",
-    detail: "Rare birds reported near you (coming soon)",
+    detail: "Rare birds reported near you",
   },
 ];

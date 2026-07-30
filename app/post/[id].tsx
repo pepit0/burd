@@ -19,7 +19,7 @@ import {
   Share2,
 } from "lucide-react-native";
 import { LikeBurstOverlay } from "@/components/LikeBurstOverlay";
-import { PinchZoomImage } from "@/components/PinchZoomImage";
+import { SightingPhotoCarousel } from "@/components/SightingPhotoCarousel";
 import { LikeIcon } from "@/components/LikeIcon";
 import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
 import { INACTIVE_ICON_COLOR_ON_DARK } from "@/lib/likeIconStyle";
@@ -43,12 +43,15 @@ import {
   setLike,
   setRepost,
 } from "@/lib/sightings";
-import { sightingPlaceLine } from "@/lib/sightingFormat";
+import { postedDate, sightingPlaceLine } from "@/lib/sightingFormat";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
+import { SIGHTING_PHOTO_ASPECT } from "@/lib/sightingPhotoFrame";
+import { sightingPhotosForDisplay } from "@/lib/sightingPhotos";
 import { timeAgo } from "@/lib/time";
-import type { FeedSighting } from "@/types";
+import type { FeedSighting, SightingPhoto } from "@/types";
 
-const PHOTO_SIZE = Dimensions.get("window").width;
+const PHOTO_WIDTH = Dimensions.get("window").width;
+const PHOTO_HEIGHT = PHOTO_WIDTH / SIGHTING_PHOTO_ASPECT;
 const ACTION_ICON_SIZE = 26;
 
 function PostAction({
@@ -91,14 +94,22 @@ function repostLabel(count: number): string {
   return `${count} reposts`;
 }
 
+function routeParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
 export default function PostScreen() {
   const router = useRouter();
-  const { id, commentId } = useLocalSearchParams<{ id: string; commentId?: string }>();
+  const params = useLocalSearchParams<{ id: string | string[]; commentId?: string | string[] }>();
+  const id = routeParam(params.id);
+  const commentId = routeParam(params.commentId);
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { isAdmin } = useAdmin(userId);
 
   const [post, setPost] = useState<FeedSighting | null>(null);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [liked, setLiked] = useState(false);
   const [reposted, setReposted] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -115,6 +126,11 @@ export default function PostScreen() {
   const initialLoadDoneRef = useRef(false);
   const audioPlayback = useAudioPlayback(post?.audio_url ?? null);
   const { likeIconStyle } = useLikeIconStyle();
+  const postPhotos = useMemo(
+    () => (post ? sightingPhotosForDisplay(post) : []),
+    [post],
+  );
+  const activePhoto = postPhotos[activePhotoIndex] ?? postPhotos[0] ?? null;
 
   const loadPost = useCallback(async (showSpinner: boolean) => {
     if (!id) {
@@ -316,15 +332,15 @@ export default function PostScreen() {
 
           <View
             className="bg-muted"
-            style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
+            style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
           >
             {isPhotoSighting(post) && !isRemoved ? (
-              <PinchZoomImage
-                uri={post.photo_url!}
-                width={PHOTO_SIZE}
-                height={PHOTO_SIZE}
-                contentFit="cover"
+              <SightingPhotoCarousel
+                photos={postPhotos}
+                contentFit="contain"
                 overlayGesture={doubleTapLike}
+                style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
+                onIndexChange={setActivePhotoIndex}
               />
               ) : isAudioSighting(post) && !isRemoved ? (
                 <PlaybackWaveform
@@ -385,8 +401,8 @@ export default function PostScreen() {
             <Text className="mt-2 font-sans text-sm leading-relaxed text-foreground">
               <Text className="font-sans-medium">@{post.username}</Text>{" "}
               <SpeciesNameLink
-                species={post.species}
-                scientificName={post.scientific_name}
+                species={activePhoto?.species?.trim() || post.species}
+                scientificName={activePhoto?.scientific_name ?? post.scientific_name}
                 className="font-serif-semibold text-primary"
               />
               {post.notes ? (
@@ -401,7 +417,7 @@ export default function PostScreen() {
             ) : null}
 
             <Text className="mt-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground/50">
-              {timeAgo(post.created_at)}
+              {timeAgo(postedDate(post).toISOString())}
             </Text>
           </View>
 
@@ -416,9 +432,11 @@ export default function PostScreen() {
           >
             <PostComments
               sightingId={post.id}
+              postAuthorUserId={post.user_id}
               userId={userId}
               highlightCommentId={commentId ?? null}
               onCommentCountChange={setCommentCount}
+              onUserBlocked={() => router.back()}
             />
           </View>
             </>
@@ -431,12 +449,14 @@ export default function PostScreen() {
           sightingId={post.id}
           userId={userId}
           ownerUserId={post.user_id}
+          ownerUsername={post.username}
           hasPhoto={Boolean(post.photo_url)}
           authorDisqualified={authorDisqualified}
           isAdmin={isAdmin}
           visible={optionsOpen}
           onClose={() => setOptionsOpen(false)}
           onPostRemoved={() => router.back()}
+          onUserBlocked={() => router.back()}
           onAuthorRemoved={() => {
             setPost((current) =>
               current

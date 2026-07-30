@@ -10,6 +10,8 @@ export interface UserListItem {
   full_name: string | null;
   avatar_color: string;
   avatar_url?: string | null;
+  is_verified?: boolean;
+  is_beta?: boolean;
   status: FriendshipStatus;
   subtitle?: string | null;
 }
@@ -217,6 +219,8 @@ function birdersFromSightings(
       full_name: row.full_name,
       avatar_color: row.avatar_color,
       avatar_url: null,
+      is_verified: row.is_verified,
+      is_beta: row.is_beta,
       subtitle: row.location_name
         ? `Recent post · ${row.location_name}`
         : "Posted nearby",
@@ -249,7 +253,7 @@ export async function getNearbyBirders(
     getNearbyFeed(lat, lng, radiusKm),
     supabase
       .from("profiles")
-      .select("id, username, full_name, avatar_color, avatar_url, location_name, latitude, longitude")
+      .select("id, username, full_name, avatar_color, avatar_url, location_name, latitude, longitude, is_verified, is_beta")
       .neq("id", currentUserId)
       .not("latitude", "is", null)
       .not("longitude", "is", null),
@@ -291,6 +295,8 @@ export async function getNearbyBirders(
       full_name: (profile.full_name as string | null) ?? null,
       avatar_color: profile.avatar_color as string,
       avatar_url: (profile.avatar_url as string | null) ?? null,
+      is_verified: Boolean(profile.is_verified),
+      is_beta: Boolean(profile.is_beta),
       subtitle: profile.location_name
         ? `${Math.round(distance)} km away · ${profile.location_name}`
         : `${Math.round(distance)} km away`,
@@ -346,7 +352,7 @@ export async function searchUsersForAdmin(
 
   let req = supabase
     .from("profiles")
-    .select("id, username, full_name, avatar_color, avatar_url, location_name")
+    .select("id, username, full_name, avatar_color, avatar_url, location_name, is_verified, is_beta")
     .order("username", { ascending: true })
     .limit(limit);
 
@@ -372,6 +378,8 @@ export async function searchUsersForAdmin(
     full_name: (p.full_name as string | null) ?? null,
     avatar_color: p.avatar_color as string,
     avatar_url: (p.avatar_url as string | null) ?? null,
+    is_verified: Boolean(p.is_verified),
+    is_beta: Boolean(p.is_beta),
     subtitle: (p.location_name as string | null) ?? null,
   }));
 
@@ -392,7 +400,7 @@ export async function searchUsersForMention(
 
   let req = supabase
     .from("profiles")
-    .select("id, username, full_name, avatar_color, avatar_url, location_name")
+    .select("id, username, full_name, avatar_color, avatar_url, location_name, is_verified, is_beta")
     .neq("id", currentUserId)
     .order("username", { ascending: true })
     .limit(limit);
@@ -415,6 +423,8 @@ export async function searchUsersForMention(
     full_name: (p.full_name as string | null) ?? null,
     avatar_color: p.avatar_color as string,
     avatar_url: (p.avatar_url as string | null) ?? null,
+    is_verified: Boolean(p.is_verified),
+    is_beta: Boolean(p.is_beta),
     subtitle: (p.location_name as string | null) ?? null,
   }));
 
@@ -450,7 +460,7 @@ async function profilesForIds(
   if (ids.length === 0) return [];
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, username, full_name, avatar_color, avatar_url, location_name")
+    .select("id, username, full_name, avatar_color, avatar_url, location_name, is_verified, is_beta")
     .in("id", ids);
   if (error) throw error;
   const byId = new Map((data ?? []).map((p) => [p.id as string, p]));
@@ -463,6 +473,8 @@ async function profilesForIds(
       full_name: (p.full_name as string | null) ?? null,
       avatar_color: p.avatar_color as string,
       avatar_url: (p.avatar_url as string | null) ?? null,
+      is_verified: Boolean(p.is_verified),
+      is_beta: Boolean(p.is_beta),
       subtitle: (p.location_name as string | null) ?? null,
     }));
 }

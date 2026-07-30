@@ -2,9 +2,11 @@ import { supabase } from "@/lib/supabase";
 import type {
   AccountStatus,
   AdminPostEditInput,
+  CommentReport,
   ModerationAction,
   PostReport,
   Profile,
+  UserReport,
   UserRole,
 } from "@/types";
 
@@ -150,10 +152,40 @@ export async function adminUpdateUsername(
   if (error) throw error;
 }
 
+export async function getAutoBetaBadgeEnabled(): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("auto_beta_badge_enabled")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data?.auto_beta_badge_enabled ?? true);
+}
+
+export async function setAutoBetaBadgeEnabled(enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc("admin_set_auto_beta_badge", {
+    p_enabled: enabled,
+  });
+  if (error) throw error;
+}
+
+export async function updateUserBadgesAsAdmin(
+  userId: string,
+  badges: { isVerified: boolean; isBeta: boolean },
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_update_user_badges", {
+    p_user_id: userId,
+    p_is_verified: badges.isVerified,
+    p_is_beta: badges.isBeta,
+  });
+  if (error) throw error;
+}
+
 export async function getPendingReports(limit = 50): Promise<PostReport[]> {
   const { data: reports, error } = await supabase
     .from("post_reports")
-    .select("id, reporter_id, sighting_id, created_at")
+    .select("id, reporter_id, sighting_id, reason, status, created_at")
+    .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -207,10 +239,127 @@ export async function getPendingReports(limit = 50): Promise<PostReport[]> {
     id: row.id as string,
     reporter_id: row.reporter_id as string,
     sighting_id: row.sighting_id as string,
+    reason: (row.reason as string | null) ?? null,
+    status: (row.status as string | undefined) ?? "pending",
     created_at: row.created_at as string,
     reporter: { username: reporterMap.get(row.reporter_id as string) ?? "unknown" },
     sighting: sightingMap.get(row.sighting_id as string) ?? null,
   }));
+}
+
+export async function getPendingCommentReports(limit = 50): Promise<CommentReport[]> {
+  const { data: reports, error } = await supabase
+    .from("comment_reports")
+    .select("id, reporter_id, comment_id, reason, status, created_at")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  if (!reports?.length) return [];
+
+  const commentIds = [...new Set(reports.map((r) => r.comment_id as string))];
+  const reporterIds = [...new Set(reports.map((r) => r.reporter_id as string))];
+
+  const [{ data: comments, error: commentError }, { data: profiles, error: profileError }] =
+    await Promise.all([
+      supabase
+        .from("comments")
+        .select("id, body, sighting_id, user_id")
+        .in("id", commentIds),
+      supabase.from("profiles").select("id, username").in("id", reporterIds),
+    ]);
+
+  if (commentError) throw commentError;
+  if (profileError) throw profileError;
+
+  const commentMap = new Map(
+    (comments ?? []).map((row) => [
+      row.id as string,
+      {
+        body: row.body as string,
+        sighting_id: row.sighting_id as string,
+        user_id: row.user_id as string,
+      },
+    ]),
+  );
+  const usernameMap = new Map(
+    (profiles ?? []).map((row) => [row.id as string, row.username as string]),
+  );
+
+  return reports.map((row) => ({
+    id: row.id as string,
+    reporter_id: row.reporter_id as string,
+    comment_id: row.comment_id as string,
+    reason: row.reason as string,
+    status: row.status as string,
+    created_at: row.created_at as string,
+    reporter: { username: usernameMap.get(row.reporter_id as string) ?? "unknown" },
+    comment: commentMap.get(row.comment_id as string) ?? null,
+  }));
+}
+
+export async function getPendingUserReports(limit = 50): Promise<UserReport[]> {
+  const { data: reports, error } = await supabase
+    .from("user_reports")
+    .select("id, reporter_id, reported_user_id, reason, source, status, created_at")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  if (!reports?.length) return [];
+
+  const reporterIds = [...new Set(reports.map((r) => r.reporter_id as string))];
+  const reportedIds = [...new Set(reports.map((r) => r.reported_user_id as string))];
+  const profileIds = [...new Set([...reporterIds, ...reportedIds])];
+
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, username")
+    .in("id", profileIds);
+
+  if (profileError) throw profileError;
+
+  const usernameMap = new Map(
+    (profiles ?? []).map((row) => [row.id as string, row.username as string]),
+  );
+
+  return reports.map((row) => ({
+    id: row.id as string,
+    reporter_id: row.reporter_id as string,
+    reported_user_id: row.reported_user_id as string,
+    reason: row.reason as string,
+    source: row.source as string,
+    status: row.status as string,
+    created_at: row.created_at as string,
+    reporter: { username: usernameMap.get(row.reporter_id as string) ?? "unknown" },
+    reported_user: {
+      username: usernameMap.get(row.reported_user_id as string) ?? "unknown",
+    },
+  }));
+}
+
+export async function dismissReport(
+  reportType: "post" | "user" | "comment",
+  reportId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_dismiss_report", {
+    p_report_type: reportType,
+    p_report_id: reportId,
+  });
+  if (error) throw error;
+}
+
+export async function resolveReport(
+  reportType: "post" | "user" | "comment",
+  reportId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_resolve_report", {
+    p_report_type: reportType,
+    p_report_id: reportId,
+  });
+  if (error) throw error;
 }
 
 export async function getRecentModerationLog(limit = 30): Promise<ModerationAction[]> {

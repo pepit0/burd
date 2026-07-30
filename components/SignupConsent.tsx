@@ -93,3 +93,30 @@ export function hasSignupConsent(
 ): boolean {
   return privacyAccepted && ageConfirmed;
 }
+
+/** Shown near Apple/Google on sign-up — tapping those buttons counts as agreement. */
+export function SignupSocialNotice({ className }: { className?: string }) {
+  return (
+    <Text
+      className={`font-sans text-xs leading-relaxed text-muted-foreground ${className ?? ""}`}
+    >
+      By continuing with Apple or Google, you agree to our{" "}
+      <Text
+        className="text-primary"
+        onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
+        accessibilityRole="link"
+      >
+        Terms
+      </Text>{" "}
+      and{" "}
+      <Text
+        className="text-primary"
+        onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+        accessibilityRole="link"
+      >
+        Privacy Policy
+      </Text>
+      , and confirm you are at least 13 years old.
+    </Text>
+  );
+}

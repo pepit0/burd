@@ -135,8 +135,8 @@ export function SightingDetailsSection({
           ) : null}
 
           <View className="rounded-xl border border-border bg-card px-3 py-2">
-            <DetailLine label="Date" value={formatDetailDate(when)} />
-            <DetailLine label="Time" value={formatDetailTime(when)} />
+            <DetailLine label="Observed date" value={formatDetailDate(when)} />
+            <DetailLine label="Observed time" value={formatDetailTime(when)} />
             {photoAccuracy ? (
               <DetailLine label="Photo accuracy" value={photoAccuracy} />
             ) : null}

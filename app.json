@@ -19,9 +19,6 @@
       "bundleIdentifier": "com.burd.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
-        },
         "NSMicrophoneUsageDescription": "Burd uses the microphone so you can record bird calls while photographing.",
         "UIBackgroundModes": [
           "remote-notification"

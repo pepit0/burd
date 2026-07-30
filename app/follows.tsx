@@ -10,7 +10,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, Users } from "lucide-react-native";
 import { SearchBar } from "@/components/SearchBar";
 import { Avatar } from "@/components/Avatar";
-import { DisplayNameText } from "@/components/DisplayNameText";
+import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { FollowButton } from "@/components/FollowButton";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
@@ -219,8 +219,10 @@ export default function FollowsScreen() {
                   size={42}
                 />
                 <View className="min-w-0 flex-1">
-                  <DisplayNameText
+                  <DisplayNameWithBadges
                     text={u.full_name || u.username}
+                    isVerified={u.is_verified}
+                    isBeta={u.is_beta}
                     className="font-sans-medium text-sm text-foreground"
                     numberOfLines={1}
                   />

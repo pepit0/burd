@@ -13,6 +13,7 @@ import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
 import {
   SignupConsent,
+  SignupSocialNotice,
   hasSignupConsent,
 } from "@/components/SignupConsent";
 import { AUTH_EMAIL_REDIRECT_TO } from "@/lib/authRedirect";
@@ -210,8 +211,21 @@ export default function RegisterScreen() {
           Create account
         </Text>
         <Text className="mb-8 font-sans text-base text-muted-foreground">
-          Sign up with email, Apple, or Google. You'll choose your profile next.
+          Sign up with Apple, Google, or email. You'll choose your profile next.
         </Text>
+
+        <SocialAuthButtons
+          recordConsent
+          onError={setError}
+          className="mb-2"
+        />
+        <SignupSocialNotice className="mb-8" />
+
+        <View className="mb-3 flex-row items-center gap-3">
+          <View className="h-px flex-1 bg-border" />
+          <Text className="font-sans text-xs text-muted-foreground">or sign up with email</Text>
+          <View className="h-px flex-1 bg-border" />
+        </View>
 
         <Text className="mb-1 font-sans-medium text-sm text-foreground/80">Email</Text>
         <TextInput
@@ -249,7 +263,7 @@ export default function RegisterScreen() {
         />
 
         <Pressable
-          className={`mb-4 items-center rounded-xl bg-primary py-3.5 active:opacity-90 ${
+          className={`mb-6 items-center rounded-xl bg-primary py-3.5 active:opacity-90 ${
             !consentComplete ? "opacity-50" : ""
           }`}
           disabled={loading || !consentComplete}
@@ -259,16 +273,10 @@ export default function RegisterScreen() {
             <ActivityIndicator color="#f0ead6" />
           ) : (
             <Text className="font-sans-bold text-base text-primary-foreground">
-              Sign up
+              Sign up with email
             </Text>
           )}
         </Pressable>
-
-        <SocialAuthButtons
-          disabled={!consentComplete}
-          onError={setError}
-          className="mb-6"
-        />
 
         <Pressable onPress={() => router.replace("/(auth)/login")}>
           <Text className="text-center font-sans text-base text-muted-foreground">

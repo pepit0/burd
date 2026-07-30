@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { X } from "lucide-react-native";
+import { UserBadgeAdminPanel } from "@/components/UserBadgeAdminPanel";
 import { ModerationReasonModal } from "@/components/ModerationReasonModal";
 import { getUserFacingMessage } from "@/lib/errors";
 import {
@@ -103,6 +104,10 @@ export function UserModerationSheet({
               <Pressable onPress={handleClose} className="rounded-full p-1.5 active:bg-muted">
                 <X size={18} color="#8a9e82" />
               </Pressable>
+            </View>
+
+            <View className="mb-4 border-t border-border/60 pt-4">
+              <UserBadgeAdminPanel profile={profile} onUpdated={onUpdated} />
             </View>
 
             {suspended ? (

@@ -25,6 +25,12 @@ export default function PreferencesScreen() {
             borderTop
           />
           <SettingsRow
+            label="Blocked users"
+            detail="Manage blocked accounts"
+            onPress={() => router.push("/preferences/blocked-users")}
+            borderTop
+          />
+          <SettingsRow
             label="Notifications"
             detail="Push alerts by type"
             onPress={() => router.push("/preferences/notifications")}

@@ -7,12 +7,13 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { MessageCircle, SendHorizontal } from "lucide-react-native";
+import { MessageCircle, MoreHorizontal, SendHorizontal } from "lucide-react-native";
 import { LikeIcon } from "@/components/LikeIcon";
 import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
 import { Avatar } from "@/components/Avatar";
 import { MentionText } from "@/components/MentionText";
 import { MentionTextInput } from "@/components/MentionTextInput";
+import { UserStatusBadges } from "@/components/UserStatusBadges";
 import {
   countComments,
   createComment,
@@ -20,15 +21,30 @@ import {
   setCommentLike,
 } from "@/lib/comments";
 import { getLoadErrorMessage, getUserFacingMessage } from "@/lib/errors";
+import { blockUser } from "@/lib/blocks";
+import { pickReportReason } from "@/lib/reportReasons";
+import { reportComment } from "@/lib/reports";
 import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import { timeAgo } from "@/lib/time";
 import type { Comment } from "@/types";
 
 interface PostCommentsProps {
   sightingId: string;
+  postAuthorUserId: string;
   userId: string | null;
   highlightCommentId?: string | null;
   onCommentCountChange?: (count: number) => void;
+  onUserBlocked?: (blockedUserId: string) => void;
+}
+
+function CommentAuthorTag() {
+  return (
+    <View className="rounded bg-primary/15 px-1.5 py-0.5">
+      <Text className="font-mono text-[9px] uppercase tracking-wide text-primary">
+        Author
+      </Text>
+    </View>
+  );
 }
 
 function updateCommentTree(
@@ -50,28 +66,34 @@ function updateCommentTree(
 
 function CommentRow({
   comment,
-  nested = false,
+  isReply = false,
+  postAuthorUserId,
   userId,
   onReply,
   onToggleLike,
+  onModerate,
   canInteract,
   highlighted = false,
   highlightCommentId = null,
 }: {
   comment: Comment;
-  nested?: boolean;
+  isReply?: boolean;
+  postAuthorUserId: string;
   userId: string | null;
   onReply: (comment: Comment) => void;
   onToggleLike: (commentId: string) => void;
+  onModerate: (comment: Comment) => void;
   canInteract: boolean;
   highlighted?: boolean;
   highlightCommentId?: string | null;
 }) {
   const { likeIconStyle } = useLikeIconStyle();
+  const isOwnComment = Boolean(userId && userId === comment.user_id);
+  const isPostAuthor = comment.user_id === postAuthorUserId;
 
   return (
     <View
-      className={`${nested ? "ml-10 mt-3" : "mt-4"} ${
+      className={`${isReply ? "mt-3" : "mt-4"} ${
         highlighted ? "rounded-xl bg-primary/10 px-2 py-1" : ""
       }`}
     >
@@ -80,11 +102,29 @@ function CommentRow({
           user={comment.username}
           color={comment.avatar_color}
           avatarUrl={comment.avatar_url}
-          size={nested ? 28 : 32}
+          size={isReply ? 28 : 32}
         />
         <View className="min-w-0 flex-1">
-          <Text className="font-sans text-sm leading-snug text-foreground">
-            <Text className="font-sans-medium">@{comment.username}</Text>{" "}
+          <View className="flex-row items-start gap-1">
+            <View className="min-w-0 flex-1 flex-row flex-wrap items-center gap-1.5">
+              <Text className="font-sans-medium text-sm text-foreground">
+                @{comment.username}
+              </Text>
+              <UserStatusBadges isVerified={comment.is_verified} isBeta={false} size="sm" />
+              {isPostAuthor ? <CommentAuthorTag /> : null}
+            </View>
+            {!isOwnComment && userId ? (
+              <Pressable
+                onPress={() => onModerate(comment)}
+                hitSlop={8}
+                className="-mr-1 rounded-full p-1 active:bg-card"
+                accessibilityLabel="Comment options"
+              >
+                <MoreHorizontal size={16} color="#8a9e82" />
+              </Pressable>
+            ) : null}
+          </View>
+          <Text className="mt-1 font-sans text-sm leading-snug text-foreground">
             <MentionText body={comment.body} />
           </Text>
           <View className="mt-1.5 flex-row items-center gap-4">
@@ -119,27 +159,36 @@ function CommentRow({
         </View>
       </View>
 
-      {comment.replies?.map((reply) => (
-        <CommentRow
-          key={reply.id}
-          comment={reply}
-          nested
-          userId={userId}
-          onReply={onReply}
-          onToggleLike={onToggleLike}
-          canInteract={canInteract}
-          highlighted={reply.id === highlightCommentId}
-        />
-      ))}
+      {comment.replies?.length ? (
+        <View className={isReply ? undefined : "ml-10"}>
+          {comment.replies.map((reply) => (
+            <CommentRow
+              key={reply.id}
+              comment={reply}
+              isReply
+              postAuthorUserId={postAuthorUserId}
+              userId={userId}
+              onReply={onReply}
+              onToggleLike={onToggleLike}
+              onModerate={onModerate}
+              canInteract={canInteract}
+              highlighted={reply.id === highlightCommentId}
+              highlightCommentId={highlightCommentId}
+            />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 export function PostComments({
   sightingId,
+  postAuthorUserId,
   userId,
   highlightCommentId = null,
   onCommentCountChange,
+  onUserBlocked,
 }: PostCommentsProps) {
   const router = useRouter();
   const [comments, setComments] = useState<Comment[]>([]);
@@ -187,6 +236,84 @@ export function PostComments({
       setSubmitting(false);
     }
   }
+
+  function removeCommentsByUser(authorId: string, items: Comment[]): Comment[] {
+    return items
+      .filter((comment) => comment.user_id !== authorId)
+      .map((comment) => ({
+        ...comment,
+        replies: comment.replies?.length
+          ? removeCommentsByUser(authorId, comment.replies)
+          : comment.replies,
+      }));
+  }
+
+  const handleCommentModerate = useCallback(
+    (comment: Comment) => {
+      if (!userId) {
+        router.push("/(auth)/login");
+        return;
+      }
+
+      Alert.alert(`@${comment.username}`, "What would you like to do?", [
+        {
+          text: "Report comment",
+          onPress: () => {
+            void (async () => {
+              const reason = await pickReportReason("Report comment");
+              if (!reason) return;
+              try {
+                await reportComment(userId, comment.id, reason);
+                Alert.alert(
+                  "Report submitted",
+                  "Thanks — our moderators review reports within 24 hours.",
+                );
+              } catch (e) {
+                Alert.alert("Could not report", getUserFacingMessage(e));
+              }
+            })();
+          },
+        },
+        {
+          text: "Block user",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              `Block @${comment.username}?`,
+              "Their content will disappear from your feed immediately. We'll be notified to review this account.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Block",
+                  style: "destructive",
+                  onPress: () => {
+                    void (async () => {
+                      try {
+                        await blockUser(
+                          comment.user_id,
+                          `Blocked from comment ${comment.id} — user-initiated block with moderation review`,
+                        );
+                        setComments((prev) => removeCommentsByUser(comment.user_id, prev));
+                        onUserBlocked?.(comment.user_id);
+                        Alert.alert(
+                          "User blocked",
+                          `@${comment.username} has been blocked.`,
+                        );
+                      } catch (e) {
+                        Alert.alert("Could not block user", getUserFacingMessage(e));
+                      }
+                    })();
+                  },
+                },
+              ],
+            );
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    },
+    [onUserBlocked, router, userId],
+  );
 
   const toggleCommentLike = useCallback(
     (commentId: string) => {
@@ -252,9 +379,11 @@ export function PostComments({
           <CommentRow
             key={comment.id}
             comment={comment}
+            postAuthorUserId={postAuthorUserId}
             userId={userId}
             onReply={setReplyTo}
             onToggleLike={toggleCommentLike}
+            onModerate={handleCommentModerate}
             canInteract={!!userId}
             highlighted={comment.id === highlightCommentId}
             highlightCommentId={highlightCommentId}

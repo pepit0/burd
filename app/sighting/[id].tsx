@@ -24,8 +24,8 @@ import {
   X,
 } from "lucide-react-native";
 import { RarityBadge } from "@/components/RarityBadge";
+import { SightingPhotoCarousel } from "@/components/SightingPhotoCarousel";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
-import { PinchZoomImage } from "@/components/PinchZoomImage";
 import {
   DismissKeyboardArea,
   dismissKeyboardOnScrollDrag,
@@ -50,6 +50,11 @@ import {
   sightingCity,
 } from "@/lib/sightingFormat";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
+import { SIGHTING_PHOTO_ASPECT } from "@/lib/sightingPhotoFrame";
+import {
+  detectedByLabel,
+  sightingPhotosForDisplay,
+} from "@/lib/sightingPhotos";
 import { rarityForSighting } from "@/lib/rarity";
 import type { Sighting } from "@/types";
 
@@ -80,7 +85,7 @@ function DetailRow({
 }
 
 const SIGHTING_PHOTO_WIDTH = Dimensions.get("window").width;
-const SIGHTING_PHOTO_HEIGHT = SIGHTING_PHOTO_WIDTH * (3 / 4);
+const SIGHTING_PHOTO_HEIGHT = SIGHTING_PHOTO_WIDTH / SIGHTING_PHOTO_ASPECT;
 
 export default function SightingDetailScreen() {
   const router = useRouter();
@@ -94,7 +99,13 @@ export default function SightingDetailScreen() {
   const [unpublishing, setUnpublishing] = useState(false);
   const [resolvedCity, setResolvedCity] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const audioPlayback = useAudioPlayback(sighting?.audio_url ?? null);
+  const entryPhotos = useMemo(
+    () => (sighting ? sightingPhotosForDisplay(sighting) : []),
+    [sighting],
+  );
+  const activePhoto = entryPhotos[activePhotoIndex] ?? entryPhotos[0] ?? null;
   const rarity = useMemo(
     () => (sighting ? rarityForSighting(sighting) : "common"),
     [sighting],
@@ -293,11 +304,11 @@ export default function SightingDetailScreen() {
           <DismissKeyboardArea>
           {isPhotoSighting(sighting) ? (
             <View className="overflow-hidden bg-muted/40">
-              <PinchZoomImage
-                uri={sighting.photo_url!}
-                width={SIGHTING_PHOTO_WIDTH}
-                height={SIGHTING_PHOTO_HEIGHT}
+              <SightingPhotoCarousel
+                photos={entryPhotos}
                 contentFit="contain"
+                style={{ width: SIGHTING_PHOTO_WIDTH, height: SIGHTING_PHOTO_HEIGHT }}
+                onIndexChange={setActivePhotoIndex}
               />
             </View>
           ) : isAudioSighting(sighting) ? (
@@ -368,21 +379,78 @@ export default function SightingDetailScreen() {
             <View>
               <Text className="font-serif-semibold text-2xl text-foreground">
                 {displaySpeciesName({
-                  species: sighting.species,
-                  scientific_name: sighting.scientific_name,
-                  confidence: sighting.confidence ?? 0,
+                  species: activePhoto?.species?.trim() || sighting.species,
+                  scientific_name:
+                    activePhoto?.scientific_name ?? sighting.scientific_name,
+                  confidence: activePhoto?.confidence ?? sighting.confidence ?? 0,
                 })}
               </Text>
-              {sighting.scientific_name ? (
+              {(activePhoto?.scientific_name ?? sighting.scientific_name) ? (
                 <Text className="mt-1 font-serif-italic text-sm text-foreground/60">
-                  {sighting.scientific_name}
+                  {activePhoto?.scientific_name ?? sighting.scientific_name}
                 </Text>
               ) : null}
               <View className="mt-3 flex-row flex-wrap items-center gap-2">
                 <RarityBadge rarity={rarity} />
-                <Text className="font-mono text-sm text-accent">×{sighting.count}</Text>
+                <Text className="font-mono text-sm text-accent">
+                  ×{activePhoto?.count ?? sighting.count}
+                </Text>
+                {entryPhotos.length > 1 ? (
+                  <Text className="font-mono text-xs text-muted-foreground">
+                    Photo {activePhotoIndex + 1} of {entryPhotos.length}
+                  </Text>
+                ) : null}
               </View>
             </View>
+
+            {entryPhotos.length > 1 ? (
+              <View className="gap-3 rounded-2xl border border-border bg-card p-4">
+                <Text className="font-sans-medium text-sm text-foreground">
+                  Captures in this entry
+                </Text>
+                {entryPhotos.map((photo, index) => (
+                  <Pressable
+                    key={photo.id}
+                    onPress={() => setActivePhotoIndex(index)}
+                    className={`rounded-xl border px-3 py-3 ${
+                      index === activePhotoIndex
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-background"
+                    }`}
+                  >
+                    <Text className="font-sans-medium text-sm text-foreground">
+                      Photo {index + 1}:{" "}
+                      {photo.species?.trim() || sighting.species}
+                    </Text>
+                    {photo.scientific_name ? (
+                      <Text className="mt-0.5 font-serif-italic text-xs text-muted-foreground">
+                        {photo.scientific_name}
+                      </Text>
+                    ) : null}
+                    <View className="mt-2 flex-row flex-wrap gap-3">
+                      <Text className="font-mono text-xs text-muted-foreground">
+                        Count ×{photo.count}
+                      </Text>
+                      {photo.confidence != null ? (
+                        <Text className="font-mono text-xs text-muted-foreground">
+                          {Math.round(photo.confidence * 100)}% ·{" "}
+                          {detectedByLabel(photo.detected_by)}
+                        </Text>
+                      ) : (
+                        <Text className="font-mono text-xs text-muted-foreground">
+                          {detectedByLabel(photo.detected_by)}
+                        </Text>
+                      )}
+                      {photo.captured_at ? (
+                        <Text className="font-mono text-xs text-muted-foreground">
+                          {formatDetailTime(new Date(photo.captured_at))}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
 
             {sighting.detected_by !== "manual" && sighting.confidence != null ? (
               <View className="flex-row items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5">

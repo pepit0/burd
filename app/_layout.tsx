@@ -198,10 +198,15 @@ function RootLayoutInner() {
     }
 
     const inAuthGroup = segments[0] === "(auth)";
+    const onOAuthCallback =
+      segments[0] === "auth" && segments[1] === "callback";
     const onChooseUsername =
       inAuthGroup && segments[1] === "choose-username";
 
     if (!session) {
+      if (onOAuthCallback) {
+        return;
+      }
       if (!inAuthGroup || onChooseUsername) {
         router.replace("/(auth)/login");
       }

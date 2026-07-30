@@ -21,6 +21,10 @@ interface SocialAuthButtonsProps {
   onError?: (message: string) => void;
   /** When true, social sign-in is blocked (e.g. pending signup consent). */
   disabled?: boolean;
+  /** When true, record Terms/Privacy + age consent on the auth user after OAuth. */
+  recordConsent?: boolean;
+  /** Show an "or" divider below the social buttons. */
+  showDivider?: boolean;
   className?: string;
   style?: StyleProp<ViewStyle>;
 }
@@ -40,6 +44,8 @@ function SocialButtonLoading({ className }: { className?: string }) {
 export function SocialAuthButtons({
   onError,
   disabled = false,
+  recordConsent = false,
+  showDivider = false,
   className,
   style,
 }: SocialAuthButtonsProps) {
@@ -49,12 +55,6 @@ export function SocialAuthButtons({
 
   return (
     <View className={className} style={style}>
-      <View className="mb-3 flex-row items-center gap-3">
-        <View className="h-px flex-1 bg-border" />
-        <Text className="font-sans text-xs text-muted-foreground">or</Text>
-        <View className="h-px flex-1 bg-border" />
-      </View>
-
       {showApple ? (
         appleLoading ? (
           <SocialButtonLoading className="mb-3" />
@@ -77,7 +77,7 @@ export function SocialAuthButtons({
                 void (async () => {
                   setAppleLoading(true);
                   try {
-                    const result = await signInWithApple();
+                    const result = await signInWithApple({ recordConsent });
                     if (result.cancelled) return;
                   } catch (e) {
                     onError?.(
@@ -110,7 +110,7 @@ export function SocialAuthButtons({
             void (async () => {
               setGoogleLoading(true);
               try {
-                const result = await signInWithGoogle();
+                const result = await signInWithGoogle({ recordConsent });
                 if (result.cancelled) return;
               } catch (e) {
                 onError?.(
@@ -131,6 +131,14 @@ export function SocialAuthButtons({
           </Text>
         </Pressable>
       )}
+
+      {showDivider ? (
+        <View className="mt-6 flex-row items-center gap-3">
+          <View className="h-px flex-1 bg-border" />
+          <Text className="font-sans text-xs text-muted-foreground">or</Text>
+          <View className="h-px flex-1 bg-border" />
+        </View>
+      ) : null}
     </View>
   );
 }

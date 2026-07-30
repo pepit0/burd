@@ -30,7 +30,14 @@ export type ModerationActionType =
   | "grant_admin"
   | "revoke_admin"
   | "remove_field_guide_author"
-  | "change_username";
+  | "change_username"
+  | "update_user_badges"
+  | "set_auto_beta_badge";
+
+export interface UserBadgeFlags {
+  is_verified?: boolean;
+  is_beta?: boolean;
+}
 
 export interface Prediction {
   species: string;
@@ -56,6 +63,8 @@ export interface Profile {
   location_fuzz_km?: number;
   distance_unit?: DistanceUnit;
   notification_prefs?: NotificationPrefs;
+  is_verified?: boolean;
+  is_beta?: boolean;
   created_at: string;
   role?: UserRole;
   suspended?: boolean;
@@ -63,6 +72,30 @@ export interface Profile {
   suspension_reason?: string | null;
   suspended_at?: string | null;
   suspended_by?: string | null;
+}
+
+export interface SightingPhoto {
+  id: string;
+  sighting_id: string;
+  sort_order: number;
+  photo_url: string;
+  captured_at: string | null;
+  species: string | null;
+  scientific_name: string | null;
+  count: number;
+  confidence: number | null;
+  detected_by: DetectedBy;
+  created_at: string;
+}
+
+export interface SightingPhotoInput {
+  photo_url: string;
+  captured_at?: string | null;
+  species?: string | null;
+  scientific_name?: string | null;
+  count?: number;
+  confidence?: number | null;
+  detected_by?: DetectedBy;
 }
 
 export interface Sighting {
@@ -77,6 +110,8 @@ export interface Sighting {
   count: number;
   notes: string | null;
   photo_url: string | null;
+  photo_count?: number;
+  photos?: SightingPhoto[];
   created_at: string;
   observed_at: string | null;
   location_city: string | null;
@@ -120,6 +155,8 @@ export interface FeedSighting extends Sighting {
   avatar_color: string;
   avatar_url: string | null;
   full_name: string | null;
+  is_verified?: boolean;
+  is_beta?: boolean;
   like_count: number;
   repost_count?: number;
   comment_count?: number;
@@ -131,6 +168,7 @@ export interface Comment {
   username: string;
   avatar_color: string;
   avatar_url: string | null;
+  is_verified?: boolean;
   body: string;
   created_at: string;
   like_count: number;
@@ -165,6 +203,7 @@ export interface NewSightingInput {
   count: number;
   notes?: string | null;
   photo_url?: string | null;
+  photos?: SightingPhotoInput[];
   confidence?: number | null;
   detected_by?: DetectedBy;
   audio_url?: string | null;
@@ -202,6 +241,8 @@ export interface PostReport {
   id: string;
   reporter_id: string;
   sighting_id: string;
+  reason?: string | null;
+  status?: string;
   created_at: string;
   reporter?: { username: string } | null;
   sighting?: {
@@ -209,6 +250,33 @@ export interface PostReport {
     photo_url: string | null;
     user_id: string;
     username: string;
+  } | null;
+}
+
+export interface UserReport {
+  id: string;
+  reporter_id: string;
+  reported_user_id: string;
+  reason: string;
+  source: string;
+  status: string;
+  created_at: string;
+  reporter?: { username: string } | null;
+  reported_user?: { username: string } | null;
+}
+
+export interface CommentReport {
+  id: string;
+  reporter_id: string;
+  comment_id: string;
+  reason: string;
+  status: string;
+  created_at: string;
+  reporter?: { username: string } | null;
+  comment?: {
+    body: string;
+    sighting_id: string;
+    user_id: string;
   } | null;
 }
 
@@ -225,6 +293,7 @@ export interface AdminPostEditInput {
 
 export interface JournalSightingUpdate extends AdminPostEditInput {
   observed_at?: string | null;
+  photo_url?: string | null;
 }
 
 /** Caption-only edits allowed while a sighting stays published. */

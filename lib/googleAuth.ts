@@ -1,7 +1,6 @@
 import { Platform } from "react-native";
 import * as QueryParams from "expo-auth-session/build/QueryParams";
 import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
 import { getSignupPlatform, track } from "@/lib/analytics";
 import { getOAuthRedirectUri } from "@/lib/authRedirect";
 import { getUserFacingMessage } from "@/lib/errors";
@@ -9,7 +8,33 @@ import { supabase } from "@/lib/supabase";
 
 WebBrowser.maybeCompleteAuthSession();
 
-export async function completeOAuthFromUrl(url: string): Promise<void> {
+const OAUTH_CONSENT_PENDING_KEY = "burd:oauth:record_consent";
+
+export interface GoogleSignInOptions {
+  /** Persist Terms/Privacy + age-13 consent timestamps on the auth user. */
+  recordConsent?: boolean;
+}
+
+function stashOAuthConsentFlag(recordConsent?: boolean): void {
+  if (!recordConsent || Platform.OS !== "web") return;
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.setItem(OAUTH_CONSENT_PENDING_KEY, "1");
+  }
+}
+
+function consumeOAuthConsentFlag(): boolean {
+  if (Platform.OS !== "web" || typeof sessionStorage === "undefined") {
+    return false;
+  }
+  const pending = sessionStorage.getItem(OAUTH_CONSENT_PENDING_KEY) === "1";
+  sessionStorage.removeItem(OAUTH_CONSENT_PENDING_KEY);
+  return pending;
+}
+
+export async function completeOAuthFromUrl(
+  url: string,
+  options?: GoogleSignInOptions,
+): Promise<void> {
   const { params, errorCode } = QueryParams.getQueryParams(url);
   if (errorCode) {
     throw new Error(String(errorCode));
@@ -34,10 +59,12 @@ export async function completeOAuthFromUrl(url: string): Promise<void> {
     throw new Error("Google sign-in did not return a session.");
   }
 
-  void syncGoogleUserMetadata();
+  void syncGoogleUserMetadata(
+    options?.recordConsent === true || consumeOAuthConsentFlag(),
+  );
 }
 
-async function syncGoogleUserMetadata(): Promise<void> {
+async function syncGoogleUserMetadata(recordConsent = false): Promise<void> {
   try {
     const {
       data: { user },
@@ -63,6 +90,16 @@ async function syncGoogleUserMetadata(): Promise<void> {
       metadata.signup_method = "google";
     }
 
+    if (recordConsent) {
+      const now = new Date().toISOString();
+      if (!user.user_metadata?.privacy_policy_accepted_at) {
+        metadata.privacy_policy_accepted_at = now;
+      }
+      if (!user.user_metadata?.age_confirmed_at) {
+        metadata.age_confirmed_at = now;
+      }
+    }
+
     if (Object.keys(metadata).length > 0) {
       await supabase.auth.updateUser({ data: metadata });
     }
@@ -82,22 +119,22 @@ async function syncGoogleUserMetadata(): Promise<void> {
 }
 
 function resolveRedirectUri(): string {
-  if (Platform.OS === "web") {
-    return getOAuthRedirectUri();
-  }
-  return makeRedirectUri({ scheme: "burd", path: "auth/callback" });
+  return getOAuthRedirectUri();
 }
 
 /**
  * Google sign-in via Supabase OAuth.
  * Native: in-app browser sheet. Web: full-page redirect to Google.
  */
-export async function signInWithGoogle(): Promise<{ cancelled: boolean }> {
+export async function signInWithGoogle(
+  options?: GoogleSignInOptions,
+): Promise<{ cancelled: boolean }> {
   track("sign_in_started", { sign_in_method: "google" });
 
   const redirectTo = resolveRedirectUri();
 
   if (Platform.OS === "web") {
+    stashOAuthConsentFlag(options?.recordConsent);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -140,6 +177,6 @@ export async function signInWithGoogle(): Promise<{ cancelled: boolean }> {
     return { cancelled: true };
   }
 
-  await completeOAuthFromUrl(result.url);
+  await completeOAuthFromUrl(result.url, options);
   return { cancelled: false };
 }

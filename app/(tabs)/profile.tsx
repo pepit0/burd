@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   RefreshControl,
   Text,
@@ -11,7 +10,6 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-  Camera,
   ChevronRight,
   Database,
   FileText,
@@ -27,6 +25,7 @@ import { ScrollScreen } from "@/components/ScrollScreen";
 import {
   ProfileBannerPickerSheet,
 } from "@/components/ProfileBannerPickerSheet";
+import { ProfileAvatarPeek } from "@/components/ProfileAvatarPeek";
 import { ProfileBadgesPreview } from "@/components/ProfileBadges";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
 import { ProfileDetailsEditSheet } from "@/components/ProfileDetailsEditSheet";
@@ -35,8 +34,9 @@ import {
   ProfilePostsFilterBar,
   type ProfilePostsFilter,
 } from "@/components/ProfilePostsFilter";
-import { DisplayNameText } from "@/components/DisplayNameText";
+import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { ProfileStatsRow } from "@/components/ProfileStatsRow";
+import { LinkableText } from "@/components/LinkableText";
 import { SightingPostsGrid } from "@/components/SightingPostsGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -47,6 +47,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { getUserFacingMessage } from "@/lib/errors";
 import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
+import { postedDate } from "@/lib/sightingFormat";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 import {
   PRIVACY_POLICY_URL,
@@ -170,7 +171,10 @@ export default function ProfileScreen() {
   const { badges, earnedCount } = useProfileBadges(userId, sightings, friends);
 
   const publishedSightings = useMemo(
-    () => sightings.filter((s) => s.published_at),
+    () =>
+      sightings
+        .filter((s) => s.published_at)
+        .sort((a, b) => postedDate(b).getTime() - postedDate(a).getTime()),
     [sightings],
   );
   const filteredPosts = useMemo(
@@ -303,51 +307,24 @@ export default function ProfileScreen() {
 
         <View className="-mt-9 px-4">
           <View className="mb-3 flex-row items-end gap-3">
-            <Pressable
+            <ProfileAvatarPeek
+              avatarUrl={profile?.avatar_url}
+              avatarColor={profile?.avatar_color ?? "#5f9470"}
+              displayName={displayNamePlain}
+              editable
+              uploading={avatarUploading}
               onPress={() => void pickProfilePhoto()}
-              disabled={avatarUploading}
-              className="relative h-[72px] w-[72px] shrink-0 active:opacity-90"
-            >
-              <View
-                className="h-full w-full overflow-hidden rounded-full border-[3px] border-background"
-                style={{ backgroundColor: profile?.avatar_color ?? "#5f9470" }}
-              >
-                {profile?.avatar_url ? (
-                  <Image
-                    source={{ uri: profile.avatar_url }}
-                    className="h-full w-full"
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View className="h-full w-full items-center justify-center">
-                    <Text className="font-serif-semibold text-2xl text-primary-foreground">
-                      {displayNamePlain.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                {avatarUploading ? (
-                  <View className="absolute inset-0 items-center justify-center bg-black/45">
-                    <ActivityIndicator color="#f0ead6" />
-                  </View>
-                ) : null}
-              </View>
-              {!avatarUploading ? (
-                <View
-                  className="absolute -bottom-0.5 -right-0.5 z-10 h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-card shadow-sm"
-                  style={{ elevation: 4 }}
-                >
-                  <Camera size={13} color="#8a9e82" />
-                </View>
-              ) : null}
-            </Pressable>
+            />
           </View>
 
           <View className="flex-row items-center justify-between gap-3">
             <View className="min-w-0 flex-1">
               <View className="flex-row items-center gap-1.5">
                 <View className="min-w-0 flex-1 shrink">
-                  <DisplayNameText
+                  <DisplayNameWithBadges
                     text={displayName}
+                    isVerified={profile?.is_verified}
+                    isBeta={profile?.is_beta}
                     numberOfLines={1}
                     ellipsizeMode="tail"
                     className="font-serif-semibold text-xl text-foreground"
@@ -371,9 +348,9 @@ export default function ProfileScreen() {
             </View>
           </View>
           {profile?.bio ? (
-            <Text className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
+            <LinkableText className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
               {profile.bio}
-            </Text>
+            </LinkableText>
           ) : (
             <Text className="mt-2.5 font-sans text-sm text-muted-foreground/70">
               Add a short bio about your birding.

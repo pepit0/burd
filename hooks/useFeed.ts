@@ -6,7 +6,9 @@ import {
   getMyLikedIds,
   setLike,
 } from "@/lib/sightings";
+import { filterBlockedUserIds } from "@/lib/blocks";
 import { getLoadErrorMessage } from "@/lib/errors";
+import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { FeedSighting } from "@/types";
 import type { Coords } from "@/hooks/useCurrentLocation";
@@ -33,6 +35,7 @@ interface UseFeed {
   /** Reload in the background (e.g. when tab refocuses). */
   silentRefresh: () => Promise<void>;
   toggleLike: (sightingId: string) => void;
+  removeBlockedAuthor: (authorId: string) => void;
 }
 
 interface FeedCacheEntry {
@@ -56,6 +59,12 @@ export function useFeed({
   const filterRef = useRef(filter);
   filterRef.current = filter;
   const cacheRef = useRef<Partial<Record<FeedFilter, FeedCacheEntry>>>({});
+  const { blockedIds, blockLocally } = useBlockedUsers(userId);
+
+  const applyBlockedFilter = useCallback(
+    (rows: FeedSighting[]) => filterBlockedUserIds(rows, blockedIds),
+    [blockedIds],
+  );
 
   const writeCache = useCallback(
     (activeFilter: FeedFilter, rows: FeedSighting[], liked: Set<string>) => {
@@ -102,6 +111,7 @@ export function useFeed({
         } else if (activeFilter === "new") {
           rows = await getGlobalFeed();
         }
+        rows = applyBlockedFilter(rows);
         const liked = await getMyLikedIds(userId);
         writeCache(activeFilter, rows, liked);
         if (filterRef.current !== activeFilter) return;
@@ -120,7 +130,7 @@ export function useFeed({
         }
       }
     },
-    [userId, coords, radiusKm, enabled, writeCache],
+    [userId, coords, radiusKm, enabled, writeCache, applyBlockedFilter],
   );
 
   useEffect(() => {
@@ -128,7 +138,7 @@ export function useFeed({
 
     const cached = cacheRef.current[filter];
     if (cached) {
-      setSightings(cached.sightings);
+      setSightings(applyBlockedFilter(cached.sightings));
       setLikedIds(new Set(cached.likedIds));
       hasLoaded.current = true;
       setLoading(false);
@@ -139,7 +149,23 @@ export function useFeed({
     hasLoaded.current = false;
     setLoading(true);
     void load("initial");
-  }, [load, enabled, filter]);
+  }, [load, enabled, filter, applyBlockedFilter]);
+
+  const removeBlockedAuthor = useCallback(
+    (authorId: string) => {
+      blockLocally(authorId);
+      setSightings((prev) => prev.filter((row) => row.user_id !== authorId));
+      for (const key of Object.keys(cacheRef.current) as FeedFilter[]) {
+        const cached = cacheRef.current[key];
+        if (!cached) continue;
+        cacheRef.current[key] = {
+          ...cached,
+          sightings: cached.sightings.filter((row) => row.user_id !== authorId),
+        };
+      }
+    },
+    [blockLocally],
+  );
 
   const toggleLike = useCallback(
     (sightingId: string) => {
@@ -203,5 +229,6 @@ export function useFeed({
     refresh,
     silentRefresh,
     toggleLike,
+    removeBlockedAuthor,
   };
 }
