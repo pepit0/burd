@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -48,6 +48,7 @@ import { useBadgeUnlockSync } from "@/hooks/useBadgeUnlockSync";
 import { useReposts } from "@/hooks/useReposts";
 import { useProfile } from "@/hooks/useProfile";
 import { getUserFacingMessage } from "@/lib/errors";
+import { hasCompletedUsernameSetup } from "@/lib/signup";
 import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
 import { normalizeShowcaseBadgeIds } from "@/lib/profileShowcaseBadges";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
@@ -153,6 +154,14 @@ export default function ProfileScreen() {
   const { reposts, refresh: refreshReposts } = useReposts(userId);
 
   const firstFocus = useRef(true);
+
+  useEffect(() => {
+    if (loading || profile || !user) return;
+    if (!hasCompletedUsernameSetup(user.user_metadata)) {
+      router.replace("/(auth)/choose-username");
+    }
+  }, [loading, profile, router, user]);
+
   useFocusEffect(
     useCallback(() => {
       if (firstFocus.current) {
@@ -289,6 +298,14 @@ export default function ProfileScreen() {
   }
 
   if (loading && !profile) {
+    return (
+      <ScrollScreen title="Profile">
+        <ActivityIndicator className="mt-20" color="#5f9470" />
+      </ScrollScreen>
+    );
+  }
+
+  if (!profile && user && !hasCompletedUsernameSetup(user.user_metadata)) {
     return (
       <ScrollScreen title="Profile">
         <ActivityIndicator className="mt-20" color="#5f9470" />

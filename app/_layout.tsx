@@ -42,7 +42,7 @@ import { nativewindColorVars } from "@/lib/colorTheme";
 import { getMyAccountStatus } from "@/lib/moderation";
 import { initRegionalCommunity } from "@/lib/regionalCommunity";
 import { urlHasAuthCompletionParams } from "@/lib/authCallback";
-import { resolveUsernameSetup } from "@/lib/signup";
+import { resolveUsernameSetup, hasCompletedUsernameSetup } from "@/lib/signup";
 import type { AccountStatus } from "@/types";
 
 function AppShell() {
@@ -183,10 +183,10 @@ function RootLayoutInner() {
       .catch((err) => {
         console.warn("username gate failed:", err);
         if (!cancelled) {
-          // Fail open so a transient error doesn't require a second sign-in.
+          const meta = session?.user?.user_metadata ?? {};
           setUsernameGate({
             userId,
-            needsUsername: false,
+            needsUsername: !hasCompletedUsernameSetup(meta),
             ready: true,
           });
         }
