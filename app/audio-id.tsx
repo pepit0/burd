@@ -17,7 +17,7 @@ import {
 } from "@/components/LiveSoundFieldGuideSheet";
 import { LiveSpeciesRow } from "@/components/LiveSpeciesRow";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
-import { IdDisclaimerBanner } from "@/components/IdDisclaimerBanner";
+import { IdDisclaimerBanner, IdDisclaimerInfoButton } from "@/components/IdDisclaimerBanner";
 import {
   DismissKeyboardArea,
   dismissKeyboardOnScrollDrag,
@@ -68,6 +68,7 @@ export default function AudioIdentifyScreen() {
 
   const autoBackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [previewDetectionKey, setPreviewDetectionKey] = useState<string | null>(null);
+  const [idDisclaimerOpen, setIdDisclaimerOpen] = useState(false);
   const [lightboxRequest, setLightboxRequest] = useState<SpeciesImageLightboxRequest | null>(
     null,
   );
@@ -198,11 +199,19 @@ export default function AudioIdentifyScreen() {
         <Text className="font-serif-semibold text-lg text-foreground">
           Live Sound ID
         </Text>
-        <View className="w-7" />
+        <IdDisclaimerInfoButton
+          active={idDisclaimerOpen}
+          onPress={() => setIdDisclaimerOpen((open) => !open)}
+        />
       </View>
 
       <View className="gap-2 px-4 pb-2">
-        <IdDisclaimerBanner />
+        {idDisclaimerOpen ? (
+          <IdDisclaimerBanner
+            dismissible
+            onDismiss={() => setIdDisclaimerOpen(false)}
+          />
+        ) : null}
         <LocationAccuracyBanner
           permission={locationPermission}
           onEnablePress={() => {
@@ -215,7 +224,7 @@ export default function AudioIdentifyScreen() {
         />
       </View>
 
-      <View className="px-2">
+      <View className="px-4">
         <LiveSoundSpaceVisualizer
           key={visualizerKey}
           levelRef={meteringLevelRef}

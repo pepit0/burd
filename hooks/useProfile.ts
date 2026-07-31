@@ -3,6 +3,7 @@ import {
   getMyProfile,
   updateProfileAvatarUrl,
   updateProfileDetails,
+  updateProfileShowcaseBadges,
   updateSearchRadius,
   uploadAvatarPhoto,
   type ProfileDetailsUpdate,
@@ -27,6 +28,7 @@ interface UseProfile {
   setRadius: (km: number | null) => Promise<void>;
   updateAvatar: (base64: string, ext?: string) => Promise<void>;
   updateDetails: (fields: ProfileDetailsUpdate) => Promise<void>;
+  updateShowcaseBadges: (badgeIds: string[]) => Promise<void>;
 }
 
 export function useProfile(userId: string | null): UseProfile {
@@ -124,6 +126,21 @@ export function useProfile(userId: string | null): UseProfile {
     [userId, profile],
   );
 
+  const updateShowcaseBadges = useCallback(
+    async (badgeIds: string[]) => {
+      if (!userId || !profile) return;
+      const prev = profile.showcase_badge_ids ?? [];
+      setProfile({ ...profile, showcase_badge_ids: badgeIds });
+      try {
+        await updateProfileShowcaseBadges(userId, badgeIds);
+      } catch (e) {
+        setProfile((p) => (p ? { ...p, showcase_badge_ids: prev } : p));
+        throw e;
+      }
+    },
+    [userId, profile],
+  );
+
   const refresh = useCallback(() => load("refresh"), [load]);
   const silentRefresh = useCallback(() => load("silent"), [load]);
 
@@ -141,5 +158,6 @@ export function useProfile(userId: string | null): UseProfile {
     setRadius,
     updateAvatar,
     updateDetails,
+    updateShowcaseBadges,
   };
 }

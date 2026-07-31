@@ -16,12 +16,10 @@ import {
   SignupSocialNotice,
   hasSignupConsent,
 } from "@/components/SignupConsent";
-import { AUTH_EMAIL_REDIRECT_TO } from "@/lib/authRedirect";
+import { getEmailAuthRedirectUri } from "@/lib/authRedirect";
 import { getSignupPlatform, track } from "@/lib/analytics";
-import {
-  checkEmailAvailable,
-  mapSignUpError,
-} from "@/lib/signup";
+import { getUserFacingMessage } from "@/lib/errors";
+import { mapSignUpError, signUpWithEmail } from "@/lib/signup";
 import { supabase } from "@/lib/supabase";
 
 export default function RegisterScreen() {
@@ -63,29 +61,28 @@ export default function RegisterScreen() {
     track("signup_started", { signup_method: "email" });
 
     try {
-      const emailOk = await checkEmailAvailable(trimmedEmail);
-      if (!emailOk) {
-        setError("An account already exists with this email.");
-        return;
-      }
-
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await signUpWithEmail({
         email: trimmedEmail,
         password,
-        options: {
-          emailRedirectTo: AUTH_EMAIL_REDIRECT_TO,
-          data: {
-            username_chosen: false,
-            signup_platform: getSignupPlatform(),
-            signup_method: "email",
-            privacy_policy_accepted_at: new Date().toISOString(),
-            age_confirmed_at: new Date().toISOString(),
-          },
+        emailRedirectTo: getEmailAuthRedirectUri(),
+        metadata: {
+          username_chosen: false,
+          signup_platform: getSignupPlatform(),
+          signup_method: "email",
+          privacy_policy_accepted_at: new Date().toISOString(),
+          age_confirmed_at: new Date().toISOString(),
         },
       });
 
       if (signUpError) {
-        setError(mapSignUpError(signUpError.message));
+        setError(
+          mapSignUpError(
+            getUserFacingMessage(
+              signUpError,
+              "Could not create account. Please try again.",
+            ),
+          ),
+        );
         return;
       }
 
@@ -101,7 +98,9 @@ export default function RegisterScreen() {
       track("signup_email_confirmation_sent", { signup_method: "email" });
       setPendingEmail(trimmedEmail);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create account.");
+      setError(
+        getUserFacingMessage(e, "Could not create account. Please try again."),
+      );
     } finally {
       setLoading(false);
     }
@@ -116,7 +115,7 @@ export default function RegisterScreen() {
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email: pendingEmail,
-        options: { emailRedirectTo: AUTH_EMAIL_REDIRECT_TO },
+        options: { emailRedirectTo: getEmailAuthRedirectUri() },
       });
       if (resendError) {
         setError(resendError.message);

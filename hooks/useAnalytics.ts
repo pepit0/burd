@@ -87,12 +87,13 @@ export function useAnalytics(session: Session | null, loading: boolean): void {
           await identify(user.id, traits);
 
           if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-            if (isRecentSignup(user.created_at)) {
+            const onboardingDone = user.user_metadata?.username_chosen === true;
+            if (isRecentSignup(user.created_at) && onboardingDone) {
               trackForUser(user.id, "user_signed_up", {
                 auth_provider: provider,
                 signup_method: provider === "apple" ? "apple" : provider === "google" ? "google" : "email",
               });
-            } else {
+            } else if (!isRecentSignup(user.created_at) || onboardingDone) {
               trackForUser(user.id, "user_signed_in", {
                 auth_provider: provider,
               });

@@ -1,16 +1,14 @@
 import { memo, useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   Text,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import Animated, { type AnimatedStyle } from "react-native-reanimated";
+import Animated, { type AnimatedStyle, type ScrollHandlerProcessed } from "react-native-reanimated";
+import { FlatList } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
 import { MapPin } from "lucide-react-native";
 import { SpeciesAbundanceChart } from "@/components/SpeciesAbundanceChart";
@@ -29,10 +27,12 @@ import {
 
 const ROW_HEIGHT = 96;
 
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+
 interface FieldGuideExploreTabProps {
-  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScroll?: ScrollHandlerProcessed<Record<string, unknown>>;
   onScrollBeginDrag?: () => void;
-  onScrollEndDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollEndDrag?: () => void;
   onMomentumScrollEnd?: () => void;
   listFrameStyle?: StyleProp<AnimatedStyle<StyleProp<ViewStyle>>>;
   tabBarClearance?: number;
@@ -160,6 +160,15 @@ export function FieldGuideExploreTab({
 
   return (
     <Animated.View style={frameStyle}>
+      <View className="border-b border-border/40 bg-muted/25 px-4 py-1.5">
+        <Text
+          className="font-sans text-[10px] text-muted-foreground"
+          numberOfLines={1}
+        >
+          Explore may not be accurate — we're still working on it.
+        </Text>
+      </View>
+
       <View className="border-b border-border/60 px-4 py-3">
         <Text className="font-sans-medium text-sm text-foreground">{headerCopy}</Text>
         <Text className="mt-1 font-sans text-xs leading-relaxed text-muted-foreground">
@@ -176,7 +185,7 @@ export function FieldGuideExploreTab({
           </Text>
         </View>
       ) : (
-        <FlatList
+        <AnimatedFlatList
           style={{ flex: 1 }}
           data={likelySpecies}
           keyExtractor={(item) => item.id}
@@ -188,6 +197,7 @@ export function FieldGuideExploreTab({
             paddingBottom: tabBarClearance,
           }}
           scrollEventThrottle={16}
+          decelerationRate="normal"
           onScroll={onScroll}
           onScrollBeginDrag={() => {
             dismissKeyboardOnScrollDrag();

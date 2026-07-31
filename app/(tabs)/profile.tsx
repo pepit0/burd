@@ -25,6 +25,7 @@ import { ScrollScreen } from "@/components/ScrollScreen";
 import {
   ProfileBannerPickerSheet,
 } from "@/components/ProfileBannerPickerSheet";
+import { ProfileBadgeShowcasePickerSheet } from "@/components/ProfileBadgeShowcasePickerSheet";
 import { ProfileAvatarPeek } from "@/components/ProfileAvatarPeek";
 import { ProfileBadgesPreview } from "@/components/ProfileBadges";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
@@ -35,6 +36,7 @@ import {
   type ProfilePostsFilter,
 } from "@/components/ProfilePostsFilter";
 import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
+import { UserBadgeAdminPanel } from "@/components/UserBadgeAdminPanel";
 import { ProfileStatsRow } from "@/components/ProfileStatsRow";
 import { LinkableText } from "@/components/LinkableText";
 import { SightingPostsGrid } from "@/components/SightingPostsGrid";
@@ -42,10 +44,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useProfileBadges } from "@/hooks/useProfileBadges";
+import { useBadgeUnlockSync } from "@/hooks/useBadgeUnlockSync";
 import { useReposts } from "@/hooks/useReposts";
 import { useProfile } from "@/hooks/useProfile";
 import { getUserFacingMessage } from "@/lib/errors";
 import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
+import { normalizeShowcaseBadgeIds } from "@/lib/profileShowcaseBadges";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { postedDate } from "@/lib/sightingFormat";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
@@ -136,10 +140,11 @@ export default function ProfileScreen() {
   const userId = user?.id ?? null;
   const { isAdmin } = useAdmin(userId);
 
-  const { profile, friends, loading, refreshing, error, refresh, silentRefresh, updateAvatar, updateDetails } =
+  const { profile, friends, loading, refreshing, error, refresh, silentRefresh, updateAvatar, updateDetails, updateShowcaseBadges } =
     useProfile(userId);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [bannerPickerOpen, setBannerPickerOpen] = useState(false);
+  const [badgeShowcasePickerOpen, setBadgeShowcasePickerOpen] = useState(false);
   const [detailsEditOpen, setDetailsEditOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [postsFilter, setPostsFilter] = useState<ProfilePostsFilter>("all");
@@ -168,7 +173,8 @@ export default function ProfileScreen() {
     () => new Set(sightings.map((s) => s.species.toLowerCase())).size,
     [sightings],
   );
-  const { badges, earnedCount } = useProfileBadges(userId, sightings, friends);
+  const { badges, earnedCount, loadingExtras } = useProfileBadges(userId, sightings, friends);
+  useBadgeUnlockSync(Boolean(userId), badges, !loadingExtras);
 
   const publishedSightings = useMemo(
     () =>
@@ -234,6 +240,17 @@ export default function ProfileScreen() {
       setBannerPickerOpen(false);
     } catch (e) {
       Alert.alert("Could not update banner", getUserFacingMessage(e));
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function saveShowcaseBadges(badgeIds: string[]) {
+    setProfileSaving(true);
+    try {
+      await updateShowcaseBadges(badgeIds);
+    } catch (e) {
+      Alert.alert("Could not update badges", getUserFacingMessage(e));
     } finally {
       setProfileSaving(false);
     }
@@ -325,6 +342,7 @@ export default function ProfileScreen() {
                     text={displayName}
                     isVerified={profile?.is_verified}
                     isBeta={profile?.is_beta}
+                    interactiveBadges
                     numberOfLines={1}
                     ellipsizeMode="tail"
                     className="font-serif-semibold text-xl text-foreground"
@@ -388,6 +406,9 @@ export default function ProfileScreen() {
             earnedCount={earnedCount}
             userId={userId!}
             username={profile?.username}
+            showcaseBadgeIds={profile?.showcase_badge_ids}
+            isSelf
+            onEditShowcase={() => setBadgeShowcasePickerOpen(true)}
           />
         </View>
 
@@ -402,6 +423,19 @@ export default function ProfileScreen() {
               description="Follow others to fill your home feed"
               onPress={() => router.push("/users")}
             />
+            {isAdmin && profile ? (
+              <View className="border-t border-border px-4 py-3">
+                <UserBadgeAdminPanel
+                  profile={{
+                    id: profile.id,
+                    username: profile.username,
+                    is_verified: profile.is_verified,
+                    is_beta: profile.is_beta,
+                  }}
+                  onUpdated={() => void refresh()}
+                />
+              </View>
+            ) : null}
             {isAdmin ? (
               <SettingsRow
                 icon={ShieldAlert}
@@ -455,6 +489,15 @@ export default function ProfileScreen() {
         saving={profileSaving}
         onClose={() => setBannerPickerOpen(false)}
         onSelect={(presetId) => void selectBanner(presetId)}
+      />
+
+      <ProfileBadgeShowcasePickerSheet
+        visible={badgeShowcasePickerOpen}
+        badges={badges}
+        selectedIds={normalizeShowcaseBadgeIds(profile?.showcase_badge_ids)}
+        saving={profileSaving}
+        onClose={() => setBadgeShowcasePickerOpen(false)}
+        onSave={(ids) => void saveShowcaseBadges(ids)}
       />
     </>
   );

@@ -8,7 +8,9 @@ import {
 
 const DEFAULT_LAYOUT: FeedPhotoLayout = {
   frameAspect: SIGHTING_PHOTO_ASPECT,
+  imageAspect: SIGHTING_PHOTO_ASPECT,
   contentFit: "cover",
+  useBlurredFill: false,
 };
 
 export function useFeedPhotoLayout(photoUrl: string | null | undefined): FeedPhotoLayout {

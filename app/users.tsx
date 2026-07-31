@@ -15,12 +15,12 @@ import { FollowButton } from "@/components/FollowButton";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
-import { getMyProfile } from "@/lib/sightings";
 import {
   acceptFriendRequest,
   cancelFriendRequest,
   declineFriendRequest,
   getNearbyBirders,
+  NEARBY_BIRDERS_RADIUS_KM,
   searchUsers,
   sendFriendRequest,
   unfriendUser,
@@ -39,19 +39,9 @@ export default function UsersScreen() {
 
   const [mode, setMode] = useState<DiscoverMode>("nearby");
   const [query, setQuery] = useState("");
-  const [radiusKm, setRadiusKm] = useState<number | null>(25);
   const [results, setResults] = useState<UserListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!userId) return;
-    getMyProfile(userId)
-      .then((profile) => {
-        if (profile) setRadiusKm(profile.search_radius_km ?? null);
-      })
-      .catch(() => {});
-  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -73,7 +63,7 @@ export default function UsersScreen() {
             ? await getNearbyBirders(
                 coords.latitude,
                 coords.longitude,
-                radiusKm,
+                NEARBY_BIRDERS_RADIUS_KM,
                 userId,
                 query,
               )
@@ -94,7 +84,7 @@ export default function UsersScreen() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, userId, mode, coords, radiusKm, locStatus]);
+  }, [query, userId, mode, coords, locStatus]);
 
   const toggleFriend = useCallback(
     (target: UserListItem) => {
@@ -146,7 +136,7 @@ export default function UsersScreen() {
         ? "No nearby birders match your search."
         : locStatus === "denied"
           ? "Turn on location to discover birders near you."
-          : "No other birders nearby yet. Try All birders or widen your radius in Profile."
+          : "No other birders within 100 km yet. Try All birders or check back after someone posts nearby."
       : query.trim()
         ? "No birders match your search."
         : "No other birders yet.";
@@ -203,7 +193,7 @@ export default function UsersScreen() {
 
           {mode === "nearby" && coords ? (
             <Text className="font-sans text-[11px] text-muted-foreground">
-              Within {radiusKm == null ? "any distance" : `${radiusKm} km`} · add birders to see their posts in Friends
+              Within {NEARBY_BIRDERS_RADIUS_KM} km of you · birders shown by their latest post location
             </Text>
           ) : null}
         </View>

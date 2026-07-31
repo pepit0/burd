@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,8 @@ import {
 import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { UserBadgeAdminPanel } from "@/components/UserBadgeAdminPanel";
 import { UserModerationSheet } from "@/components/UserModerationSheet";
+import { useBadgeUnlock } from "@/components/BadgeUnlockProvider";
+import { useNewSpeciesUnlock } from "@/components/NewSpeciesUnlockProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { getUserFacingMessage } from "@/lib/errors";
@@ -42,6 +44,7 @@ import {
 import { searchUsers, searchUsersForAdmin, type UserListItem } from "@/lib/social";
 import { getMyProfile } from "@/lib/sightings";
 import { normalizeUsername, validateUsername } from "@/lib/signup";
+import { listAllBadgeDefinitions } from "@/lib/profileBadges";
 import { timeAgo } from "@/lib/time";
 import type { CommentReport, ModerationAction, PostReport, Profile, UserReport } from "@/types";
 
@@ -50,6 +53,9 @@ export default function AdminHubScreen() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { isAdmin, loading: adminLoading, refresh: refreshAdmin } = useAdmin(userId);
+  const { previewBadgeUnlock } = useBadgeUnlock();
+  const { previewNewSpecies } = useNewSpeciesUnlock();
+  const badgeDefinitions = useMemo(() => listAllBadgeDefinitions(), []);
 
   const [reports, setReports] = useState<PostReport[]>([]);
   const [userReports, setUserReports] = useState<UserReport[]>([]);
@@ -73,6 +79,7 @@ export default function AdminHubScreen() {
   const [moderateProfile, setModerateProfile] = useState<Profile | null>(null);
   const [moderateReportId, setModerateReportId] = useState<string | null>(null);
   const [moderateLoading, setModerateLoading] = useState(false);
+  const [myProfile, setMyProfile] = useState<Profile | null>(null);
 
   async function load() {
     setLoading(true);
@@ -92,6 +99,9 @@ export default function AdminHubScreen() {
       setLog(logRows);
       setAdmins(adminRows);
       setAutoBetaEnabled(autoBeta);
+      if (userId) {
+        setMyProfile(await getMyProfile(userId));
+      }
     } catch (e) {
       Alert.alert("Could not load admin data", getUserFacingMessage(e));
     } finally {
@@ -270,6 +280,18 @@ export default function AdminHubScreen() {
     }
   }
 
+  async function handleClearReport(
+    reportType: "post" | "user" | "comment",
+    reportId: string,
+  ) {
+    try {
+      await dismissReport(reportType, reportId);
+      await load();
+    } catch (e) {
+      Alert.alert("Could not clear report", getUserFacingMessage(e));
+    }
+  }
+
   if (adminLoading) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-background">
@@ -347,19 +369,25 @@ export default function AdminHubScreen() {
                   {timeAgo(report.created_at)}
                   {report.reason ? ` · ${report.reason}` : ""}
                 </Text>
-                <View className="mt-3 flex-row gap-2">
+                <View className="mt-3 flex-row flex-wrap gap-2">
                   <Pressable
                     onPress={() => router.push(`/post/${report.sighting_id}`)}
-                    className="flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
+                    className="min-w-[30%] flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
                   >
                     <Text className="font-sans-medium text-xs text-foreground">View post</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => setRemoveReport(report)}
-                    className="flex-1 flex-row items-center justify-center gap-1 rounded-lg border border-destructive/30 bg-destructive/10 py-2 active:opacity-90"
+                    className="min-w-[30%] flex-1 flex-row items-center justify-center gap-1 rounded-lg border border-destructive/30 bg-destructive/10 py-2 active:opacity-90"
                   >
                     <Trash2 size={14} color="#f87171" />
                     <Text className="font-sans-medium text-xs text-foreground">Remove</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void handleClearReport("post", report.id)}
+                    className="min-w-[30%] flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
+                  >
+                    <Text className="font-sans-medium text-xs text-foreground">Clear</Text>
                   </Pressable>
                 </View>
               </View>
@@ -427,19 +455,10 @@ export default function AdminHubScreen() {
                     <Text className="font-sans-medium text-xs text-destructive">Moderate</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => {
-                      void (async () => {
-                        try {
-                          await dismissReport("user", report.id);
-                          await load();
-                        } catch (e) {
-                          Alert.alert("Could not dismiss report", getUserFacingMessage(e));
-                        }
-                      })();
-                    }}
+                    onPress={() => void handleClearReport("user", report.id)}
                     className="min-w-[30%] flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
                   >
-                    <Text className="font-sans-medium text-xs text-foreground">Dismiss</Text>
+                    <Text className="font-sans-medium text-xs text-foreground">Clear</Text>
                   </Pressable>
                 </View>
               </View>
@@ -497,19 +516,10 @@ export default function AdminHubScreen() {
                       <Text className="font-sans-medium text-xs text-destructive">Resolve</Text>
                     </Pressable>
                     <Pressable
-                      onPress={() => {
-                        void (async () => {
-                          try {
-                            await dismissReport("comment", report.id);
-                            await load();
-                          } catch (e) {
-                            Alert.alert("Could not dismiss report", getUserFacingMessage(e));
-                          }
-                        })();
-                      }}
+                      onPress={() => void handleClearReport("comment", report.id)}
                       className="min-w-[30%] flex-1 items-center rounded-lg border border-border py-2 active:opacity-90"
                     >
-                      <Text className="font-sans-medium text-xs text-foreground">Dismiss</Text>
+                      <Text className="font-sans-medium text-xs text-foreground">Clear</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -543,6 +553,73 @@ export default function AdminHubScreen() {
               </Text>
             )}
           </Pressable>
+
+          <Text className="mb-2 mt-2 font-serif-semibold text-lg text-foreground">
+            Badge unlock animation
+          </Text>
+          <Text className="mb-3 font-sans text-xs leading-relaxed text-muted-foreground">
+            Preview the unlock celebration for any achievement badge without earning it.
+          </Text>
+          <View className="mb-4 max-h-56 overflow-hidden rounded-xl border border-border bg-card">
+            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+              {badgeDefinitions.map((badge) => (
+                <Pressable
+                  key={badge.id}
+                  onPress={() => previewBadgeUnlock(badge)}
+                  className="flex-row items-center justify-between border-b border-border/60 px-3 py-2.5 active:bg-background/80"
+                >
+                  <View className="min-w-0 flex-1 pr-3">
+                    <Text className="font-sans-medium text-sm text-foreground" numberOfLines={1}>
+                      {badge.label}
+                    </Text>
+                    <Text className="font-sans text-[11px] text-muted-foreground" numberOfLines={1}>
+                      {badge.desc}
+                    </Text>
+                  </View>
+                  <Text className="font-sans-medium text-xs text-primary">Preview</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+
+          <Text className="mb-2 mt-2 font-serif-semibold text-lg text-foreground">
+            New species animation
+          </Text>
+          <Text className="mb-3 font-sans text-xs leading-relaxed text-muted-foreground">
+            Preview the life list celebration shown when someone logs a species for the first
+            time.
+          </Text>
+          <Pressable
+            onPress={() => previewNewSpecies()}
+            className="mb-4 rounded-xl border border-border bg-card px-4 py-3 active:opacity-90"
+          >
+            <Text className="font-sans-medium text-sm text-foreground">Preview new species</Text>
+            <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
+              Sample: American Robin · species #12
+            </Text>
+          </Pressable>
+
+          {myProfile ? (
+            <View className="mb-4 rounded-xl border border-border bg-card p-3">
+              <Text className="mb-3 font-sans text-xs text-muted-foreground">
+                Your account (@{myProfile.username})
+              </Text>
+              <UserBadgeAdminPanel
+                profile={{
+                  id: myProfile.id,
+                  username: myProfile.username,
+                  is_verified: myProfile.is_verified,
+                  is_beta: myProfile.is_beta,
+                }}
+                onUpdated={() => void load()}
+              />
+            </View>
+          ) : null}
+
+          <Text className="mb-3 font-sans text-xs leading-relaxed text-muted-foreground">
+            To update another user&apos;s badges, search under Change username below, select
+            them, then use Profile badges on their card.
+          </Text>
 
           <Text className="mb-2 font-serif-semibold text-lg text-foreground">
             Manage admins

@@ -27,7 +27,7 @@ function initialDisplayName(user: ReturnType<typeof useAuth>["user"]): string {
 }
 
 export default function ChooseUsernameScreen() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState(() => initialDisplayName(user));
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +41,10 @@ export default function ChooseUsernameScreen() {
 
   async function handleContinue() {
     setError(null);
+    if (authLoading) {
+      setError("Still signing you in — try again in a moment.");
+      return;
+    }
     if (!user?.id) {
       setError("Sign in again to choose a username.");
       return;
@@ -64,6 +68,14 @@ export default function ChooseUsernameScreen() {
       trackForUser(user.id, "username_claimed", {
         username: normalizeUsername(username),
         display_name: normalizeDisplayName(displayName),
+      });
+      trackForUser(user.id, "user_signed_up", {
+        signup_method:
+          user.app_metadata?.providers?.includes("apple")
+            ? "apple"
+            : user.app_metadata?.providers?.includes("google")
+              ? "google"
+              : "email",
       });
       // Root layout watches user_metadata.username and routes to tabs.
     } catch (e) {
@@ -137,10 +149,10 @@ export default function ChooseUsernameScreen() {
 
         <Pressable
           className="items-center rounded-xl bg-primary py-3.5 active:opacity-90"
-          disabled={loading}
+          disabled={loading || authLoading}
           onPress={() => void handleContinue()}
         >
-          {loading ? (
+          {loading || authLoading ? (
             <ActivityIndicator color="#f0ead6" />
           ) : (
             <Text className="font-sans-bold text-base text-primary-foreground">

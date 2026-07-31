@@ -1,4 +1,6 @@
-import type { User } from "@supabase/supabase-js";
+import type { AuthError, User } from "@supabase/supabase-js";
+import { isNetworkError } from "@/lib/errors";
+import { withTransientRetry } from "@/lib/retry";
 import { supabase } from "@/lib/supabase";
 
 export const USERNAME_PATTERN = /^[a-z][a-z0-9_]{2,29}$/;
@@ -111,6 +113,46 @@ export async function checkEmailAvailable(email: string): Promise<boolean> {
   return !availability.emailTaken;
 }
 
+export interface EmailSignUpOptions {
+  email: string;
+  password: string;
+  emailRedirectTo: string;
+  metadata: Record<string, string | boolean>;
+}
+
+/** Sign up with automatic retry on transient network failures. */
+export async function signUpWithEmail({
+  email,
+  password,
+  emailRedirectTo,
+  metadata,
+}: EmailSignUpOptions) {
+  let lastResult: Awaited<ReturnType<typeof supabase.auth.signUp>> | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo,
+        data: metadata,
+      },
+    });
+    lastResult = result;
+
+    if (!result.error) return result;
+
+    const authError = result.error as AuthError;
+    if (!isNetworkError(authError) || attempt >= 2) {
+      return result;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+  }
+
+  return lastResult!;
+}
+
 export async function claimUsername(
   userId: string,
   rawUsername: string,
@@ -127,41 +169,30 @@ export async function claimUsername(
     if (displayNameError) throw new Error(displayNameError);
   }
 
-  const availability = await checkSignupAvailability("", username);
-  if (availability.usernameTaken) {
-    throw new Error("This username is already taken. Try another.");
+  if (!displayName) {
+    throw new Error("Choose a display name.");
   }
 
-  const profileUpdate: { username: string; full_name?: string } = { username };
-  if (displayName) {
-    profileUpdate.full_name = displayName;
-  }
+  await withTransientRetry(async () => {
+    const { error } = await supabase.rpc("complete_user_onboarding", {
+      p_username: username,
+      p_display_name: displayName,
+    });
 
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update(profileUpdate)
-    .eq("id", userId);
-
-  if (profileError) {
-    const msg = profileError.message.toLowerCase();
-    if (msg.includes("duplicate") || msg.includes("unique")) {
-      throw new Error("This username is already taken. Try another.");
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes("already taken")) {
+        throw new Error("This username is already taken. Try another.");
+      }
+      if (msg.includes("confirm your email")) {
+        throw new Error("Confirm your email before finishing signup.");
+      }
+      if (isNetworkError(error)) throw error;
+      throw error;
     }
-    throw profileError;
-  }
-
-  const metaUpdate: Record<string, string | boolean> = {
-    username,
-    username_chosen: true,
-  };
-  if (displayName) {
-    metaUpdate.full_name = displayName;
-  }
-
-  const { error: metaError } = await supabase.auth.updateUser({
-    data: metaUpdate,
   });
-  if (metaError) throw metaError;
+
+  await supabase.auth.refreshSession();
 }
 
 export function signupAvailabilityMessage(
@@ -185,9 +216,10 @@ export function mapSignUpError(message: string): string {
   if (
     lower.includes("already registered") ||
     lower.includes("already been registered") ||
-    lower.includes("user already exists")
+    lower.includes("user already exists") ||
+    lower.includes("already exists with this email")
   ) {
-    return "An account already exists with this email.";
+    return "An account already exists with this email. Try signing in instead.";
   }
   if (lower.includes("duplicate key") && lower.includes("username")) {
     return "This username is already taken. Try another.";

@@ -5,14 +5,18 @@ import { runAnimationFrameLoop, smoothStep } from "@/lib/animationFrameLoop";
 import { LiveSoundFeatureStream, MAX_SPEC_COLUMNS } from "@/lib/liveSoundFeatures";
 
 const FREQ_BINS = 24;
-const FREQ_LABELS = ["4k", "2k", "0"] as const;
-const AXIS_WIDTH = 30;
 const STRIP_HEIGHT = 52;
 const WAVE_BARS = 48;
-const PANEL_PAD = 8;
-const STRIP_GAP = 4;
+const PANEL_PAD_X = 10;
+const PANEL_PAD_Y = 10;
+const AXIS_LABEL_HEIGHT = 10;
+const AXIS_LABEL_INSET = 4;
 /** New spectrogram column cadence — keeps heatmap smooth without 60 cols/sec. */
 const SPEC_COLUMN_MS = 33;
+
+const FREQ_LABEL_TOP = 0;
+const FREQ_LABEL_MID = STRIP_HEIGHT / 2 - AXIS_LABEL_HEIGHT / 2;
+const FREQ_LABEL_BOTTOM = STRIP_HEIGHT - AXIS_LABEL_HEIGHT;
 
 interface LiveSoundSpaceVisualizerProps {
   levelRef: MutableRefObject<number>;
@@ -142,6 +146,18 @@ const WaveformStrip = memo(function WaveformStrip({
   );
 });
 
+function PlotAxisOverlay({ labels }: { labels: readonly { text: string; top: number }[] }) {
+  return (
+    <View style={styles.axisOverlay} pointerEvents="none">
+      {labels.map(({ text, top }) => (
+        <Text key={text} style={[styles.axisLabelText, { top }]}>
+          {text}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 export function LiveSoundSpaceVisualizer({
   levelRef,
   active,
@@ -154,12 +170,11 @@ export function LiveSoundSpaceVisualizer({
   const [elapsedSec, setElapsedSec] = useState(0);
   const [waveFrame, setWaveFrame] = useState(0);
   const [specFrame, setSpecFrame] = useState(0);
-  const [panelWidth, setPanelWidth] = useState(0);
+  const [plotWidth, setPlotWidth] = useState(0);
 
-  const plotWidth = Math.max(
-    0,
-    panelWidth - PANEL_PAD * 2 - AXIS_WIDTH - STRIP_GAP,
-  );
+  const handlePlotLayout = (width: number) => {
+    if (width > 0 && width !== plotWidth) setPlotWidth(width);
+  };
 
   useEffect(() => {
     if (!visible) {
@@ -260,50 +275,38 @@ export function LiveSoundSpaceVisualizer({
         </Text>
       </View>
 
-      <View
-        style={styles.panel}
-        onLayout={(event) => {
-          const nextWidth = event.nativeEvent.layout.width;
-          if (nextWidth !== panelWidth) setPanelWidth(nextWidth);
-        }}
-      >
-        <View style={styles.stripRow}>
-          <View style={[styles.freqAxis, { height: STRIP_HEIGHT }]}>
-            {FREQ_LABELS.map((label) => (
-              <Text key={label} className="font-mono text-[8px] text-muted-foreground/75">
-                {label}
-              </Text>
-            ))}
-          </View>
-
-          <View style={[styles.plotClip, { width: plotWidth, height: STRIP_HEIGHT }]}>
-            <SpectrogramStrip
-              columns={columns}
-              plotWidth={plotWidth}
-              revision={specFrame}
-            />
-          </View>
+      <View style={styles.panel}>
+        <View
+          style={[styles.plotClip, { height: STRIP_HEIGHT }]}
+          onLayout={(event) => handlePlotLayout(event.nativeEvent.layout.width)}
+        >
+          <SpectrogramStrip
+            columns={columns}
+            plotWidth={plotWidth}
+            revision={specFrame}
+          />
+          <PlotAxisOverlay
+            labels={[
+              { text: "4k", top: FREQ_LABEL_TOP },
+              { text: "2k", top: FREQ_LABEL_MID },
+              { text: "0", top: FREQ_LABEL_BOTTOM },
+            ]}
+          />
         </View>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider]} />
 
-        <View style={styles.stripRow}>
-          <View style={[styles.axisLabel, { height: STRIP_HEIGHT }]}>
-            <Text className="font-mono text-[8px] text-muted-foreground/70">lvl</Text>
-          </View>
-          <View style={[styles.plotClip, { width: plotWidth, height: STRIP_HEIGHT }]}>
-            <WaveformStrip
-              waveSamples={waveSamples}
-              wavePoints={wavePoints}
-              plotWidth={plotWidth}
-              revision={waveFrame}
-            />
-          </View>
+        <View style={[styles.plotClip, { height: STRIP_HEIGHT }]}>
+          <WaveformStrip
+            waveSamples={waveSamples}
+            wavePoints={wavePoints}
+            plotWidth={plotWidth}
+            revision={waveFrame}
+          />
+          <PlotAxisOverlay labels={[{ text: "lvl", top: FREQ_LABEL_MID }]} />
         </View>
 
-        <Text className="mt-1.5 pr-1 text-right font-mono text-[8px] text-muted-foreground/65">
-          Time →
-        </Text>
+        <Text style={styles.timeCaption}>Time →</Text>
       </View>
     </View>
   );
@@ -319,7 +322,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "baseline",
-    paddingHorizontal: 2,
+    paddingHorizontal: PANEL_PAD_X,
   },
   panel: {
     width: "100%",
@@ -327,36 +330,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(95, 148, 112, 0.28)",
     backgroundColor: "#121712",
-    paddingVertical: 10,
-    paddingHorizontal: PANEL_PAD,
+    paddingVertical: PANEL_PAD_Y,
+    paddingHorizontal: PANEL_PAD_X,
     overflow: "hidden",
-  },
-  stripRow: {
-    flexDirection: "row",
-    gap: STRIP_GAP,
-    alignItems: "center",
+    alignItems: "stretch",
+    gap: 0,
   },
   plotClip: {
+    position: "relative",
     overflow: "hidden",
     borderRadius: 4,
+    width: "100%",
   },
-  freqAxis: {
-    width: AXIS_WIDTH,
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    paddingVertical: 1,
-    paddingRight: 2,
+  axisOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
   },
-  axisLabel: {
-    width: AXIS_WIDTH,
-    alignItems: "flex-end",
-    justifyContent: "center",
-    paddingRight: 2,
+  axisLabelText: {
+    position: "absolute",
+    left: AXIS_LABEL_INSET,
+    fontSize: 8,
+    lineHeight: AXIS_LABEL_HEIGHT,
+    color: "rgba(168, 212, 180, 0.88)",
+    fontFamily: "JetBrainsMono_400Regular",
+    textAlign: "left",
+    textShadowColor: "rgba(0, 0, 0, 0.85)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "rgba(138, 158, 130, 0.22)",
     marginVertical: 8,
-    marginLeft: AXIS_WIDTH + STRIP_GAP,
+    width: "100%",
+  },
+  timeCaption: {
+    marginTop: 6,
+    fontSize: 8,
+    lineHeight: 10,
+    color: "rgba(138, 158, 130, 0.65)",
+    fontFamily: "JetBrainsMono_400Regular",
+    textAlign: "right",
+    width: "100%",
   },
 });

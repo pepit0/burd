@@ -27,6 +27,8 @@ import {
   type FeedRarityFilter,
 } from "@/lib/filters";
 import { getMyProfile } from "@/lib/sightings";
+import { isSpeciesRarityVisible } from "@/lib/rarity";
+import type { ActivityItem, FeedSighting } from "@/types";
 
 const HOME_TABS = [
   { id: "for_you", label: "For you" },
@@ -208,6 +210,137 @@ export default function HomeScreen() {
     </View>
   );
 
+  type HomeListItem =
+    | { kind: "activity"; event: ActivityItem }
+    | { kind: "sighting"; sighting: FeedSighting };
+
+  const listData = useMemo((): HomeListItem[] => {
+    if (isActivity) {
+      return activity.map((event) => ({ kind: "activity", event }));
+    }
+    if (needsNearbyLocation || feedError || feedBusy) {
+      return [];
+    }
+    return visibleSightings.map((sighting) => ({ kind: "sighting", sighting }));
+  }, [
+    activity,
+    feedBusy,
+    feedError,
+    isActivity,
+    needsNearbyLocation,
+    visibleSightings,
+  ]);
+
+  const feedHandlersRef = useRef({
+    likedIds,
+    toggleLike,
+    removeBlockedAuthor,
+  });
+  feedHandlersRef.current = { likedIds, toggleLike, removeBlockedAuthor };
+
+  const renderListItem = useCallback(
+    ({ item }: { item: HomeListItem }) => {
+      if (item.kind === "activity") {
+        return <ActivityRow event={item.event} />;
+      }
+
+      const { sighting } = item;
+      const handlers = feedHandlersRef.current;
+      return (
+        <SightingCard
+          sighting={sighting}
+          liked={handlers.likedIds.has(sighting.id)}
+          onToggleLike={() => handlers.toggleLike(sighting.id)}
+          onUserBlocked={handlers.removeBlockedAuthor}
+        />
+      );
+    },
+    [],
+  );
+
+  const listKeyExtractor = useCallback((item: HomeListItem) => {
+    return item.kind === "activity" ? item.event.id : item.sighting.id;
+  }, []);
+
+  const listEmptyComponent = useMemo(() => {
+    if (isActivity) {
+      if (activityError) {
+        return <TabEmptyState>{activityError}</TabEmptyState>;
+      }
+      if (activity.length === 0 && !activityBusy) {
+        return (
+          <TabEmptyState>
+            No activity yet. Likes and friend requests will show up here.
+          </TabEmptyState>
+        );
+      }
+      return null;
+    }
+
+    if (needsNearbyLocation) {
+      return (
+        <TabEmptyState
+          action={{
+            label: locStatus === "denied" ? "Enable location" : "Retry",
+            onPress: refreshLocation,
+          }}
+        >
+          {locStatus === "denied"
+            ? "Location permission is needed for the nearby filter."
+            : "Finding your location…"}
+        </TabEmptyState>
+      );
+    }
+
+    if (feedError) {
+      return <TabEmptyState>{feedError}</TabEmptyState>;
+    }
+
+    if (visibleSightings.length === 0 && !feedBusy) {
+      return (
+        <TabEmptyState
+          action={
+            activeFilterCount > 0 || search.trim()
+              ? undefined
+              : feedFilter === "following"
+                ? { label: "Add birders", onPress: () => router.push("/users") }
+                : feedFilter === "for_you"
+                  ? {
+                      label: "Find birders near you",
+                      onPress: () => router.push("/users"),
+                    }
+                  : undefined
+          }
+        >
+          {activeFilterCount > 0 || search.trim()
+            ? "No sightings match your search or filters."
+            : EMPTY_COPY[feedFilter]}
+        </TabEmptyState>
+      );
+    }
+
+    if (feedBusy) {
+      return <TabEmptyState loading />;
+    }
+
+    return null;
+  }, [
+    activeFilterCount,
+    activity.length,
+    activityBusy,
+    activityError,
+    feedBusy,
+    feedError,
+    feedFilter,
+    isActivity,
+    locStatus,
+    needsNearbyLocation,
+    refreshLocation,
+    router,
+    search,
+    visibleSightings.length,
+  ]);
+
   return (
     <>
       <ScrollScreen
@@ -215,65 +348,14 @@ export default function HomeScreen() {
         showLogo
         hideHeaderOnScroll
         toolbar={toolbar}
+        listData={listData}
+        listKeyExtractor={listKeyExtractor}
+        renderListItem={renderListItem}
+        ListEmptyComponent={listEmptyComponent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#5f9470" />
         }
-      >
-        {isActivity ? (
-          activityError ? (
-            <TabEmptyState>{activityError}</TabEmptyState>
-          ) : activity.length === 0 && !activityBusy ? (
-            <TabEmptyState>
-              No activity yet. Likes and friend requests will show up here.
-            </TabEmptyState>
-          ) : (
-            <View className="gap-1">
-              {activity.map((event) => (
-                <ActivityRow key={event.id} event={event} />
-              ))}
-            </View>
-          )
-        ) : needsNearbyLocation ? (
-          <TabEmptyState
-            action={{
-              label: locStatus === "denied" ? "Enable location" : "Retry",
-              onPress: refreshLocation,
-            }}
-          >
-            {locStatus === "denied"
-              ? "Location permission is needed for the nearby filter."
-              : "Finding your location…"}
-          </TabEmptyState>
-        ) : feedError ? (
-          <TabEmptyState>{feedError}</TabEmptyState>
-        ) : visibleSightings.length === 0 && !feedBusy ? (
-          <TabEmptyState
-            action={
-              activeFilterCount > 0 || search.trim()
-                ? undefined
-                : feedFilter === "following"
-                  ? { label: "Add birders", onPress: () => router.push("/users") }
-                  : feedFilter === "for_you"
-                    ? { label: "Find birders near you", onPress: () => router.push("/users") }
-                    : undefined
-            }
-          >
-            {activeFilterCount > 0 || search.trim()
-              ? "No sightings match your search or filters."
-              : EMPTY_COPY[feedFilter]}
-          </TabEmptyState>
-        ) : (
-          visibleSightings.map((s) => (
-            <SightingCard
-              key={s.id}
-              sighting={s}
-              liked={likedIds.has(s.id)}
-              onToggleLike={() => toggleLike(s.id)}
-              onUserBlocked={removeBlockedAuthor}
-            />
-          ))
-        )}
-      </ScrollScreen>
+      />
 
       <FilterSheet
         visible={filterOpen}
@@ -294,21 +376,25 @@ export default function HomeScreen() {
               { value: "nearby", label: "Nearby only" },
             ],
           },
-          {
-            title: "Rarity",
-            value: contentFilters.rarity,
-            onSelect: (value) =>
-              setContentFilters((prev) => ({
-                ...prev,
-                rarity: value as FeedRarityFilter,
-              })),
-            options: [
-              { value: "all", label: "All" },
-              { value: "common", label: "Common" },
-              { value: "uncommon", label: "Uncommon" },
-              { value: "rare", label: "Rare" },
-            ],
-          },
+          ...(isSpeciesRarityVisible()
+            ? [
+                {
+                  title: "Rarity",
+                  value: contentFilters.rarity,
+                  onSelect: (value: string) =>
+                    setContentFilters((prev) => ({
+                      ...prev,
+                      rarity: value as FeedRarityFilter,
+                    })),
+                  options: [
+                    { value: "all", label: "All" },
+                    { value: "common", label: "Common" },
+                    { value: "uncommon", label: "Uncommon" },
+                    { value: "rare", label: "Rare" },
+                  ],
+                },
+              ]
+            : []),
         ]}
       />
     </>

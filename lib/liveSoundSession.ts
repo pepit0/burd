@@ -19,8 +19,12 @@ import {
   getCatalogSpeciesByScientificName,
   resolveCatalogSpecies,
 } from "@/lib/speciesCatalog";
-import { createSighting } from "@/lib/sightings";
+import { createSighting, getMySightings } from "@/lib/sightings";
 import { maybeGenerateSpeciesProfileAfterSighting } from "@/lib/speciesProfileLoad";
+import {
+  isFirstLogForSpecies,
+  lifeListCountAfterAdd,
+} from "@/lib/newSpeciesCelebration";
 import {
   linkSoundToSighting,
   saveSoundToLibrary,
@@ -86,6 +90,8 @@ export type FinalizeLiveSessionResult =
       species: string;
       scientificName: string | null;
       soundLibraryId: string;
+      isNewSpecies: boolean;
+      lifeListCount: number;
     }
   | {
       kind: "library_only";
@@ -517,6 +523,13 @@ export async function saveLiveSessionToJournal(
 
   const enriched = enrichPrediction(primary.prediction);
   const geocode = await resolveGeocodeFields(coords);
+  const existingSightings = await getMySightings(userId);
+  const isNewSpecies = isFirstLogForSpecies(
+    existingSightings,
+    enriched.species,
+    enriched.scientific_name,
+  );
+  const lifeListCount = lifeListCountAfterAdd(existingSightings, isNewSpecies);
   const rarity = lookupRegionalRarity({
     species: enriched.species,
     scientificName: enriched.scientific_name,
@@ -557,6 +570,8 @@ export async function saveLiveSessionToJournal(
     species: enriched.species,
     scientificName: enriched.scientific_name,
     soundLibraryId: libraryEntry.id,
+    isNewSpecies,
+    lifeListCount,
   };
 }
 

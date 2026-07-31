@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Profile } from "@/types";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   type NativeSyntheticEvent,
 } from "react-native";
 import Animated from "react-native-reanimated";
+import { FlatList } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Check, Filter } from "lucide-react-native";
@@ -57,6 +57,9 @@ import { resetFieldGuideImageLoader, primeFieldGuideImages } from "@/lib/fieldGu
 import { getMyProfile } from "@/lib/sightings";
 import { consumeFieldGuideIntent } from "@/lib/navigationIntent";
 import { SPECIES_CATALOG } from "@/lib/speciesCatalog";
+import { isSpeciesRarityVisible } from "@/lib/rarity";
+
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 const FIELD_GUIDE_TABS = [
   { id: "guide", label: "Guide" },
@@ -225,10 +228,8 @@ export default function FieldGuideScreen() {
   const {
     toolbarProgress,
     toolbarVisible,
-    barHeight,
-    toolbarHeight,
     handleHeightsChange,
-    handleScroll,
+    scrollHandler,
     handleScrollBeginDrag,
     handleScrollEndDrag,
     handleMomentumScrollEnd,
@@ -236,13 +237,11 @@ export default function FieldGuideScreen() {
     listFrameStyle,
   } = useCollapsibleToolbar();
 
-  const staticTopInset = {
+  const listFrameBaseStyle = {
     position: "absolute" as const,
     left: 0,
     right: 0,
     bottom: 0,
-    top: barHeight + toolbarHeight + 8,
-    paddingBottom: tabBarClearance,
   };
 
   const loadingMore = useRef(false);
@@ -462,7 +461,7 @@ export default function FieldGuideScreen() {
 
   const handleListScrollEndDrag = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      handleScrollEndDrag(event);
+      handleScrollEndDrag();
       tryLoadMoreAtBottom(event);
     },
     [handleScrollEndDrag, tryLoadMoreAtBottom],
@@ -572,7 +571,7 @@ export default function FieldGuideScreen() {
 
       {tab === "explore" && showExploreTab ? (
         <FieldGuideExploreTab
-          onScroll={handleScroll}
+          onScroll={scrollHandler}
           onScrollBeginDrag={() => {
             dismissKeyboardOnScrollDrag();
             handleScrollBeginDrag();
@@ -585,18 +584,16 @@ export default function FieldGuideScreen() {
       ) : (
         <>
       {loading && sightings.length === 0 ? (
-        <View style={staticTopInset}>
+        <Animated.View style={[listFrameBaseStyle, listFrameStyle]}>
           <TabEmptyState loading />
-        </View>
+        </Animated.View>
       ) : error ? (
-        <View style={staticTopInset}>
+        <Animated.View style={[listFrameBaseStyle, listFrameStyle]}>
           <TabEmptyState>{error}</TabEmptyState>
-        </View>
+        </Animated.View>
       ) : (
-        <Animated.View
-          style={[{ position: "absolute", left: 0, right: 0, bottom: 0 }, listFrameStyle]}
-        >
-          <FlatList
+        <Animated.View style={[listFrameBaseStyle, listFrameStyle]}>
+          <AnimatedFlatList
             ref={listRef}
             style={{ flex: 1 }}
             data={rows}
@@ -607,10 +604,12 @@ export default function FieldGuideScreen() {
             contentContainerStyle={guideListContentStyle}
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
+            decelerationRate="normal"
             initialNumToRender={5}
             maxToRenderPerBatch={3}
             windowSize={5}
-            onScroll={handleScroll}
+            removeClippedSubviews
+            onScroll={scrollHandler}
             onScrollBeginDrag={() => {
               dismissKeyboardOnScrollDrag();
               handleScrollBeginDrag();
@@ -642,21 +641,25 @@ export default function FieldGuideScreen() {
         onClose={() => setFilterOpen(false)}
         onReset={() => setGuideFilters(DEFAULT_FIELD_GUIDE_FILTERS)}
         sections={[
-          {
-            title: "Rarity",
-            value: guideFilters.rarity,
-            onSelect: (value) =>
-              setGuideFilters((prev) => ({
-                ...prev,
-                rarity: value as FeedRarityFilter,
-              })),
-            options: [
-              { value: "all", label: "All" },
-              { value: "common", label: "Common" },
-              { value: "uncommon", label: "Uncommon" },
-              { value: "rare", label: "Rare" },
-            ],
-          },
+          ...(isSpeciesRarityVisible()
+            ? [
+                {
+                  title: "Rarity",
+                  value: guideFilters.rarity,
+                  onSelect: (value: string) =>
+                    setGuideFilters((prev) => ({
+                      ...prev,
+                      rarity: value as FeedRarityFilter,
+                    })),
+                  options: [
+                    { value: "all", label: "All" },
+                    { value: "common", label: "Common" },
+                    { value: "uncommon", label: "Uncommon" },
+                    { value: "rare", label: "Rare" },
+                  ],
+                },
+              ]
+            : []),
           {
             title: "Logged",
             value: guideFilters.logged,

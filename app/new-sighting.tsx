@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  InteractionManager,
   Pressable,
   ScrollView,
   Switch,
@@ -17,12 +18,12 @@ import * as Location from "expo-location";
 import { Camera, Mic, Minus, Plus, Sparkles, Volume2, X } from "lucide-react-native";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { SoundLibraryPicker } from "@/components/SoundLibraryPicker";
-import { PostSendOffOverlay } from "@/components/PostSendOffOverlay";
+import { useNewSpeciesUnlock } from "@/components/NewSpeciesUnlockProvider";
+import { useGlobalPostSendOff } from "@/components/PostSendOffProvider";
 import { SightingPhotoCropModal } from "@/components/SightingPhotoCropModal";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { useAuth } from "@/hooks/useAuth";
-import { usePostSendOff } from "@/hooks/usePostSendOff";
 import { useProfile } from "@/hooks/useProfile";
 import { identifyImage, isPhotoValidationError, PhotoValidationError } from "@/lib/identify";
 import {
@@ -32,7 +33,12 @@ import {
   validatePhotoAuthenticity,
 } from "@/lib/photoAuthenticity";
 import { validationFailureMessage } from "@/lib/photoValidation";
-import { createSighting, uploadSightingPhoto } from "@/lib/sightings";
+import { createSighting, getMySightings, uploadSightingPhoto } from "@/lib/sightings";
+import {
+  buildNewSpeciesCelebration,
+  isFirstLogForSpecies,
+  lifeListCountAfterAdd,
+} from "@/lib/newSpeciesCelebration";
 import { linkSoundToSighting, getSoundLibraryEntry, uploadSoundClip } from "@/lib/soundLibrary";
 import {
   displayScientificName,
@@ -40,7 +46,7 @@ import {
   enrichPrediction,
 } from "@/lib/predictionLabels";
 import { maybeGenerateSpeciesProfileAfterSighting } from "@/lib/speciesProfileLoad";
-import { lookupRegionalRarity } from "@/lib/rarity";
+import { isSpeciesRarityVisible, lookupRegionalRarity } from "@/lib/rarity";
 import { applyGeocodeFields } from "@/lib/geocode";
 import { photoTakenAt } from "@/lib/photoMetadata";
 import { getUserFacingMessage } from "@/lib/errors";
@@ -220,7 +226,8 @@ export default function NewSightingScreen() {
   const userId = user?.id ?? null;
   const { profile } = useProfile(userId);
   const privacyDefaults = profilePrivacyDefaults(profile);
-  const { sendOffKey, playSendOff, onSendOffComplete } = usePostSendOff();
+  const { playSendOff } = useGlobalPostSendOff();
+  const { celebrateNewSpecies } = useNewSpeciesUnlock();
 
   const params = useLocalSearchParams<SightingParams>();
 
@@ -688,6 +695,16 @@ export default function NewSightingScreen() {
         await validatePhotoAuthenticity(photoUri, photoBase64);
       }
 
+      const trimmedSpecies = species.trim();
+      const trimmedScientific = scientific.trim() || null;
+      const existingSightings = await getMySightings(userId);
+      const isNewSpecies = isFirstLogForSpecies(
+        existingSightings,
+        trimmedSpecies,
+        trimmedScientific,
+      );
+      const lifeListCount = lifeListCountAfterAdd(existingSightings, isNewSpecies);
+
       let photoUrl: string | null = null;
       let uploadedPhotos: SightingPhotoInput[] = [];
       if (!(audioOnly || detectedBy === "audio") && entriesForSave.length > 0) {
@@ -723,8 +740,8 @@ export default function NewSightingScreen() {
       const sightingId = await createSighting(
         userId,
         {
-          species: species.trim(),
-          scientific_name: scientific.trim() || null,
+          species: trimmedSpecies,
+          scientific_name: trimmedScientific,
           location_name: locationName.trim() || null,
           location_city: locationCity.trim() || null,
           location_address: locationAddress.trim() || null,
@@ -754,14 +771,27 @@ export default function NewSightingScreen() {
       }
       clearPendingCapture();
       void maybeGenerateSpeciesProfileAfterSighting(
-        species.trim(),
-        scientific.trim() || null,
+        trimmedSpecies,
+        trimmedScientific,
         photoUrl,
       );
-      if (publishToProfile) {
-        await playSendOff();
-      }
+      const celebration = isNewSpecies
+        ? buildNewSpeciesCelebration(trimmedSpecies, trimmedScientific, lifeListCount)
+        : null;
+      const shouldPlaySendOff = publishToProfile;
+
       router.back();
+
+      InteractionManager.runAfterInteractions(() => {
+        void (async () => {
+          if (celebration) {
+            await celebrateNewSpecies(celebration);
+          }
+          if (shouldPlaySendOff) {
+            await playSendOff();
+          }
+        })();
+      });
     } catch (e) {
       if (e instanceof PhotoValidationError || isPhotoValidationError(e)) {
         Alert.alert(
@@ -1027,23 +1057,25 @@ export default function NewSightingScreen() {
         <View className={`${cardClassName} ${sectionClassName}`} style={cardStyle}>
           <Text className={sectionLabelClassName}>Sighting details</Text>
 
-          <View className={fieldClassName} style={fieldStyle}>
-            <Text className={fieldLabelClassName}>Rarity</Text>
-            <View className="flex-row items-start gap-3 rounded-xl border border-border bg-background px-4 py-4">
-              <View className="shrink-0 pt-0.5">
-                {rarityLoading ? (
-                  <ActivityIndicator size="small" color="#5f9470" />
-                ) : (
-                  <RarityBadge rarity={rarity} />
-                )}
+          {isSpeciesRarityVisible() ? (
+            <View className={fieldClassName} style={fieldStyle}>
+              <Text className={fieldLabelClassName}>Rarity</Text>
+              <View className="flex-row items-start gap-3 rounded-xl border border-border bg-background px-4 py-4">
+                <View className="shrink-0 pt-0.5">
+                  {rarityLoading ? (
+                    <ActivityIndicator size="small" color="#5f9470" />
+                  ) : (
+                    <RarityBadge rarity={rarity} />
+                  )}
+                </View>
+                <Text className="min-w-0 flex-1 shrink font-sans text-xs leading-5 text-muted-foreground">
+                  {coords
+                    ? "Based on species rarity and recent sightings near you."
+                    : "Waiting for location to estimate regional rarity."}
+                </Text>
               </View>
-              <Text className="min-w-0 flex-1 shrink font-sans text-xs leading-5 text-muted-foreground">
-                {coords
-                  ? "Based on species rarity and recent sightings near you."
-                  : "Waiting for location to estimate regional rarity."}
-              </Text>
             </View>
-          </View>
+          ) : null}
 
           <View className={fieldClassName} style={fieldStyle}>
             <Text className={fieldLabelClassName}>Count</Text>
@@ -1225,7 +1257,6 @@ export default function NewSightingScreen() {
         onConfirm={applyCroppedPhoto}
       />
 
-      <PostSendOffOverlay sendOffKey={sendOffKey} onComplete={onSendOffComplete} />
     </SafeAreaView>
   );
 }

@@ -500,6 +500,18 @@ export interface ProfileDetailsUpdate {
   full_name?: string | null;
   bio?: string | null;
   cover_url?: string | null;
+  showcase_badge_ids?: string[];
+}
+
+export async function updateProfileShowcaseBadges(
+  userId: string,
+  badgeIds: string[],
+): Promise<void> {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ showcase_badge_ids: badgeIds })
+    .eq("id", userId);
+  if (error) throw error;
 }
 
 export async function updateProfileDetails(

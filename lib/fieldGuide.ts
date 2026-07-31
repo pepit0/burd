@@ -1,6 +1,6 @@
 import type { CatalogSpecies } from "@/lib/speciesCatalog";
 import type { FieldGuideFilters } from "@/lib/filters";
-import { lookupRegionalRarity } from "@/lib/rarity";
+import { lookupRegionalRarity, isSpeciesRarityVisible } from "@/lib/rarity";
 import { SPECIES_PROFILES } from "@/lib/speciesProfiles";
 import { observedDate } from "@/lib/sightingFormat";
 import type { Rarity, Sighting } from "@/types";
@@ -146,7 +146,7 @@ export function filterCatalogByOptions(
   regional: FieldGuideRegionalContext | null = null,
 ): CatalogSpecies[] {
   return catalog.filter((item) => {
-    if (filters.rarity !== "all") {
+    if (isSpeciesRarityVisible() && filters.rarity !== "all") {
       const rarity = regional
         ? lookupRegionalRarity({
             species: item.species,

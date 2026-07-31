@@ -1,17 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Easing, cancelAnimation, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
-import { useTabBarClearance, TOOLBAR_ANIM_MS } from "@/components/CollapsibleHeader";
+import {
+  Easing,
+  cancelAnimation,
+  runOnJS,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { TOOLBAR_ANIM_MS, useTabBarClearance } from "@/components/CollapsibleHeader";
 
-const SCROLL_DELTA = 10;
-const MOMENTUM_VELOCITY = 0.05;
+/** Upward scroll — show toolbar on the first frame of scroll-up. */
+const SHOW_DELTA = 1;
+/** Downward scroll — ignore small jitter before hiding. */
+const HIDE_DELTA = 10;
 const TOOLBAR_EASING = Easing.bezier(0.4, 0, 0.2, 1);
+
+/** Ignore bottom-edge settle / load-more content growth within this band. */
+const BOTTOM_EDGE_INSET = 32;
 
 export function useCollapsibleToolbar() {
   const scrollY = useRef(0);
-  const lastY = useRef(0);
-  const dragging = useRef(false);
-  const momentum = useRef(false);
+  const lastScrollY = useSharedValue(0);
+  const lastContentHeight = useSharedValue(0);
   const [barHeight, setBarHeight] = useState(52);
   const [toolbarHeight, setToolbarHeight] = useState(72);
   const [toolbarVisible, setToolbarVisible] = useState(true);
@@ -27,6 +38,10 @@ export function useCollapsibleToolbar() {
     });
   }, [toolbarVisible, toolbarProgress]);
 
+  const syncScrollY = useCallback((y: number) => {
+    scrollY.current = y;
+  }, []);
+
   const showToolbar = useCallback(() => {
     if (toolbarVisibleRef.current) return;
     toolbarVisibleRef.current = true;
@@ -39,47 +54,47 @@ export function useCollapsibleToolbar() {
     setToolbarVisible(false);
   }, []);
 
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const y = event.nativeEvent.contentOffset.y;
-      const delta = y - lastY.current;
-      lastY.current = y;
-      scrollY.current = y;
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      const y = event.contentOffset.y;
+      const contentHeight = event.contentSize.height;
+      const layoutHeight = event.layoutMeasurement.height;
+      const maxY = Math.max(0, contentHeight - layoutHeight);
+      const delta = y - lastScrollY.value;
+      const contentGrew = contentHeight > lastContentHeight.value + 1;
+      lastScrollY.value = y;
+      lastContentHeight.value = contentHeight;
+      runOnJS(syncScrollY)(y);
 
-      if (y <= 8 || delta < -SCROLL_DELTA) {
-        showToolbar();
+      const nearBottom = maxY > 0 && y >= maxY - BOTTOM_EDGE_INSET;
+
+      if (y <= 8) {
+        runOnJS(showToolbar)();
         return;
       }
 
-      if (delta > SCROLL_DELTA && (dragging.current || momentum.current)) {
-        hideToolbar();
+      if (delta < -SHOW_DELTA && !nearBottom && !contentGrew) {
+        runOnJS(showToolbar)();
+        return;
+      }
+
+      if (delta > HIDE_DELTA) {
+        runOnJS(hideToolbar)();
       }
     },
-    [hideToolbar, showToolbar],
-  );
+  });
 
   const handleScrollBeginDrag = useCallback(() => {
-    dragging.current = true;
-    momentum.current = false;
+    // Scroll direction is handled in scrollHandler only.
   }, []);
 
-  const handleScrollEndDrag = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      dragging.current = false;
-      const velocityY = event.nativeEvent.velocity?.y ?? 0;
-      momentum.current = Math.abs(velocityY) >= MOMENTUM_VELOCITY;
-
-      if (!momentum.current) {
-        showToolbar();
-      }
-    },
-    [showToolbar],
-  );
+  const handleScrollEndDrag = useCallback(() => {
+    // Do not restore toolbar on scroll stop — only on upward scroll.
+  }, []);
 
   const handleMomentumScrollEnd = useCallback(() => {
-    momentum.current = false;
-    showToolbar();
-  }, [showToolbar]);
+    // Do not restore toolbar when momentum ends.
+  }, []);
 
   const handleHeightsChange = useCallback(
     ({ barHeight: bar, toolbarHeight: tool }: { barHeight: number; toolbarHeight: number }) => {
@@ -91,14 +106,13 @@ export function useCollapsibleToolbar() {
   );
 
   const resetToolbar = useCallback(() => {
-    lastY.current = scrollY.current;
-    dragging.current = false;
-    momentum.current = false;
+    lastScrollY.value = scrollY.current;
+    lastContentHeight.value = 0;
     toolbarVisibleRef.current = true;
     setToolbarVisible(true);
     cancelAnimation(toolbarProgress);
     toolbarProgress.value = 1;
-  }, [toolbarProgress]);
+  }, [lastContentHeight, lastScrollY, toolbarProgress]);
 
   const contentContainerStyle = {
     paddingTop: barHeight + toolbarHeight + 8,
@@ -113,9 +127,12 @@ export function useCollapsibleToolbar() {
   }, [toolbarHeight]);
 
   /** Absolute-positioned lists (FlatList) — expand into toolbar space without a bottom gap. */
-  const listFrameStyle = useAnimatedStyle(() => ({
-    top: barHeight + toolbarProgress.value * toolbarHeight,
-  }), [barHeight, toolbarHeight]);
+  const listFrameStyle = useAnimatedStyle(
+    () => ({
+      top: barHeight + toolbarProgress.value * toolbarHeight,
+    }),
+    [barHeight, toolbarHeight],
+  );
 
   const animatedContentPaddingStyle = useAnimatedStyle(() => {
     const hidden = 1 - toolbarProgress.value;
@@ -133,7 +150,7 @@ export function useCollapsibleToolbar() {
     toolbarHeight,
     tabBarClearance,
     handleHeightsChange,
-    handleScroll,
+    scrollHandler,
     handleScrollBeginDrag,
     handleScrollEndDrag,
     handleMomentumScrollEnd,

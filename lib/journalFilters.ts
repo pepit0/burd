@@ -1,5 +1,5 @@
 import { journalLogDate } from "@/lib/sightingFormat";
-import { rarityForSighting } from "@/lib/rarity";
+import { isSpeciesRarityVisible, rarityForSighting } from "@/lib/rarity";
 import type { Rarity, Sighting } from "@/types";
 
 export type JournalRarityFilter = Rarity | "all";
@@ -30,12 +30,16 @@ const RARITY_RANK: Record<Rarity, number> = {
 
 export function countActiveJournalFilters(filters: JournalFilters): number {
   let count = 0;
-  if (filters.rarity !== "all") count += 1;
+  if (isSpeciesRarityVisible() && filters.rarity !== "all") count += 1;
   if (filters.sort !== "newest") count += 1;
   return count;
 }
 
 export function journalCardClassName(rarity: Rarity): string {
+  if (!isSpeciesRarityVisible()) {
+    return "rounded-2xl bg-card";
+  }
+
   switch (rarity) {
     case "rare":
       return "rounded-2xl border border-purple-800/45 bg-purple-950/55";
@@ -55,8 +59,12 @@ export function sortJournalSightings(
   sort: JournalSort,
 ): Sighting[] {
   const copy = [...sightings];
+  const effectiveSort =
+    !isSpeciesRarityVisible() && (sort === "rarest" || sort === "most_common")
+      ? "newest"
+      : sort;
 
-  switch (sort) {
+  switch (effectiveSort) {
     case "oldest":
       return copy.sort(
         (a, b) => journalLogDate(a).getTime() - journalLogDate(b).getTime(),
@@ -96,9 +104,9 @@ export function applyJournalFilters(
   filters: JournalFilters,
 ): Sighting[] {
   const filtered =
-    filters.rarity === "all"
-      ? sightings
-      : sightings.filter((s) => rarityForSighting(s) === filters.rarity);
+    isSpeciesRarityVisible() && filters.rarity !== "all"
+      ? sightings.filter((s) => rarityForSighting(s) === filters.rarity)
+      : sightings;
 
   return sortJournalSightings(filtered, filters.sort);
 }

@@ -27,6 +27,9 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { SuspensionScreen } from "@/components/SuspensionScreen";
 import { DismissKeyboard } from "@/components/DismissKeyboard";
 import { NotificationBadgeProvider } from "@/components/NotificationBadgeProvider";
+import { BadgeUnlockProvider } from "@/components/BadgeUnlockProvider";
+import { NewSpeciesUnlockProvider } from "@/components/NewSpeciesUnlockProvider";
+import { PostSendOffProvider } from "@/components/PostSendOffProvider";
 import { LikeIconStyleProvider } from "@/components/LikeIconStyleProvider";
 import { SafeKeyboardProvider } from "@/components/SafeKeyboardProvider";
 import { WebDesktopFrame } from "@/components/WebDesktopFrame";
@@ -38,6 +41,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { nativewindColorVars } from "@/lib/colorTheme";
 import { getMyAccountStatus } from "@/lib/moderation";
 import { initRegionalCommunity } from "@/lib/regionalCommunity";
+import { urlHasAuthCompletionParams } from "@/lib/authCallback";
 import { resolveUsernameSetup } from "@/lib/signup";
 import type { AccountStatus } from "@/types";
 
@@ -48,11 +52,14 @@ function AppShell() {
 
   return (
     <NotificationBadgeProvider userId={user?.id ?? null}>
-      <LikeIconStyleProvider userId={user?.id ?? null}>
-        <DismissKeyboard>
-          <View className="flex-1 bg-background" style={vars(nativewindColorVars(palette))}>
-            <StatusBar style="light" />
-            <Stack
+      <BadgeUnlockProvider userId={user?.id ?? null}>
+        <NewSpeciesUnlockProvider>
+          <PostSendOffProvider>
+          <LikeIconStyleProvider userId={user?.id ?? null}>
+          <DismissKeyboard>
+            <View className="flex-1 bg-background" style={vars(nativewindColorVars(palette))}>
+              <StatusBar style="light" />
+              <Stack
               screenOptions={{
                 headerShown: false,
                 contentStyle: { backgroundColor: palette.background },
@@ -93,7 +100,10 @@ function AppShell() {
             </Stack>
           </View>
         </DismissKeyboard>
-      </LikeIconStyleProvider>
+        </LikeIconStyleProvider>
+          </PostSendOffProvider>
+        </NewSpeciesUnlockProvider>
+      </BadgeUnlockProvider>
     </NotificationBadgeProvider>
   );
 }
@@ -205,6 +215,14 @@ function RootLayoutInner() {
 
     if (!session) {
       if (onOAuthCallback) {
+        return;
+      }
+      if (
+        Platform.OS === "web" &&
+        typeof window !== "undefined" &&
+        urlHasAuthCompletionParams(window.location.href)
+      ) {
+        router.replace("/auth/callback");
         return;
       }
       if (!inAuthGroup || onChooseUsername) {

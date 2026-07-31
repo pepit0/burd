@@ -65,6 +65,7 @@ export interface Profile {
   notification_prefs?: NotificationPrefs;
   is_verified?: boolean;
   is_beta?: boolean;
+  showcase_badge_ids?: string[] | null;
   created_at: string;
   role?: UserRole;
   suspended?: boolean;

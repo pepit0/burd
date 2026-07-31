@@ -58,4 +58,6 @@ Also under **Authentication → URL Configuration**:
 
 ## App behavior
 
-Register passes `emailRedirectTo: https://burdapp.com/app/` and shows **Check your email**. Login offers **Resend confirmation** when the email isn’t confirmed yet.
+Register creates an **auth account only** (for email confirmation). A public **profile** and the admin signup notification are created when the user finishes onboarding — email confirmed (email signups) plus display name and @username on the choose-profile screen.
+
+Register passes `emailRedirectTo: https://burdapp.com/app/auth/callback` and shows **Check your email**. Login offers **Resend confirmation** when the email isn’t confirmed yet.

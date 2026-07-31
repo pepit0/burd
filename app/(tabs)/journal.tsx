@@ -50,7 +50,7 @@ import {
   journalLogDate,
   sightingCity,
 } from "@/lib/sightingFormat";
-import { rarityForSighting } from "@/lib/rarity";
+import { isSpeciesRarityVisible, rarityForSighting } from "@/lib/rarity";
 import type { Sighting } from "@/types";
 import type { CaptureDraft } from "@/lib/captureDrafts";
 
@@ -438,7 +438,6 @@ export default function JournalScreen() {
     <View className="flex-1">
       <ScrollScreen
         title="Journal"
-        hideHeaderOnScroll
         toolbar={toolbar}
         contentClassName="pb-36 pt-2 gap-6"
         refreshControl={
@@ -563,21 +562,25 @@ export default function JournalScreen() {
         onClose={() => setFilterOpen(false)}
         onReset={() => setJournalFilters(DEFAULT_JOURNAL_FILTERS)}
         sections={[
-          {
-            title: "Rarity",
-            value: journalFilters.rarity,
-            onSelect: (value) =>
-              setJournalFilters((prev) => ({
-                ...prev,
-                rarity: value as JournalFilters["rarity"],
-              })),
-            options: [
-              { value: "all", label: "All" },
-              { value: "common", label: "Common" },
-              { value: "uncommon", label: "Uncommon" },
-              { value: "rare", label: "Rare" },
-            ],
-          },
+          ...(isSpeciesRarityVisible()
+            ? [
+                {
+                  title: "Rarity",
+                  value: journalFilters.rarity,
+                  onSelect: (value: string) =>
+                    setJournalFilters((prev) => ({
+                      ...prev,
+                      rarity: value as JournalFilters["rarity"],
+                    })),
+                  options: [
+                    { value: "all", label: "All" },
+                    { value: "common", label: "Common" },
+                    { value: "uncommon", label: "Uncommon" },
+                    { value: "rare", label: "Rare" },
+                  ],
+                },
+              ]
+            : []),
           {
             title: "Sort by",
             value: journalFilters.sort,
@@ -589,8 +592,12 @@ export default function JournalScreen() {
             options: [
               { value: "newest", label: "Newest first" },
               { value: "oldest", label: "Oldest first" },
-              { value: "rarest", label: "Rarest first" },
-              { value: "most_common", label: "Most common first" },
+              ...(isSpeciesRarityVisible()
+                ? [
+                    { value: "rarest", label: "Rarest first" },
+                    { value: "most_common", label: "Most common first" },
+                  ]
+                : []),
               { value: "species_az", label: "Species A–Z" },
               { value: "species_za", label: "Species Z–A" },
             ],

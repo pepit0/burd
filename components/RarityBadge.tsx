@@ -1,5 +1,6 @@
 import { Text, View } from "react-native";
 import type { Rarity } from "@/types";
+import { isSpeciesRarityVisible } from "@/lib/rarity";
 
 const STYLES: Record<Rarity, { box: string; text: string }> = {
   common: { box: "bg-green-950 border-green-800/50", text: "text-green-400" },
@@ -21,6 +22,8 @@ export function RarityBadge({
   rarity: Rarity;
   size?: keyof typeof SIZE_STYLES;
 }) {
+  if (!isSpeciesRarityVisible()) return null;
+
   const s = STYLES[rarity] ?? FALLBACK_STYLE;
   const sizing = SIZE_STYLES[size];
   return (

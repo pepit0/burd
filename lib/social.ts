@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
-import { getNearbyFeed } from "@/lib/sightings";
-import type { FeedSighting } from "@/types";
 
+/** Fixed discovery radius for Find Birders → Nearby (independent of feed radius). */
+export const NEARBY_BIRDERS_RADIUS_KM = 100;
 export type FriendshipStatus = "none" | "outgoing" | "incoming" | "friends";
 
 export interface UserListItem {
@@ -44,18 +44,6 @@ function matchesQuery(item: { username: string; full_name: string | null }, quer
     item.username.toLowerCase().includes(q) ||
     (item.full_name ?? "").toLowerCase().includes(q)
   );
-}
-
-function kmBetween(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 async function getOutgoingIds(userId: string): Promise<Set<string>> {
@@ -205,29 +193,23 @@ function statusForId(
   return "none";
 }
 
-function birdersFromSightings(
-  sightings: FeedSighting[],
-  currentUserId: string,
-): Omit<UserListItem, "status">[] {
-  const map = new Map<string, Omit<UserListItem, "status">>();
+interface NearbyBirderRow {
+  user_id: string;
+  username: string;
+  full_name: string | null;
+  avatar_color: string;
+  avatar_url: string | null;
+  is_verified: boolean;
+  is_beta: boolean;
+  location_name: string | null;
+  distance_km: number;
+}
 
-  for (const row of sightings) {
-    if (row.user_id === currentUserId || map.has(row.user_id)) continue;
-    map.set(row.user_id, {
-      id: row.user_id,
-      username: row.username,
-      full_name: row.full_name,
-      avatar_color: row.avatar_color,
-      avatar_url: null,
-      is_verified: row.is_verified,
-      is_beta: row.is_beta,
-      subtitle: row.location_name
-        ? `Recent post · ${row.location_name}`
-        : "Posted nearby",
-    });
-  }
-
-  return Array.from(map.values());
+function nearbyBirderSubtitle(row: NearbyBirderRow): string {
+  const distance = `${Math.round(row.distance_km)} km away`;
+  return row.location_name
+    ? `Recent post · ${row.location_name} · ${distance}`
+    : `Recent post · ${distance}`;
 }
 
 function attachStatus(
@@ -241,7 +223,7 @@ function attachStatus(
   }));
 }
 
-/** Birders who have posted sightings within your radius. */
+/** Birders whose latest published post is within radius of you. */
 export async function getNearbyBirders(
   lat: number,
   lng: number,
@@ -249,89 +231,35 @@ export async function getNearbyBirders(
   currentUserId: string,
   query = "",
 ): Promise<UserListItem[]> {
-  const [sightings, profilesRes, outgoing, incoming] = await Promise.all([
-    getNearbyFeed(lat, lng, radiusKm),
-    supabase
-      .from("profiles")
-      .select("id, username, full_name, avatar_color, avatar_url, location_name, latitude, longitude, is_verified, is_beta")
-      .neq("id", currentUserId)
-      .not("latitude", "is", null)
-      .not("longitude", "is", null),
+  const effectiveRadius = radiusKm ?? NEARBY_BIRDERS_RADIUS_KM;
+
+  const [birdersRes, outgoing, incoming] = await Promise.all([
+    supabase.rpc("nearby_birders", {
+      in_lat: lat,
+      in_lng: lng,
+      in_radius_km: effectiveRadius,
+    }),
     getOutgoingIds(currentUserId),
     getIncomingIds(currentUserId),
   ]);
 
-  if (profilesRes.error) throw profilesRes.error;
+  if (birdersRes.error) throw birdersRes.error;
 
-  const map = new Map<string, Omit<UserListItem, "status">>();
-
-  for (const row of birdersFromSightings(sightings, currentUserId)) {
-    map.set(row.id, row);
-  }
-
-  for (const profile of profilesRes.data ?? []) {
-    const distance = kmBetween(
-      lat,
-      lng,
-      profile.latitude as number,
-      profile.longitude as number,
-    );
-    if (radiusKm != null && distance > radiusKm) continue;
-
-    const existing = map.get(profile.id as string);
-    if (existing) {
-      map.set(profile.id as string, {
-        ...existing,
-        avatar_url:
-          existing.avatar_url ??
-          ((profile.avatar_url as string | null) ?? null),
-      });
-      continue;
-    }
-
-    map.set(profile.id as string, {
-      id: profile.id as string,
-      username: profile.username as string,
-      full_name: (profile.full_name as string | null) ?? null,
-      avatar_color: profile.avatar_color as string,
-      avatar_url: (profile.avatar_url as string | null) ?? null,
-      is_verified: Boolean(profile.is_verified),
-      is_beta: Boolean(profile.is_beta),
-      subtitle: profile.location_name
-        ? `${Math.round(distance)} km away · ${profile.location_name}`
-        : `${Math.round(distance)} km away`,
-    });
-  }
-
-  // Some nearby candidates are seeded from sightings and may not pass the
-  // latitude/longitude profile filter above. Enrich all candidates by id so
-  // chosen profile photos still appear.
-  const candidateIds = Array.from(map.keys());
-  if (candidateIds.length > 0) {
-    const enrichRes = await supabase
-      .from("profiles")
-      .select("id, avatar_url")
-      .in("id", candidateIds);
-
-    if (!enrichRes.error) {
-      for (const row of enrichRes.data ?? []) {
-        const id = row.id as string;
-        const existing = map.get(id);
-        if (!existing) continue;
-        map.set(id, {
-          ...existing,
-          avatar_url:
-            existing.avatar_url ?? ((row.avatar_url as string | null) ?? null),
-        });
-      }
-    }
-  }
-
-  const base = Array.from(map.values())
+  const rows = ((birdersRes.data ?? []) as NearbyBirderRow[])
+    .map((row) => ({
+      id: row.user_id,
+      username: row.username,
+      full_name: row.full_name,
+      avatar_color: row.avatar_color,
+      avatar_url: row.avatar_url,
+      is_verified: Boolean(row.is_verified),
+      is_beta: Boolean(row.is_beta),
+      subtitle: nearbyBirderSubtitle(row),
+    }))
     .filter((row) => matchesQuery(row, query))
     .sort((a, b) => a.username.localeCompare(b.username));
 
-  return attachStatus(base, outgoing, incoming);
+  return attachStatus(rows, outgoing, incoming);
 }
 
 export async function searchUsers(

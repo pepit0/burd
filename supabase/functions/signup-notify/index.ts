@@ -174,9 +174,22 @@ Deno.serve(async (req) => {
     return new Response("Profile not found", { status: 404 });
   }
 
+  const user = authUser.user;
+  const signupMethod = profile.signup_method ?? "unknown";
+  const isEmailSignup = signupMethod === "email";
+
+  if (isEmailSignup && !user.email_confirmed_at) {
+    return new Response("Email not confirmed", { status: 400 });
+  }
+
+  const meta = user.user_metadata ?? {};
+  if (meta.username_chosen !== true) {
+    return new Response("Onboarding incomplete", { status: 400 });
+  }
+
   const createdAt = profile.created_at ?? authUser.user.created_at;
   const createdMs = new Date(createdAt).getTime();
-  if (Date.now() - createdMs > 120_000) {
+  if (Date.now() - createdMs > 10 * 60_000) {
     return new Response("Signup too old", { status: 400 });
   }
 

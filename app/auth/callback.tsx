@@ -1,17 +1,13 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import {
+  cleanAuthParamsFromUrl,
+  completeAuthFromUrl,
+  urlHasAuthCompletionParams,
+} from "@/lib/authCallback";
 import { getUserFacingMessage } from "@/lib/errors";
-import { completeOAuthFromUrl } from "@/lib/googleAuth";
 import { supabase } from "@/lib/supabase";
-
-function cleanOAuthParamsFromUrl(): void {
-  if (Platform.OS !== "web" || typeof window === "undefined") return;
-  const path = window.location.pathname;
-  if (path.endsWith("/auth/callback")) {
-    window.history.replaceState({}, "", path);
-  }
-}
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
@@ -27,18 +23,16 @@ export default function AuthCallbackScreen() {
         } = await supabase.auth.getSession();
         if (cancelled) return;
         if (existing) {
-          cleanOAuthParamsFromUrl();
+          cleanAuthParamsFromUrl();
           router.replace("/");
           return;
         }
 
         if (Platform.OS === "web" && typeof window !== "undefined") {
           const href = window.location.href;
-          if (href.includes("code=") || href.includes("access_token=")) {
-            await completeOAuthFromUrl(href);
-            cleanOAuthParamsFromUrl();
-          } else if (href.includes("error=")) {
-            await completeOAuthFromUrl(href);
+          if (urlHasAuthCompletionParams(href)) {
+            await completeAuthFromUrl(href);
+            cleanAuthParamsFromUrl();
           }
         }
 
@@ -57,10 +51,17 @@ export default function AuthCallbackScreen() {
           return;
         }
 
-        setError("Could not complete sign in. Please try again.");
+        setError(
+          "Could not finish signing you in. Open the confirmation link again or sign in with your password.",
+        );
       } catch (e) {
         if (!cancelled) {
-          setError(getUserFacingMessage(e, "Could not complete sign in."));
+          setError(
+            getUserFacingMessage(
+              e,
+              "Could not finish signing you in. Try the link again or sign in with your password.",
+            ),
+          );
         }
       }
     })();

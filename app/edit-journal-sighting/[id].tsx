@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { readPhotoBase64 } from "@/lib/captureDrafts";
 import { getUserFacingMessage } from "@/lib/errors";
 import { observedDate } from "@/lib/sightingFormat";
-import { lookupRegionalRarity, rarityForSighting } from "@/lib/rarity";
+import { isSpeciesRarityVisible, lookupRegionalRarity, rarityForSighting } from "@/lib/rarity";
 import { isPhotoSighting } from "@/lib/sightingMedia";
 import {
   SIGHTING_PHOTO_ASPECT,
@@ -284,17 +284,21 @@ export default function EditJournalSightingScreen() {
           className="mb-4 rounded-xl border border-border bg-card px-4 py-3 font-serif-italic text-sm text-foreground"
         />
 
-        <Text className="mb-2 font-sans text-xs text-muted-foreground">Rarity</Text>
-        <View className="mb-4">
-          <RarityBadge rarity={rarityForSighting({
-            species: species.trim() || sighting.species,
-            scientific_name: scientific.trim() || sighting.scientific_name,
-            latitude: sighting.latitude,
-            longitude: sighting.longitude,
-            observed_at: parseObservedAt(observedDateInput, observedTimeInput),
-            created_at: sighting.created_at,
-          })} />
-        </View>
+        {isSpeciesRarityVisible() ? (
+          <>
+            <Text className="mb-2 font-sans text-xs text-muted-foreground">Rarity</Text>
+            <View className="mb-4">
+              <RarityBadge rarity={rarityForSighting({
+                species: species.trim() || sighting.species,
+                scientific_name: scientific.trim() || sighting.scientific_name,
+                latitude: sighting.latitude,
+                longitude: sighting.longitude,
+                observed_at: parseObservedAt(observedDateInput, observedTimeInput),
+                created_at: sighting.created_at,
+              })} />
+            </View>
+          </>
+        ) : null}
 
         <Text className="mb-1 font-sans text-xs text-muted-foreground">Count</Text>
         <View className="mb-4 flex-row items-center gap-3">

@@ -27,7 +27,8 @@ import {
   getRegionalContext,
   type NativeLogitInput,
 } from "@/lib/regionalFrequency";
-import type { LocationPermissionState } from "@/lib/locationPermission";
+import { buildNewSpeciesCelebration } from "@/lib/newSpeciesCelebration";
+import { useNewSpeciesUnlock } from "@/components/NewSpeciesUnlockProvider";
 import { prefetchRegionalCommunity } from "@/lib/regionalCommunity";
 import {
   setPendingCapture,
@@ -40,6 +41,11 @@ import {
   LIVE_WINDOW_MS,
 } from "@/lib/audioChunkOverlap";
 import { runAnimationFrameLoop } from "@/lib/animationFrameLoop";
+import {
+  triggerLiveSoundRecordStartHaptic,
+  triggerLiveSoundRecordStopHaptic,
+} from "@/lib/haptics";
+import { triggerHaptic, useAccessibility } from "@/components/AccessibilityProvider";
 
 export const LIVE_CHUNK_SECONDS = LIVE_WINDOW_MS / 1000;
 
@@ -156,6 +162,8 @@ function sessionDurationMs(
 }
 
 export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
+  const { celebrateNewSpecies } = useNewSpeciesUnlock();
+  const { hapticsEnabled } = useAccessibility();
   const [status, setStatus] = useState<LiveSoundStatus>("idle");
   const [isRecording, setIsRecording] = useState(false);
   const [micPermission, setMicPermission] = useState<MicPermissionState>("undetermined");
@@ -443,6 +451,8 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     const granted = await requestMicPermission();
     if (!granted) return;
 
+    void triggerHaptic(triggerLiveSoundRecordStartHaptic, hapticsEnabled);
+
     setSessionResult(null);
     setSessionReview(null);
     setSelectedPrimaryKey(null);
@@ -532,6 +542,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
       void rotateSegment();
     }, liveRotateIntervalMs());
   }, [
+    hapticsEnabled,
     refreshLocation,
     clearMeteringTimer,
     clearPruneTimer,
@@ -615,6 +626,15 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
         observedAt: session.observedAt,
         primaryDetectionKey: selectedPrimaryKey,
       });
+      if (result.kind === "journal" && result.isNewSpecies) {
+        await celebrateNewSpecies(
+          buildNewSpeciesCelebration(
+            result.species,
+            result.scientificName,
+            result.lifeListCount,
+          ),
+        );
+      }
       setSessionResult(result);
       setStatus("done");
     } catch (error) {
@@ -623,11 +643,12 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
         error instanceof Error ? error.message : "Could not save this session.",
       );
     }
-  }, [selectedPrimaryKey]);
+  }, [selectedPrimaryKey, celebrateNewSpecies]);
 
   const stopSession = useCallback(async () => {
     if (!activeRef.current) return;
 
+    void triggerHaptic(triggerLiveSoundRecordStopHaptic, hapticsEnabled);
     activeRef.current = false;
     setIsRecording(false);
     clearSegmentTimer();
@@ -656,6 +677,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
 
     openReview();
   }, [
+    hapticsEnabled,
     clearMeteringTimer,
     clearPruneTimer,
     clearSegmentTimer,

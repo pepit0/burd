@@ -85,6 +85,8 @@ interface PinchZoomContainerProps {
   className?: string;
   /** Optional 1-finger taps; Exclusive so pinch (2 fingers) always wins. */
   overlayGesture?: GestureType;
+  /** Pinch-to-zoom; disable in scrollable feeds so vertical scroll is not blocked. */
+  pinchEnabled?: boolean;
 }
 
 function PinchZoomContainer({
@@ -94,6 +96,7 @@ function PinchZoomContainer({
   style,
   className,
   overlayGesture,
+  pinchEnabled = true,
 }: PinchZoomContainerProps) {
   const { pinch, animatedStyle, onLayout } = useTemporaryPinchZoom();
 
@@ -102,6 +105,18 @@ function PinchZoomContainer({
     // Pinch first: 2-finger zoom fails taps; 1-finger taps still work.
     return Gesture.Exclusive(pinch, overlayGesture);
   }, [overlayGesture, pinch]);
+
+  if (!pinchEnabled && !overlayGesture) {
+    return (
+      <View
+        className={className}
+        style={[{ width, height, overflow: "hidden" }, style]}
+        collapsable={false}
+      >
+        {children}
+      </View>
+    );
+  }
 
   return (
     <View
@@ -129,6 +144,7 @@ interface PinchZoomViewProps {
   style?: StyleProp<ViewStyle>;
   className?: string;
   overlayGesture?: GestureType;
+  pinchEnabled?: boolean;
 }
 
 /** Temporary pinch-to-zoom — snaps back when fingers lift. */
@@ -145,6 +161,7 @@ interface PinchZoomImageProps {
   contentFit?: ImageContentFit;
   recyclingKey?: string;
   overlayGesture?: GestureType;
+  pinchEnabled?: boolean;
 }
 
 /** Temporary pinch-to-zoom photo — snaps back when fingers lift. */
@@ -153,10 +170,15 @@ export function PinchZoomImage({
   contentFit = "cover",
   recyclingKey,
   overlayGesture,
+  pinchEnabled = true,
   ...containerProps
 }: PinchZoomImageProps) {
   return (
-    <PinchZoomContainer overlayGesture={overlayGesture} {...containerProps}>
+    <PinchZoomContainer
+      overlayGesture={overlayGesture}
+      pinchEnabled={pinchEnabled}
+      {...containerProps}
+    >
       <Image
         source={{ uri }}
         style={StyleSheet.absoluteFillObject}

@@ -5,6 +5,7 @@ import {
   Camera,
   Check,
   ChevronRight,
+  Circle,
   Feather,
   MapPin,
   Mic,
@@ -15,11 +16,11 @@ import {
 import {
   BADGE_FAMILY_LABELS,
   BADGE_FAMILY_ORDER,
-  getRecentEarnedBadges,
   groupBadgesByFamily,
   type BadgeFamily,
   type ProfileBadge,
 } from "@/lib/profileBadges";
+import { resolveShowcaseBadges } from "@/lib/profileShowcaseBadges";
 
 export interface FamilyStyle {
   icon: LucideIcon;
@@ -112,6 +113,58 @@ export function BadgeRow({ badge }: { badge: ProfileBadge }) {
   );
 }
 
+export function BadgeShowcaseSlot({
+  badge,
+  compact = false,
+}: {
+  badge: ProfileBadge | null;
+  compact?: boolean;
+}) {
+  const iconSize = compact ? 18 : 22;
+  const circleSize = compact ? "h-12 w-12" : "h-14 w-14";
+
+  if (!badge) {
+    return (
+      <View className={`items-center ${compact ? "gap-1" : "gap-2"}`}>
+        <View
+          className={`${circleSize} items-center justify-center rounded-full border border-dashed border-border/70 bg-muted/20`}
+        >
+          <Circle size={iconSize} color="#8a9e82" strokeWidth={1.5} />
+        </View>
+        {!compact ? (
+          <Text className="text-center font-sans text-[10px] text-muted-foreground">Empty</Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  const style = FAMILY_STYLES[badge.family];
+  const Icon = style.icon;
+
+  return (
+    <View className={`items-center ${compact ? "gap-1" : "gap-2"}`}>
+      <View
+        className={`${circleSize} items-center justify-center rounded-full border ${style.earnedBorder}`}
+        style={{ backgroundColor: style.earnedBg }}
+      >
+        <Icon
+          size={iconSize}
+          color={style.earnedIcon}
+          fill={style.earnedIconFill}
+        />
+      </View>
+      <Text
+        className={`text-center font-serif text-foreground ${
+          compact ? "text-[10px] leading-3" : "text-xs leading-4"
+        }`}
+        numberOfLines={2}
+      >
+        {badge.label}
+      </Text>
+    </View>
+  );
+}
+
 interface ProfileBadgesProps {
   badges: ProfileBadge[];
   earnedCount?: number;
@@ -160,6 +213,9 @@ interface ProfileBadgesPreviewProps {
   earnedCount: number;
   userId: string;
   username?: string;
+  showcaseBadgeIds?: string[] | null;
+  isSelf?: boolean;
+  onEditShowcase?: () => void;
 }
 
 export function ProfileBadgesPreview({
@@ -167,9 +223,12 @@ export function ProfileBadgesPreview({
   earnedCount,
   userId,
   username,
+  showcaseBadgeIds,
+  isSelf = false,
+  onEditShowcase,
 }: ProfileBadgesPreviewProps) {
   const router = useRouter();
-  const recent = getRecentEarnedBadges(badges, 5);
+  const showcaseSlots = resolveShowcaseBadges(badges, showcaseBadgeIds);
 
   function openAllBadges() {
     router.push({
@@ -196,19 +255,28 @@ export function ProfileBadgesPreview({
         </View>
       </Pressable>
 
-      {recent.length === 0 ? (
-        <Pressable onPress={openAllBadges} className="px-4 py-5 active:opacity-90">
-          <Text className="font-sans text-sm text-muted-foreground">
-            No badges earned yet. Log a sighting to unlock your first one.
-          </Text>
-        </Pressable>
-      ) : (
-        <View className="gap-2 p-3">
-          {recent.map((badge) => (
-            <BadgeRow key={badge.id} badge={badge} />
+      <Pressable
+        onPress={isSelf ? onEditShowcase : openAllBadges}
+        disabled={isSelf && !onEditShowcase}
+        className="px-4 py-4 active:opacity-90"
+      >
+        <View className="flex-row gap-3">
+          {showcaseSlots.map((badge, index) => (
+            <View key={index} className="min-w-0 flex-1 items-center">
+              <BadgeShowcaseSlot badge={badge} />
+            </View>
           ))}
         </View>
-      )}
+        {isSelf ? (
+          <Text className="mt-3 text-center font-sans text-[11px] text-muted-foreground">
+            Tap to choose which badges to display
+          </Text>
+        ) : earnedCount === 0 ? (
+          <Text className="mt-3 text-center font-sans text-[11px] text-muted-foreground">
+            No badges earned yet
+          </Text>
+        ) : null}
+      </Pressable>
     </View>
   );
 }

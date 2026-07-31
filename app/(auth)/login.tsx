@@ -11,15 +11,50 @@ import { Link } from "expo-router";
 import { Feather } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
-import { AUTH_EMAIL_REDIRECT_TO } from "@/lib/authRedirect";
+import { getEmailAuthRedirectUri } from "@/lib/authRedirect";
 import { track } from "@/lib/analytics";
-import { getUserFacingMessage } from "@/lib/errors";
+import { getUserFacingMessage, isNetworkError } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
+
+async function signInWithPasswordRetry(email: string, password: string) {
+  let lastResult: Awaited<
+    ReturnType<typeof supabase.auth.signInWithPassword>
+  > | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await supabase.auth.signInWithPassword({ email, password });
+    lastResult = result;
+
+    if (!result.error) return result;
+
+    if (!isNetworkError(result.error) || attempt >= 2) {
+      return result;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+  }
+
+  return lastResult!;
+}
+
+function isInvalidCredentials(message: string): boolean {
+  return /invalid login credentials|invalid credentials|user not found/i.test(
+    message,
+  );
+}
 
 function isEmailNotConfirmed(message: string): boolean {
   return /email not confirmed|confirm your email|email_not_confirmed/i.test(
     message,
   );
+}
+
+function loginErrorMessage(message: string): string {
+  if (isEmailNotConfirmed(message)) return message;
+  if (isInvalidCredentials(message)) {
+    return "Could not sign in. Check your email and password, or confirm your email first using the link we sent you.";
+  }
+  return message;
 }
 
 export default function LoginScreen() {
@@ -40,15 +75,20 @@ export default function LoginScreen() {
     track("sign_in_started", { sign_in_method: "email" });
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+      const { error: signInError } = await signInWithPasswordRetry(
+        email.trim(),
         password,
-      });
+      );
 
       if (signInError) {
-        const message = getUserFacingMessage(signInError, signInError.message);
+        const message = loginErrorMessage(
+          getUserFacingMessage(signInError, signInError.message),
+        );
         setError(message);
-        setNeedsConfirmation(isEmailNotConfirmed(signInError.message));
+        setNeedsConfirmation(
+          isEmailNotConfirmed(signInError.message) ||
+            isInvalidCredentials(signInError.message),
+        );
       }
       // On success, root layout reacts to the session — don't navigate here.
     } catch (e) {
@@ -68,7 +108,7 @@ export default function LoginScreen() {
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email: trimmed,
-        options: { emailRedirectTo: AUTH_EMAIL_REDIRECT_TO },
+        options: { emailRedirectTo: getEmailAuthRedirectUri() },
       });
       if (resendError) {
         setError(getUserFacingMessage(resendError));

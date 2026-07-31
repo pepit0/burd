@@ -15,6 +15,7 @@ import { RarityBadge } from "@/components/RarityBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { getUserFacingMessage } from "@/lib/errors";
+import { isSpeciesRarityVisible } from "@/lib/rarity";
 import { updatePostAsAdmin } from "@/lib/moderation";
 import { getSightingById } from "@/lib/sightings";
 import type { Rarity, Sighting } from "@/types";
@@ -145,18 +146,22 @@ export default function AdminEditPostScreen() {
           className="mb-4 rounded-xl border border-border bg-card px-4 py-3 font-sans text-sm text-foreground"
         />
 
-        <Text className="mb-2 font-sans text-xs text-muted-foreground">Rarity</Text>
-        <View className="mb-4 flex-row flex-wrap gap-2">
-          {RARITIES.map((option) => (
-            <Pressable
-              key={option}
-              onPress={() => setRarity(option)}
-              className={rarity === option ? "rounded border border-primary" : "rounded border border-transparent"}
-            >
-              <RarityBadge rarity={option} />
-            </Pressable>
-          ))}
-        </View>
+        {isSpeciesRarityVisible() ? (
+          <>
+            <Text className="mb-2 font-sans text-xs text-muted-foreground">Rarity</Text>
+            <View className="mb-4 flex-row flex-wrap gap-2">
+              {RARITIES.map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setRarity(option)}
+                  className={rarity === option ? "rounded border border-primary" : "rounded border border-transparent"}
+                >
+                  <RarityBadge rarity={option} />
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
 
         <Text className="mb-1 font-sans text-xs text-muted-foreground">Count</Text>
         <View className="mb-4 flex-row items-center gap-3">

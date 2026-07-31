@@ -187,6 +187,7 @@ export default function UserProfileScreen() {
                   text={displayName}
                   isVerified={profile.is_verified}
                   isBeta={profile.is_beta}
+                  interactiveBadges
                   badgeSize="md"
                   className="font-serif-semibold text-xl text-foreground"
                 />
@@ -224,6 +225,7 @@ export default function UserProfileScreen() {
               earnedCount={earnedCount}
               userId={profileId}
               username={profile.username}
+              showcaseBadgeIds={profile.showcase_badge_ids}
             />
           </View>
         </ScrollView>

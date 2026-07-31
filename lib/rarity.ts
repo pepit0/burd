@@ -6,6 +6,13 @@ import {
 import { normalizeScientificName } from "@/lib/taxonomy";
 import type { Rarity, Sighting } from "@/types";
 
+/** Flip to true when regional rarity is trustworthy again. */
+export const SHOW_SPECIES_RARITY = false;
+
+export function isSpeciesRarityVisible(): boolean {
+  return SHOW_SPECIES_RARITY;
+}
+
 export interface RegionalRarityInput {
   species: string;
   scientificName: string | null;

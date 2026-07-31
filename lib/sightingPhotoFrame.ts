@@ -4,18 +4,19 @@ import * as ImageManipulator from "expo-image-manipulator";
 /** Matches post detail frames (4:5 portrait). */
 export const SIGHTING_PHOTO_ASPECT = 4 / 5;
 
-/** Feed cards size to the photo within these bounds (width / height). */
-export const FEED_MIN_ASPECT = 0.72;
+/** Feed cards cap very wide landscapes (width / height). */
 export const FEED_MAX_ASPECT = 1.3;
-/** Narrower than this → pillarbox inside a portrait frame with side bars. */
-export const FEED_THIN_VERTICAL_ASPECT = 0.58;
-export const FEED_THIN_FRAME_ASPECT = SIGHTING_PHOTO_ASPECT;
+/** Tallest feed frame — matches 4:5 so vertical shots do not dominate the scroll. */
+export const FEED_MIN_ASPECT = SIGHTING_PHOTO_ASPECT;
 
 export type FeedPhotoContentFit = "cover" | "contain";
 
 export interface FeedPhotoLayout {
   frameAspect: number;
+  imageAspect: number;
   contentFit: FeedPhotoContentFit;
+  /** Tall photo in a shorter frame — blur-fill sides instead of gray bars. */
+  useBlurredFill: boolean;
 }
 
 export function feedPhotoLayout(
@@ -23,17 +24,23 @@ export function feedPhotoLayout(
   imageHeight: number,
 ): FeedPhotoLayout {
   if (imageWidth <= 0 || imageHeight <= 0) {
-    return { frameAspect: SIGHTING_PHOTO_ASPECT, contentFit: "cover" };
+    return {
+      frameAspect: SIGHTING_PHOTO_ASPECT,
+      imageAspect: SIGHTING_PHOTO_ASPECT,
+      contentFit: "cover",
+      useBlurredFill: false,
+    };
   }
 
   const imageAspect = imageWidth / imageHeight;
-  if (imageAspect < FEED_THIN_VERTICAL_ASPECT) {
-    return { frameAspect: FEED_THIN_FRAME_ASPECT, contentFit: "contain" };
-  }
+  const frameAspect = clamp(imageAspect, FEED_MIN_ASPECT, FEED_MAX_ASPECT);
+  const useBlurredFill = imageAspect + 0.01 < frameAspect;
 
   return {
-    frameAspect: clamp(imageAspect, FEED_MIN_ASPECT, FEED_MAX_ASPECT),
-    contentFit: "cover",
+    frameAspect,
+    imageAspect,
+    contentFit: useBlurredFill ? "contain" : "cover",
+    useBlurredFill,
   };
 }
 

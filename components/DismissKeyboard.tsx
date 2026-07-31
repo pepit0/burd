@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import {
   Keyboard,
+  Platform,
   Pressable,
+  View,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
@@ -13,6 +15,10 @@ type DismissKeyboardProps = {
 
 /** Wrap a screen so taps on non-interactive areas dismiss the keyboard. */
 export function DismissKeyboard({ children, style }: DismissKeyboardProps) {
+  if (Platform.OS === "web") {
+    return <View style={[{ flex: 1 }, style]}>{children}</View>;
+  }
+
   return (
     <Pressable
       style={[{ flex: 1 }, style]}
@@ -34,6 +40,10 @@ type DismissKeyboardAreaProps = {
  * nested buttons and inputs still receive the first tap.
  */
 export function DismissKeyboardArea({ children, style }: DismissKeyboardAreaProps) {
+  if (Platform.OS === "web") {
+    return <View style={[{ flexGrow: 1 }, style]}>{children}</View>;
+  }
+
   return (
     <Pressable
       style={[{ flexGrow: 1 }, style]}

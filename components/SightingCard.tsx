@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -7,8 +7,6 @@ import {
   ImageOverlayText,
 } from "@/components/ImageOverlayText";
 import { useRouter } from "expo-router";
-import { Gesture, type GestureType } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
 import {
   Feather,
   MessageCircle,
@@ -27,6 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { useLikeWithBurst } from "@/hooks/useLikeWithBurst";
+import { useSingleDoubleTap } from "@/hooks/useSingleDoubleTap";
 import { sightingPlaceLine, postedDate } from "@/lib/sightingFormat";
 import { rarityForSighting } from "@/lib/rarity";
 import { timeAgo } from "@/lib/time";
@@ -99,13 +98,13 @@ function ActionButton({
 
 function CardPhotoArea({
   sighting,
-  photoGestures,
+  onPhotoPress,
   burstKey,
   likeIconStyle,
   rarity,
 }: {
   sighting: FeedSighting;
-  photoGestures: GestureType;
+  onPhotoPress: () => void;
   burstKey: number;
   likeIconStyle: ReturnType<typeof useLikeIconStyle>["likeIconStyle"];
   rarity: FeedSighting["rarity"];
@@ -120,7 +119,8 @@ function CardPhotoArea({
     species: activePhoto?.species?.trim() || sighting.species,
     scientific_name: activePhoto?.scientific_name ?? sighting.scientific_name,
   };
-  const { frameAspect, contentFit } = useFeedPhotoLayout(activePhoto?.photo_url);
+  const { frameAspect, imageAspect, contentFit, useBlurredFill } =
+    useFeedPhotoLayout(activePhoto?.photo_url);
 
   useEffect(() => {
     if ((sighting.photo_count ?? 0) <= 1 && !sighting.photos?.length) return;
@@ -144,8 +144,11 @@ function CardPhotoArea({
         <SightingPhotoCarousel
           photos={photos}
           aspectRatio={frameAspect}
+          imageAspect={imageAspect}
           contentFit={contentFit}
-          overlayGesture={photoGestures}
+          useBlurredFill={useBlurredFill}
+          pinchEnabled={false}
+          onPhotoPress={onPhotoPress}
           onIndexChange={setActiveIndex}
           className="h-full w-full"
         />
@@ -186,19 +189,7 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
     onToggleLike,
   });
 
-  const photoGestures = useMemo(() => {
-    const doubleTapLike = Gesture.Tap()
-      .numberOfTaps(2)
-      .onEnd(() => {
-        runOnJS(likeWithBurstIfNeeded)();
-      });
-    const openPostTap = Gesture.Tap()
-      .numberOfTaps(1)
-      .onEnd(() => {
-        runOnJS(openPost)();
-      });
-    return Gesture.Exclusive(doubleTapLike, openPostTap);
-  }, [likeWithBurstIfNeeded, openPost]);
+  const onPhotoPress = useSingleDoubleTap(openPost, likeWithBurstIfNeeded);
 
   return (
     <View className="overflow-hidden rounded-3xl bg-card">
@@ -229,7 +220,7 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
           {isPhotoSighting(s) ? (
             <CardPhotoArea
               sighting={s}
-              photoGestures={photoGestures}
+              onPhotoPress={onPhotoPress}
               burstKey={burstKey}
               likeIconStyle={likeIconStyle}
               rarity={rarity}
@@ -251,7 +242,7 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
             className="min-w-0 flex-1 flex-row items-center gap-2.5 active:opacity-70"
           >
             <Avatar user={s.username} color={s.avatar_color} avatarUrl={s.avatar_url} size={32} />
-            <View className="min-w-0 flex-1">
+            <View className="min-w-0 flex-1" pointerEvents="none">
               <Text className="font-sans-medium text-sm text-foreground">@{s.username}</Text>
               {placeLine ? (
                 <Text className="font-sans text-xs text-muted-foreground" numberOfLines={1}>
@@ -284,9 +275,15 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
         </View>
 
         {s.notes ? (
-          <Text className="font-sans text-sm leading-relaxed text-foreground/75" numberOfLines={2}>
-            {s.notes}
-          </Text>
+          <Pressable onPress={openPost} className="active:opacity-80">
+            <Text
+              pointerEvents="none"
+              className="font-sans text-sm leading-relaxed text-foreground/75"
+              numberOfLines={2}
+            >
+              {s.notes}
+            </Text>
+          </Pressable>
         ) : null}
       </View>
 

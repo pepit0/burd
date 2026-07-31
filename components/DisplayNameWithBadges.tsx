@@ -8,6 +8,8 @@ interface DisplayNameWithBadgesProps extends TextProps, UserBadgeFlags {
   containerClassName?: string;
   containerStyle?: ViewProps["style"];
   badgeSize?: "sm" | "md";
+  /** Profile pages — tap status badges for a short description. */
+  interactiveBadges?: boolean;
 }
 
 export function DisplayNameWithBadges({
@@ -17,6 +19,7 @@ export function DisplayNameWithBadges({
   containerClassName = "",
   containerStyle,
   badgeSize = "sm",
+  interactiveBadges = false,
   ...textProps
 }: DisplayNameWithBadgesProps) {
   return (
@@ -27,7 +30,12 @@ export function DisplayNameWithBadges({
       <View className="min-w-0 shrink">
         <DisplayNameText text={text} {...textProps} />
       </View>
-      <UserStatusBadges isVerified={isVerified} isBeta={isBeta} size={badgeSize} />
+      <UserStatusBadges
+        isVerified={isVerified}
+        isBeta={isBeta}
+        size={badgeSize}
+        interactive={interactiveBadges}
+      />
     </View>
   );
 }

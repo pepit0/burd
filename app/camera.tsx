@@ -59,9 +59,11 @@ import {
 import { enrichPrediction } from "@/lib/predictionLabels";
 import { soundConfirmsPhoto } from "@/lib/speciesMatch";
 import { getErrorMessage, getUserFacingMessage } from "@/lib/errors";
+import { triggerCameraShutterHaptic } from "@/lib/haptics";
 import { canReuseLivePhotoDetection } from "@/lib/livePhotoSession";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
-import { IdDisclaimerBanner } from "@/components/IdDisclaimerBanner";
+import { IdDisclaimerBanner, IdDisclaimerInfoButton } from "@/components/IdDisclaimerBanner";
+import { triggerHaptic, useAccessibility } from "@/components/AccessibilityProvider";
 import { LivePhotoOverlay } from "@/components/LivePhotoOverlay";
 import { LiveSoundConfirmationOverlay } from "@/components/LiveSoundConfirmationOverlay";
 import { CameraZoomIndicator } from "@/components/CameraZoomIndicator";
@@ -106,6 +108,7 @@ function raceWithBudget<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 export default function CameraScreen() {
   const router = useRouter();
+  const { hapticsEnabled } = useAccessibility();
   const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -118,6 +121,7 @@ export default function CameraScreen() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [idDisclaimerOpen, setIdDisclaimerOpen] = useState(false);
   const draftIdRef = useRef<string | null>(null);
 
   const {
@@ -235,6 +239,7 @@ export default function CameraScreen() {
 
   async function capture() {
     if (busy || finishing) return;
+    void triggerHaptic(triggerCameraShutterHaptic, hapticsEnabled);
     setBusy(true);
     try {
       const photo = await cameraRef.current?.takePictureAsync({
@@ -625,25 +630,29 @@ export default function CameraScreen() {
       />
 
       <View
-        className="absolute inset-x-4 items-center"
+        className="absolute inset-x-4 z-20"
         style={{ top: locationTop }}
         pointerEvents="box-none"
       >
-        <CameraOriented rotation={uiRotation} align="center">
-          <View className="w-full gap-2">
-            <IdDisclaimerBanner variant="dark" />
-            <LocationAccuracyBanner
-              permission={locationPermission}
-              onEnablePress={() => {
-                if (locationPermission === "denied") {
-                  openLocationSettings();
-                  return;
-                }
-                void refreshLocation();
-              }}
+        <View className="w-full gap-2">
+          {idDisclaimerOpen ? (
+            <IdDisclaimerBanner
+              variant="dark"
+              dismissible
+              onDismiss={() => setIdDisclaimerOpen(false)}
             />
-          </View>
-        </CameraOriented>
+          ) : null}
+          <LocationAccuracyBanner
+            permission={locationPermission}
+            onEnablePress={() => {
+              if (locationPermission === "denied") {
+                openLocationSettings();
+                return;
+              }
+              void refreshLocation();
+            }}
+          />
+        </View>
       </View>
 
       {/* Pinch-to-zoom sits above the preview but below controls. */}
@@ -657,12 +666,19 @@ export default function CameraScreen() {
         style={{ top: topPad }}
       >
         <CameraOriented rotation={uiRotation}>
-          <Pressable
-            onPress={confirmClose}
-            className="h-11 w-11 items-center justify-center rounded-full bg-background/60"
-          >
-            <X size={20} color="#eee8d4" />
-          </Pressable>
+          <View className="flex-row items-center gap-2">
+            <Pressable
+              onPress={confirmClose}
+              className="h-11 w-11 items-center justify-center rounded-full bg-background/60"
+            >
+              <X size={20} color="#eee8d4" />
+            </Pressable>
+            <IdDisclaimerInfoButton
+              active={idDisclaimerOpen}
+              onPress={() => setIdDisclaimerOpen((open) => !open)}
+              variant="dark"
+            />
+          </View>
         </CameraOriented>
 
         <View className="flex-row items-center gap-2">

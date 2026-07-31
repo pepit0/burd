@@ -1,6 +1,6 @@
 import type { FeedSighting, Rarity } from "@/types";
 import { kmBetween } from "@/lib/geo";
-import { rarityForSighting } from "@/lib/rarity";
+import { isSpeciesRarityVisible, rarityForSighting } from "@/lib/rarity";
 
 export type FeedRarityFilter = Rarity | "all";
 export type FeedNearbyFilter = "all" | "nearby";
@@ -22,7 +22,7 @@ export interface FeedFilterContext {
 
 export function countActiveFeedFilters(filters: FeedContentFilters): number {
   let count = 0;
-  if (filters.rarity !== "all") count += 1;
+  if (isSpeciesRarityVisible() && filters.rarity !== "all") count += 1;
   if (filters.nearby !== "all") count += 1;
   return count;
 }
@@ -33,7 +33,11 @@ export function applyFeedContentFilters(
   context: FeedFilterContext,
 ): FeedSighting[] {
   return sightings.filter((sighting) => {
-    if (filters.rarity !== "all" && rarityForSighting(sighting) !== filters.rarity) {
+    if (
+      isSpeciesRarityVisible() &&
+      filters.rarity !== "all" &&
+      rarityForSighting(sighting) !== filters.rarity
+    ) {
       return false;
     }
     if (filters.nearby === "nearby") {
@@ -75,7 +79,7 @@ export const DEFAULT_FIELD_GUIDE_FILTERS: FieldGuideFilters = {
 
 export function countActiveFieldGuideFilters(filters: FieldGuideFilters): number {
   let count = 0;
-  if (filters.rarity !== "all") count += 1;
+  if (isSpeciesRarityVisible() && filters.rarity !== "all") count += 1;
   if (filters.logged !== "all") count += 1;
   return count;
 }
