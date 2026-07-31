@@ -6,7 +6,9 @@ import {
   markActivityRead,
   markAllActivityRead,
 } from "@/lib/activity";
+import { isFriendRequestActivity } from "@/lib/friendshipEvents";
 import { getLoadErrorMessage } from "@/lib/errors";
+import { useFriendshipChangeListener } from "@/hooks/useFriendshipChangeListener";
 import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { ActivityItem } from "@/types";
 
@@ -68,6 +70,20 @@ export function useNotificationInbox(
   const refresh = useCallback(() => load("refresh"), [load]);
 
   useRetryOnRecover(error, refresh);
+
+  useFriendshipChangeListener((event) => {
+    setNotifications((rows) =>
+      rows.filter(
+        (row) =>
+          !(
+            row.actor_id === event.targetUserId &&
+            row.type === "follow" &&
+            isFriendRequestActivity(row.detail) &&
+            event.status !== "incoming"
+          ),
+      ),
+    );
+  });
 
   const markRead = useCallback(async (id: string) => {
     await markActivityRead(id);

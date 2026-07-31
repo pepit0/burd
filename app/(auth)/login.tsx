@@ -11,9 +11,9 @@ import { Link } from "expo-router";
 import { Feather } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
-import { getEmailAuthRedirectUri } from "@/lib/authRedirect";
 import { track } from "@/lib/analytics";
 import { getUserFacingMessage, isNetworkError } from "@/lib/errors";
+import { resendSignupConfirmation } from "@/lib/signup";
 import { supabase } from "@/lib/supabase";
 
 async function signInWithPasswordRetry(email: string, password: string) {
@@ -105,13 +105,9 @@ export default function LoginScreen() {
     setResendNote(null);
     setError(null);
     try {
-      const { error: resendError } = await supabase.auth.resend({
-        type: "signup",
-        email: trimmed,
-        options: { emailRedirectTo: getEmailAuthRedirectUri() },
-      });
-      if (resendError) {
-        setError(getUserFacingMessage(resendError));
+      const result = await resendSignupConfirmation(trimmed, password);
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
       setResendNote("Confirmation email sent. Check your inbox.");

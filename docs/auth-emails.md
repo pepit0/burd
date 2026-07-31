@@ -60,4 +60,4 @@ Also under **Authentication → URL Configuration**:
 
 Register creates an **auth account only** (for email confirmation). A public **profile** and the admin signup notification are created when the user finishes onboarding — email confirmed (email signups) plus display name and @username on the choose-profile screen.
 
-Register passes `emailRedirectTo: https://burdapp.com/app/auth/callback` and shows **Check your email**. Login offers **Resend confirmation** when the email isn’t confirmed yet.
+Register passes `emailRedirectTo: burd://auth/callback` on native (or the web callback URL on web) and shows **Check your email**. Login offers **Resend confirmation** when the email isn’t confirmed yet. If a confirmation link opens in the mobile browser (older emails), the callback page redirects into the Burd app.

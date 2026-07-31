@@ -10,6 +10,7 @@ import {
 } from "@/lib/sightings";
 import { getFriendCounts } from "@/lib/social";
 import { getLoadErrorMessage } from "@/lib/errors";
+import { useFriendshipChangeListener } from "@/hooks/useFriendshipChangeListener";
 import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { Profile } from "@/types";
 
@@ -145,6 +146,10 @@ export function useProfile(userId: string | null): UseProfile {
   const silentRefresh = useCallback(() => load("silent"), [load]);
 
   useRetryOnRecover(error, silentRefresh);
+
+  useFriendshipChangeListener(() => {
+    void load("silent");
+  });
 
   return {
     profile,

@@ -52,6 +52,23 @@ export async function clearAllActivity(userId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Remove a pending friend-request notification after accept/decline. */
+export async function clearFriendRequestActivity(actorId: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { error } = await supabase
+    .from("activity")
+    .delete()
+    .eq("recipient_id", user.id)
+    .eq("actor_id", actorId)
+    .eq("type", "follow")
+    .eq("detail", "sent you a friend request");
+  if (error) throw error;
+}
+
 export async function savePushToken(
   userId: string,
   token: string,

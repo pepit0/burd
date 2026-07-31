@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getActivity } from "@/lib/activity";
+import { isFriendRequestActivity } from "@/lib/friendshipEvents";
 import { getLoadErrorMessage } from "@/lib/errors";
+import { useFriendshipChangeListener } from "@/hooks/useFriendshipChangeListener";
 import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { ActivityItem } from "@/types";
 
@@ -65,6 +67,20 @@ export function useActivity(userId: string | null, enabled: boolean): UseActivit
   const silentRefresh = useCallback(() => load("silent"), [load]);
 
   useRetryOnRecover(error, silentRefresh);
+
+  useFriendshipChangeListener((event) => {
+    setActivity((rows) =>
+      rows.filter(
+        (row) =>
+          !(
+            row.actor_id === event.targetUserId &&
+            row.type === "follow" &&
+            isFriendRequestActivity(row.detail) &&
+            event.status !== "incoming"
+          ),
+      ),
+    );
+  });
 
   return { activity, loading, refreshing, error, refresh, silentRefresh };
 }

@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 
 const WEB_APP_BASE = "/app";
 const PRODUCTION_EMAIL_CALLBACK = "https://burdapp.com/app/auth/callback";
+const NATIVE_AUTH_CALLBACK_PATH = "auth/callback";
 
 /** Where email confirmation links should land (must match Supabase redirect URLs). */
 export function getEmailAuthRedirectUri(): string {
@@ -12,8 +13,17 @@ export function getEmailAuthRedirectUri(): string {
     }
     return PRODUCTION_EMAIL_CALLBACK;
   }
-  // Email links open in the system browser — always use the public web callback.
-  return PRODUCTION_EMAIL_CALLBACK;
+  return Linking.createURL(NATIVE_AUTH_CALLBACK_PATH);
+}
+
+/** Deep link to reopen the native app after email confirmation (burd://auth/callback…). */
+export function getNativeAuthCallbackDeepLink(queryAndHash = ""): string {
+  const suffix = queryAndHash.startsWith("?") || queryAndHash.startsWith("#")
+    ? queryAndHash
+    : queryAndHash
+      ? `?${queryAndHash}`
+      : "";
+  return Linking.createURL(`${NATIVE_AUTH_CALLBACK_PATH}${suffix}`);
 }
 
 /** @deprecated Use getEmailAuthRedirectUri() so redirects hit /auth/callback. */

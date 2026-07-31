@@ -15,6 +15,7 @@ import { FollowButton } from "@/components/FollowButton";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
+import { useFriendshipChangeListener } from "@/hooks/useFriendshipChangeListener";
 import {
   acceptFriendRequest,
   cancelFriendRequest,
@@ -85,6 +86,14 @@ export default function UsersScreen() {
       clearTimeout(t);
     };
   }, [query, userId, mode, coords, locStatus]);
+
+  useFriendshipChangeListener((event) => {
+    setResults((rows) =>
+      rows.map((u) =>
+        u.id === event.targetUserId ? { ...u, status: event.status } : u,
+      ),
+    );
+  });
 
   const toggleFriend = useCallback(
     (target: UserListItem) => {

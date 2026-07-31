@@ -1,5 +1,6 @@
 import type { AuthError, User } from "@supabase/supabase-js";
-import { isNetworkError } from "@/lib/errors";
+import { getEmailAuthRedirectUri } from "@/lib/authRedirect";
+import { getUserFacingMessage, isNetworkError } from "@/lib/errors";
 import { withTransientRetry } from "@/lib/retry";
 import { supabase } from "@/lib/supabase";
 
@@ -213,16 +214,63 @@ export function signupAvailabilityMessage(
 
 export function mapSignUpError(message: string): string {
   const lower = message.toLowerCase();
-  if (
-    lower.includes("already registered") ||
-    lower.includes("already been registered") ||
-    lower.includes("user already exists") ||
-    lower.includes("already exists with this email")
-  ) {
+  if (isAlreadyRegisteredError(message)) {
     return "An account already exists with this email. Try signing in instead.";
   }
   if (lower.includes("duplicate key") && lower.includes("username")) {
     return "This username is already taken. Try another.";
   }
   return message;
+}
+
+export function isAlreadyRegisteredError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("already registered") ||
+    lower.includes("already been registered") ||
+    lower.includes("user already exists") ||
+    lower.includes("already exists with this email")
+  );
+}
+
+export async function resendSignupConfirmation(
+  email: string,
+  password?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const trimmed = email.trim();
+  const redirectTo = getEmailAuthRedirectUri();
+
+  const { error: resendError } = await supabase.auth.resend({
+    type: "signup",
+    email: trimmed,
+    options: { emailRedirectTo: redirectTo },
+  });
+
+  if (!resendError) {
+    return { ok: true };
+  }
+
+  // Some projects only resend confirmation when signUp is called again.
+  if (password && password.length >= 6) {
+    const { error: signUpError, data } = await supabase.auth.signUp({
+      email: trimmed,
+      password,
+      options: { emailRedirectTo: redirectTo },
+    });
+    if (!signUpError && !data.session) {
+      return { ok: true };
+    }
+    if (signUpError && isAlreadyRegisteredError(signUpError.message)) {
+      return {
+        ok: false,
+        error:
+          "We couldn't resend the confirmation email yet. Wait a minute and try again, or sign in if you already confirmed.",
+      };
+    }
+    if (signUpError) {
+      return { ok: false, error: getUserFacingMessage(signUpError) };
+    }
+  }
+
+  return { ok: false, error: getUserFacingMessage(resendError) };
 }

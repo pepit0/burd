@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,6 +14,7 @@ import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { FollowButton } from "@/components/FollowButton";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
+import { useFriendshipChangeListener } from "@/hooks/useFriendshipChangeListener";
 import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import { getLoadErrorMessage } from "@/lib/errors";
 import { getMyProfile } from "@/lib/sightings";
@@ -92,6 +93,23 @@ export default function FollowsScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
+  useFriendshipChangeListener((event) => {
+    setRows((rows) => {
+      const updated = rows.map((u) =>
+        u.id === event.targetUserId ? { ...u, status: event.status } : u,
+      );
+      if (modeRef.current === "requests") {
+        return updated.filter(
+          (u) => u.status === "incoming" || u.status === "outgoing",
+        );
+      }
+      return updated;
+    });
+  });
 
   useRetryOnRecover(error, () => load({ silent: true }));
 

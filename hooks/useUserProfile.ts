@@ -5,6 +5,7 @@ import {
 } from "@/lib/sightings";
 import { getFriendCounts } from "@/lib/social";
 import { getLoadErrorMessage } from "@/lib/errors";
+import { useFriendshipChangeListener } from "@/hooks/useFriendshipChangeListener";
 import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { Profile, Sighting } from "@/types";
 
@@ -66,6 +67,11 @@ export function useUserProfile(
   }, [load]);
 
   useRetryOnRecover(error, load);
+
+  useFriendshipChangeListener((event) => {
+    if (!targetId || event.targetUserId !== targetId) return;
+    setStatus(event.status);
+  });
 
   const toggleFriend = useCallback(async () => {
     if (!currentUserId || !targetId || isSelf) return;

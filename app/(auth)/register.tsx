@@ -19,8 +19,12 @@ import {
 import { getEmailAuthRedirectUri } from "@/lib/authRedirect";
 import { getSignupPlatform, track } from "@/lib/analytics";
 import { getUserFacingMessage } from "@/lib/errors";
-import { mapSignUpError, signUpWithEmail } from "@/lib/signup";
-import { supabase } from "@/lib/supabase";
+import {
+  isAlreadyRegisteredError,
+  mapSignUpError,
+  resendSignupConfirmation,
+  signUpWithEmail,
+} from "@/lib/signup";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -75,15 +79,37 @@ export default function RegisterScreen() {
       });
 
       if (signUpError) {
-        setError(
-          mapSignUpError(
-            getUserFacingMessage(
-              signUpError,
-              "Could not create account. Please try again.",
-            ),
-          ),
+        const message = getUserFacingMessage(
+          signUpError,
+          "Could not create account. Please try again.",
         );
+        if (isAlreadyRegisteredError(message)) {
+          const resend = await resendSignupConfirmation(trimmedEmail, password);
+          if (resend.ok) {
+            track("signup_email_confirmation_sent", {
+              signup_method: "email",
+              resent: true,
+            });
+            setPendingEmail(trimmedEmail);
+            setResendNote("We sent another confirmation link to your email.");
+            return;
+          }
+        }
+        setError(mapSignUpError(message));
         return;
+      }
+
+      if (data.user?.identities?.length === 0) {
+        const resend = await resendSignupConfirmation(trimmedEmail, password);
+        if (resend.ok) {
+          track("signup_email_confirmation_sent", {
+            signup_method: "email",
+            resent: true,
+          });
+          setPendingEmail(trimmedEmail);
+          setResendNote("We sent another confirmation link to your email.");
+          return;
+        }
       }
 
       // Session present → root layout sends them to choose-username.
@@ -112,13 +138,9 @@ export default function RegisterScreen() {
     setResendNote(null);
     setError(null);
     try {
-      const { error: resendError } = await supabase.auth.resend({
-        type: "signup",
-        email: pendingEmail,
-        options: { emailRedirectTo: getEmailAuthRedirectUri() },
-      });
-      if (resendError) {
-        setError(resendError.message);
+      const result = await resendSignupConfirmation(pendingEmail, password);
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
       setResendNote("Confirmation email sent again.");
@@ -147,8 +169,8 @@ export default function RegisterScreen() {
               <Text className="font-sans-medium text-foreground">
                 {pendingEmail}
               </Text>
-              . Open it to activate your account, then sign in — you'll pick
-              your @username next.
+              . Open it to confirm your account — Burd will reopen so you
+              can choose your @username and display name.
             </Text>
           </View>
 

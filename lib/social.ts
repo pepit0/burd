@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { clearFriendRequestActivity } from "@/lib/activity";
+import { emitFriendshipChange } from "@/lib/friendshipEvents";
 
 /** Fixed discovery radius for Find Birders → Nearby (independent of feed radius). */
 export const NEARBY_BIRDERS_RADIUS_KM = 100;
@@ -106,7 +108,10 @@ export async function sendFriendRequest(targetId: string): Promise<void> {
   const { error } = await supabase.rpc("send_friend_request", {
     target_id: targetId,
   });
-  if (!error) return;
+  if (!error) {
+    emitFriendshipChange({ targetUserId: targetId, status: "outgoing" });
+    return;
+  }
 
   // Fallback when RPC grants are missing: direct insert is allowed by follows RLS.
   const authRes = await supabase.auth.getUser();
@@ -119,13 +124,17 @@ export async function sendFriendRequest(targetId: string): Promise<void> {
   });
 
   if (direct.error && direct.error.code !== "23505") throw error;
+  emitFriendshipChange({ targetUserId: targetId, status: "outgoing" });
 }
 
 export async function cancelFriendRequest(targetId: string): Promise<void> {
   const { error } = await supabase.rpc("cancel_friend_request", {
     target_id: targetId,
   });
-  if (!error) return;
+  if (!error) {
+    emitFriendshipChange({ targetUserId: targetId, status: "none" });
+    return;
+  }
 
   // Fallback path: if RPC fails for any reason, try direct delete for current user.
   const authRes = await supabase.auth.getUser();
@@ -139,13 +148,18 @@ export async function cancelFriendRequest(targetId: string): Promise<void> {
     .eq("following_id", targetId);
 
   if (direct.error) throw error;
+  emitFriendshipChange({ targetUserId: targetId, status: "none" });
 }
 
 export async function acceptFriendRequest(requesterId: string): Promise<void> {
   const { error } = await supabase.rpc("accept_friend_request", {
     requester_id: requesterId,
   });
-  if (!error) return;
+  if (!error) {
+    await clearFriendRequestActivity(requesterId);
+    emitFriendshipChange({ targetUserId: requesterId, status: "friends" });
+    return;
+  }
 
   const authRes = await supabase.auth.getUser();
   const currentUserId = authRes.data.user?.id ?? null;
@@ -166,6 +180,8 @@ export async function acceptFriendRequest(requesterId: string): Promise<void> {
   });
 
   if (direct.error && direct.error.code !== "23505") throw error;
+  await clearFriendRequestActivity(requesterId);
+  emitFriendshipChange({ targetUserId: requesterId, status: "friends" });
 }
 
 export async function declineFriendRequest(requesterId: string): Promise<void> {
@@ -173,11 +189,14 @@ export async function declineFriendRequest(requesterId: string): Promise<void> {
     requester_id: requesterId,
   });
   if (error) throw error;
+  await clearFriendRequestActivity(requesterId);
+  emitFriendshipChange({ targetUserId: requesterId, status: "none" });
 }
 
 export async function unfriendUser(friendId: string): Promise<void> {
   const { error } = await supabase.rpc("unfriend", { friend_id: friendId });
   if (error) throw error;
+  emitFriendshipChange({ targetUserId: friendId, status: "none" });
 }
 
 function statusForId(
