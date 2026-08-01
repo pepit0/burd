@@ -4,8 +4,8 @@ import { ImageIcon } from "lucide-react-native";
 import { useAccessibility } from "@/components/AccessibilityProvider";
 import { PocketBirdPet } from "@/components/PocketBirdPet";
 import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
-import { isProfilePetVisible, resolveProfilePetSpeciesId } from "@/lib/profilePet";
-import { NO_HAT_ID, type PocketBirdHatId } from "@/lib/pocketBird/hats";
+import { isProfilePetVisible, resolveProfilePetHatId, resolveProfilePetSpeciesId } from "@/lib/profilePet";
+import { type PocketBirdHatId } from "@/lib/pocketBird/hats";
 import type { Profile } from "@/types";
 
 const PROFILE_BANNER_HEIGHT = 112;
@@ -17,7 +17,7 @@ interface ProfileCoverWithPetProps {
   coverUrl?: string | null;
   editable?: boolean;
   onPress?: () => void;
-  profile?: Pick<Profile, "pet_species_id" | "profile_pet_enabled"> | null;
+  profile?: Pick<Profile, "pet_species_id" | "pet_hat_id" | "profile_pet_enabled"> | null;
   /** Own-profile local selection — updates immediately before server sync. */
   speciesIdOverride?: string | null;
   hatIdOverride?: PocketBirdHatId | null;
@@ -40,7 +40,7 @@ export function ProfileCoverWithPet({
 }: ProfileCoverWithPetProps) {
   const { reduceMotion } = useAccessibility();
   const speciesId = resolveProfilePetSpeciesId(profile, speciesIdOverride);
-  const hatId = hatIdOverride ?? NO_HAT_ID;
+  const hatId = resolveProfilePetHatId(profile, hatIdOverride);
   const showPet = isProfilePetVisible(profile) && !suppressPet;
 
   return (

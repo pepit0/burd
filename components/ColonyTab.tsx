@@ -51,6 +51,7 @@ export function ColonyTab({ tabBarClearance }: ColonyTabProps) {
         setNameDraft(names[id]?.trim() ?? "");
         if (userId) {
           void setPetSpeciesId(id, userId);
+          void setPetHatId(hat, userId);
         }
       },
     );
@@ -88,10 +89,13 @@ export function ColonyTab({ tabBarClearance }: ColonyTabProps) {
     [petId, persistNameDraft, userId],
   );
 
-  const onSelectHat = useCallback((nextHatId: PocketBirdHatId) => {
-    setHatId(nextHatId);
-    void setPetHatId(nextHatId);
-  }, []);
+  const onSelectHat = useCallback(
+    (nextHatId: PocketBirdHatId) => {
+      setHatId(nextHatId);
+      void setPetHatId(nextHatId, userId);
+    },
+    [userId],
+  );
 
   const onToggleSound = useCallback(() => {
     setSoundEnabled((current) => {

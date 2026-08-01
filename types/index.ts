@@ -68,6 +68,7 @@ export interface Profile {
   is_beta?: boolean;
   showcase_badge_ids?: string[] | null;
   pet_species_id?: string | null;
+  pet_hat_id?: string | null;
   profile_pet_enabled?: boolean;
   created_at: string;
   role?: UserRole;

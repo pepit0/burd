@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { NO_HAT_ID, type PocketBirdHatId } from "@/lib/pocketBird/hats";
+import { updateProfilePetHat } from "@/lib/profilePet";
 
 const STORAGE_KEY = "colony:pocket-bird-hat";
 
@@ -25,7 +26,20 @@ export async function getPetHatId(): Promise<PocketBirdHatId> {
   return (saved as PocketBirdHatId | null) ?? NO_HAT_ID;
 }
 
-export async function setPetHatId(hatId: PocketBirdHatId): Promise<void> {
+export async function setPetHatId(
+  hatId: PocketBirdHatId,
+  userId?: string | null,
+): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, hatId);
   notifyPetHatId(hatId);
+
+  if (!userId) return;
+
+  try {
+    await updateProfilePetHat(userId, hatId);
+  } catch (error) {
+    if (__DEV__) {
+      console.warn("[petHatStorage] Could not sync hat to profile", error);
+    }
+  }
 }

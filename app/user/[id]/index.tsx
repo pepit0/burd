@@ -36,7 +36,7 @@ import { useProfileBadges } from "@/hooks/useProfileBadges";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useReposts } from "@/hooks/useReposts";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
-import { isProfilePetVisible, resolveProfilePetSpeciesId } from "@/lib/profilePet";
+import { isProfilePetVisible, resolveProfilePetHatId, resolveProfilePetSpeciesId } from "@/lib/profilePet";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 
 export default function UserProfileScreen() {
@@ -225,6 +225,7 @@ export default function UserProfileScreen() {
               >
                 <PocketBirdPet
                   speciesId={resolveProfilePetSpeciesId(profile)}
+                  hatId={resolveProfilePetHatId(profile)}
                   size={PROFILE_PET_SIZE}
                   arenaHeight={PROFILE_BANNER_HEIGHT}
                   interactive={false}
