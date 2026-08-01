@@ -13,6 +13,7 @@ import { SpeciesSeenBy } from "@/components/SpeciesSeenBy";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesAskGuide } from "@/components/SpeciesAskGuide";
+import { SpeciesCallButton } from "@/components/SpeciesCallButton";
 import { SpeciesImage } from "@/components/SpeciesImage";
 import { PinchZoomView } from "@/components/PinchZoomImage";
 import { useAuth } from "@/hooks/useAuth";
@@ -145,9 +146,12 @@ export default function SpeciesDetailScreen() {
 
           <View className="gap-5 px-4 pt-5">
             <View>
-              <Text className="font-serif-semibold text-2xl text-foreground">
-                {species.species}
-              </Text>
+              <View className="flex-row items-start gap-2">
+                <Text className="min-w-0 flex-1 font-serif-semibold text-2xl text-foreground">
+                  {species.species}
+                </Text>
+                <SpeciesCallButton catalogId={species.id} />
+              </View>
               <Text className="mt-1 font-serif-italic text-sm text-foreground/60">
                 {species.scientific_name}
               </Text>

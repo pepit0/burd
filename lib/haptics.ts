@@ -35,6 +35,12 @@ export async function triggerBadgeUnlockHaptic(): Promise<void> {
   await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 }
 
+/** Live sound ID — header button. No-op on web. */
+export function triggerLiveSoundOpenHaptic(): void {
+  if (Platform.OS === "web") return;
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+}
+
 /** Live sound ID — mic recording started. No-op on web. */
 export async function triggerLiveSoundRecordStartHaptic(): Promise<void> {
   if (Platform.OS === "web") return;

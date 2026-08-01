@@ -32,7 +32,8 @@ export type ModerationActionType =
   | "remove_field_guide_author"
   | "change_username"
   | "update_user_badges"
-  | "set_auto_beta_badge";
+  | "set_auto_beta_badge"
+  | "reset_user_onboarding";
 
 export interface UserBadgeFlags {
   is_verified?: boolean;
@@ -66,6 +67,8 @@ export interface Profile {
   is_verified?: boolean;
   is_beta?: boolean;
   showcase_badge_ids?: string[] | null;
+  pet_species_id?: string | null;
+  profile_pet_enabled?: boolean;
   created_at: string;
   role?: UserRole;
   suspended?: boolean;

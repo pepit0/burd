@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Flag, UserX, X } from "lucide-react-native";
+import { Flag, ShieldAlert, UserX, X } from "lucide-react-native";
 import { blockUser } from "@/lib/blocks";
 import { getUserFacingMessage } from "@/lib/errors";
 import { pickReportReason } from "@/lib/reportReasons";
@@ -20,6 +20,8 @@ interface UserOptionsMenuProps {
   visible: boolean;
   onClose: () => void;
   onBlocked?: () => void;
+  isAdmin?: boolean;
+  onModerate?: () => void;
 }
 
 function OptionRow({
@@ -56,6 +58,8 @@ export function UserOptionsMenu({
   visible,
   onClose,
   onBlocked,
+  isAdmin = false,
+  onModerate,
 }: UserOptionsMenuProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -151,6 +155,18 @@ export function UserOptionsMenu({
           </View>
 
           <View className="gap-2">
+            {isAdmin && onModerate ? (
+              <OptionRow
+                onPress={() => {
+                  onClose();
+                  onModerate();
+                }}
+                disabled={submitting}
+                icon={<ShieldAlert size={18} color="#f87171" />}
+                label="Moderate user"
+                destructive
+              />
+            ) : null}
             <OptionRow
               onPress={handleReportPress}
               disabled={submitting}

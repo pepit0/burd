@@ -18,6 +18,7 @@
     "pages:build": "node scripts/pages-build.mjs",
     "deploy:website": "npm run build:web-app && npx --yes wrangler pages deploy website --project-name=burd --branch=main --commit-dirty=true && node scripts/purge-cloudflare-cache.mjs",
     "fetch-species-images": "node scripts/fetch-species-images.mjs",
+    "fetch-species-calls": "node scripts/fetch-species-calls.mjs",
     "generate-bird-catalog": "node scripts/run-python.mjs scripts/generate-bird-catalog.py",
     "generate-photo-taxonomy": "node scripts/run-python.mjs scripts/generate-photo-taxonomy.py",
     "backfill-photo-vernaculars": "node scripts/run-python.mjs scripts/backfill-photo-vernaculars.py",
@@ -27,7 +28,8 @@
     "build:ecozone-checklist": "node scripts/run-python.mjs scripts/build-ecozone-checklist.py",
     "build:ecozone-checklist:prairies": "node scripts/run-python.mjs scripts/build-ecozone-checklist.py --zones canadian_prairies --max-records 2400",
     "derive:explore-checklist-freq": "node scripts/derive-explore-checklist-freq.mjs",
-    "merge:regional-priors": "node scripts/run-python.mjs scripts/merge-community-priors.py"
+    "merge:regional-priors": "node scripts/run-python.mjs scripts/merge-community-priors.py",
+    "extract:pocket-bird": "node scripts/extract-pocket-bird-assets.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
@@ -60,6 +62,7 @@
     "expo-sensors": "~15.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.11",
+    "jpeg-js": "^0.4.4",
     "lucide-react-native": "^1.21.0",
     "nativewind": "^4.2.1",
     "react": "19.1.0",

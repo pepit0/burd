@@ -25,6 +25,7 @@ import {
 import { TabEmptyState } from "@/components/TabEmptyState";
 import { FilterSheet } from "@/components/FilterSheet";
 import { FieldGuideExploreTab } from "@/components/FieldGuideExploreTab";
+import { ColonyTab } from "@/components/ColonyTab";
 import {
   IMAGE_OVERLAY_BADGE_SHADOW,
   IMAGE_OVERLAY_GRADIENT,
@@ -64,6 +65,7 @@ const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const FIELD_GUIDE_TABS = [
   { id: "guide", label: "Guide" },
   { id: "explore", label: "Explore" },
+  { id: "pet", label: "Pet" },
 ] as const;
 
 type FieldGuideTab = (typeof FIELD_GUIDE_TABS)[number]["id"];
@@ -221,6 +223,14 @@ export default function FieldGuideScreen() {
   );
   const [filterOpen, setFilterOpen] = useState(false);
   const [tab, setTab] = useState<FieldGuideTab>("guide");
+  const showPetTab = !viewUserId;
+  const visibleTabs = useMemo(
+    () =>
+      FIELD_GUIDE_TABS.filter(
+        (item) => item.id !== "pet" || showPetTab,
+      ),
+    [showPetTab],
+  );
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
   const activeFilterCount = countActiveFieldGuideFilters(guideFilters);
   const listRef = useRef<FlatList<GuideRow>>(null);
@@ -290,6 +300,12 @@ export default function FieldGuideScreen() {
       };
     }, []),
   );
+
+  useEffect(() => {
+    if (tab === "pet" && !showPetTab) {
+      setTab("guide");
+    }
+  }, [showPetTab, tab]);
 
   const sightingIndex = useMemo(
     () => buildSightingIndex(sightings),
@@ -487,7 +503,7 @@ export default function FieldGuideScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerClassName="flex-row items-center gap-2 pr-2"
           >
-            {FIELD_GUIDE_TABS.map((item) => {
+            {visibleTabs.map((item) => {
               const active = tab === item.id;
               return (
                 <Pressable
@@ -513,7 +529,7 @@ export default function FieldGuideScreen() {
         </View>
       ) : null}
 
-      {tab !== "explore" ? (
+      {tab !== "explore" && tab !== "pet" ? (
         <View className="gap-3 px-4 pb-0 pt-3">
           <View className="flex-row items-center gap-2">
             <View className="flex-1">
@@ -581,6 +597,10 @@ export default function FieldGuideScreen() {
           listFrameStyle={listFrameStyle}
           tabBarClearance={tabBarClearance}
         />
+      ) : tab === "pet" && showPetTab ? (
+        <Animated.View style={[listFrameBaseStyle, listFrameStyle, { flex: 1 }]}>
+          <ColonyTab tabBarClearance={tabBarClearance} />
+        </Animated.View>
       ) : (
         <>
       {loading && sightings.length === 0 ? (

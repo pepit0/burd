@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, ShieldAlert, Trash2 } from "lucide-react-native";
+import { ArrowLeft, ShieldAlert, Trash2, UserSearch } from "lucide-react-native";
 import { ModerationReasonModal } from "@/components/ModerationReasonModal";
 import { SearchBar } from "@/components/SearchBar";
 import {
@@ -349,6 +349,24 @@ export default function AdminHubScreen() {
           {...keyboardAwareScrollProps}
         >
           <DismissKeyboardArea>
+          <Pressable
+            onPress={() => router.push("/admin/user-support")}
+            className="mb-6 flex-row items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-4 py-3.5 active:opacity-90"
+          >
+            <View className="mr-3 min-w-0 flex-1 flex-row items-center gap-2.5">
+              <UserSearch size={18} color="#5f9470" />
+              <View className="min-w-0 flex-1">
+                <Text className="font-sans-medium text-sm text-foreground">
+                  User support lookup
+                </Text>
+                <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
+                  Diagnose signup issues and reset onboarding
+                </Text>
+              </View>
+            </View>
+            <Text className="font-sans-medium text-xs text-primary">Open</Text>
+          </Pressable>
+
           <View className="mb-2 flex-row items-center gap-2">
             <ShieldAlert size={16} color="#c8893a" />
             <Text className="font-serif-semibold text-lg text-foreground">Reported posts</Text>

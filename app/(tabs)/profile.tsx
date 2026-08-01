@@ -28,7 +28,7 @@ import {
 import { ProfileBadgeShowcasePickerSheet } from "@/components/ProfileBadgeShowcasePickerSheet";
 import { ProfileAvatarPeek } from "@/components/ProfileAvatarPeek";
 import { ProfileBadgesPreview } from "@/components/ProfileBadges";
-import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
+import { ProfileCoverWithPet } from "@/components/ProfileCoverWithPet";
 import { ProfileDetailsEditSheet } from "@/components/ProfileDetailsEditSheet";
 import {
   filterProfileSightings,
@@ -53,6 +53,17 @@ import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCo
 import { normalizeShowcaseBadgeIds } from "@/lib/profileShowcaseBadges";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { postedDate } from "@/lib/sightingFormat";
+import { getPetSoundEnabled } from "@/lib/pocketBird/petSoundStorage";
+import {
+  DEFAULT_PET,
+  getPetSpeciesId,
+  subscribePetSpeciesId,
+} from "@/lib/pocketBird/petStorage";
+import { NO_HAT_ID, type PocketBirdHatId } from "@/lib/pocketBird/hats";
+import {
+  getPetHatId,
+  subscribePetHatId,
+} from "@/lib/pocketBird/petHatStorage";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 import {
   PRIVACY_POLICY_URL,
@@ -148,6 +159,9 @@ export default function ProfileScreen() {
   const [badgeShowcasePickerOpen, setBadgeShowcasePickerOpen] = useState(false);
   const [detailsEditOpen, setDetailsEditOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [petSoundEnabled, setPetSoundEnabled] = useState(false);
+  const [petSpeciesId, setPetSpeciesId] = useState(DEFAULT_PET);
+  const [petHatId, setPetHatId] = useState<PocketBirdHatId>(NO_HAT_ID);
   const [postsFilter, setPostsFilter] = useState<ProfilePostsFilter>("all");
   const { sightings, refresh: refreshSightings, silentRefresh: silentRefreshSightings } =
     useMySightings(userId);
@@ -161,6 +175,51 @@ export default function ProfileScreen() {
       router.replace("/(auth)/choose-username");
     }
   }, [loading, profile, router, user]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPetSoundEnabled().then((enabled) => {
+      if (!cancelled) setPetSoundEnabled(enabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPetSpeciesId().then((id) => {
+      if (!cancelled) setPetSpeciesId(id);
+    });
+    const unsubscribe = subscribePetSpeciesId((id) => {
+      if (!cancelled) setPetSpeciesId(id);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPetHatId().then((id) => {
+      if (!cancelled) setPetHatId(id);
+    });
+    const unsubscribe = subscribePetHatId((id) => {
+      if (!cancelled) setPetHatId(id);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void getPetSpeciesId().then(setPetSpeciesId);
+      void getPetHatId().then(setPetHatId);
+    }, []),
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -333,9 +392,14 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor="#5f9470" />
         }
       >
-        <ProfileCoverBanner
+        <ProfileCoverWithPet
           coverUrl={profile?.cover_url}
+          profile={profile}
+          speciesIdOverride={petSpeciesId}
+          hatIdOverride={petHatId}
           editable
+          interactive
+          soundEnabled={petSoundEnabled}
           onPress={() => setBannerPickerOpen(true)}
         />
 

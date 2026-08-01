@@ -8,12 +8,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronLeft, MoreHorizontal, ShieldAlert } from "lucide-react-native";
+import { ChevronLeft, MoreHorizontal } from "lucide-react-native";
 import { FollowButton } from "@/components/FollowButton";
 import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { ProfileAvatarPeek } from "@/components/ProfileAvatarPeek";
 import { ProfileBadgesPreview } from "@/components/ProfileBadges";
-import { ProfileCoverBanner } from "@/components/ProfileCoverBanner";
+import {
+  PROFILE_BANNER_HEIGHT,
+  PROFILE_PET_SIZE,
+  ProfileCoverWithPet,
+} from "@/components/ProfileCoverWithPet";
+import { PocketBirdPet } from "@/components/PocketBirdPet";
+import { useAccessibility } from "@/components/AccessibilityProvider";
 import {
   filterProfileSightings,
   ProfilePostsFilterBar,
@@ -30,6 +36,7 @@ import { useProfileBadges } from "@/hooks/useProfileBadges";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useReposts } from "@/hooks/useReposts";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
+import { isProfilePetVisible, resolveProfilePetSpeciesId } from "@/lib/profilePet";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 
 export default function UserProfileScreen() {
@@ -38,6 +45,7 @@ export default function UserProfileScreen() {
   const { user } = useAuth();
   const currentUserId = user?.id ?? null;
   const { isAdmin } = useAdmin(currentUserId);
+  const { reduceMotion } = useAccessibility();
   const [moderationOpen, setModerationOpen] = useState(false);
   const [userOptionsOpen, setUserOptionsOpen] = useState(false);
   const [postsFilter, setPostsFilter] = useState<ProfilePostsFilter>("all");
@@ -86,6 +94,7 @@ export default function UserProfileScreen() {
   const displayName = profile?.full_name || profile?.username || "Birder";
   const displayNamePlain = stripDisplayNameColorCodes(displayName);
   const profileId = id ?? "";
+  const showProfilePet = profile ? isProfilePetVisible(profile) : false;
 
   const stats: {
     label: string;
@@ -143,68 +152,87 @@ export default function UserProfileScreen() {
         </Text>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-12">
-          <ProfileCoverBanner coverUrl={profile.cover_url} />
+          <View className="relative">
+            <ProfileCoverWithPet
+              coverUrl={profile.cover_url}
+              profile={profile}
+              suppressPet={showProfilePet}
+            />
 
-          <View className="-mt-9 px-4">
-            <View className="mb-3">
-              <ProfileAvatarPeek
-                avatarUrl={profile.avatar_url}
-                avatarColor={profile.avatar_color}
-                displayName={displayNamePlain}
-              />
-            </View>
+            <View className="-mt-9 px-4">
+              <View className="mb-3">
+                <ProfileAvatarPeek
+                  avatarUrl={profile.avatar_url}
+                  avatarColor={profile.avatar_color}
+                  displayName={displayNamePlain}
+                />
+              </View>
 
-            {!isSelf ? (
-              <View className="absolute right-6 top-4 z-10 flex-row gap-2">
-                {isAdmin ? (
+              {!isSelf ? (
+                <View className="absolute right-6 top-11 z-10 flex-row gap-2">
+                  <FollowButton
+                    status={status}
+                    onPress={toggleFriend}
+                    onSecondaryPress={declineRequest}
+                    size="md"
+                  />
                   <Pressable
-                    onPress={() => setModerationOpen(true)}
-                    className="flex-row items-center gap-1 rounded-full border border-destructive/40 bg-destructive/20 px-3 py-2 active:opacity-90"
+                    onPress={() => setUserOptionsOpen(true)}
+                    className="rounded-full border border-border bg-card/90 p-2 active:opacity-90"
+                    accessibilityLabel="User options"
                   >
-                    <ShieldAlert size={14} color="#f87171" />
-                    <Text className="font-sans-medium text-xs text-foreground">Moderate</Text>
+                    <MoreHorizontal size={18} color="#8a9e82" />
                   </Pressable>
-                ) : null}
-                <FollowButton
-                  status={status}
-                  onPress={toggleFriend}
-                  onSecondaryPress={declineRequest}
-                  size="md"
-                />
-                <Pressable
-                  onPress={() => setUserOptionsOpen(true)}
-                  className="rounded-full border border-border bg-card/90 p-2 active:opacity-90"
-                  accessibilityLabel="User options"
-                >
-                  <MoreHorizontal size={18} color="#8a9e82" />
-                </Pressable>
-              </View>
-            ) : null}
+                </View>
+              ) : null}
 
-            <View className="flex-row items-center justify-between gap-3">
-              <View className="min-w-0 flex-1">
-                <DisplayNameWithBadges
-                  text={displayName}
-                  isVerified={profile.is_verified}
-                  isBeta={profile.is_beta}
-                  interactiveBadges
-                  badgeSize="md"
-                  className="font-serif-semibold text-xl text-foreground"
-                />
-                <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
-                  @{profile.username}
-                  {profile.location_name ? ` · ${profile.location_name}` : ""}
-                </Text>
+              <View className="flex-row items-center justify-between gap-3">
+                <View className="min-w-0 flex-1">
+                  <DisplayNameWithBadges
+                    text={displayName}
+                    isVerified={profile.is_verified}
+                    isBeta={profile.is_beta}
+                    interactiveBadges
+                    badgeSize="md"
+                    className="font-serif-semibold text-xl text-foreground"
+                  />
+                  <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
+                    @{profile.username}
+                    {profile.location_name ? ` · ${profile.location_name}` : ""}
+                  </Text>
+                </View>
+                <View className="mr-2">
+                  <ProfileStatsRow stats={stats} variant="inline" />
+                </View>
               </View>
-              <View className="mr-2">
-                <ProfileStatsRow stats={stats} variant="inline" />
-              </View>
+
+              {profile.bio ? (
+                <LinkableText className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
+                  {profile.bio}
+                </LinkableText>
+              ) : null}
             </View>
 
-            {profile.bio ? (
-              <LinkableText className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
-                {profile.bio}
-              </LinkableText>
+            {showProfilePet ? (
+              <View
+                pointerEvents="none"
+                className="absolute left-0 right-0 top-0"
+                style={{
+                  height: PROFILE_BANNER_HEIGHT + 48,
+                  zIndex: 20,
+                  elevation: 20,
+                }}
+              >
+                <PocketBirdPet
+                  speciesId={resolveProfilePetSpeciesId(profile)}
+                  size={PROFILE_PET_SIZE}
+                  arenaHeight={PROFILE_BANNER_HEIGHT}
+                  interactive={false}
+                  soundEnabled={false}
+                  paused={reduceMotion}
+                  grounded
+                />
+              </View>
             ) : null}
           </View>
 
@@ -246,6 +274,8 @@ export default function UserProfileScreen() {
           visible={userOptionsOpen}
           onClose={() => setUserOptionsOpen(false)}
           onBlocked={() => router.back()}
+          isAdmin={isAdmin}
+          onModerate={() => setModerationOpen(true)}
         />
       ) : null}
     </SafeAreaView>

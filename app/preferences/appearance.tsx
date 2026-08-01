@@ -6,11 +6,13 @@ import { LikeIcon } from "@/components/LikeIcon";
 import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SettingsGroup } from "@/components/settings/SettingsGroup";
+import { SettingsToggleRow } from "@/components/settings/SettingsToggleRow";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { getUserFacingMessage } from "@/lib/errors";
 import { LIKE_ICON_STYLES } from "@/lib/likeIconStyle";
 import { updateDistanceUnit } from "@/lib/profilePreferences";
+import { updateProfilePetSettings } from "@/lib/profilePet";
 import { DISTANCE_UNIT_OPTIONS, radiusOptionsForUnit } from "@/lib/units";
 import type { DistanceUnit } from "@/types";
 
@@ -38,8 +40,10 @@ export default function AppearancePreferencesScreen() {
   const { likeIconStyle, setLikeIconStyle } = useLikeIconStyle();
   const [savingLikeIcon, setSavingLikeIcon] = useState(false);
   const [savingUnit, setSavingUnit] = useState(false);
+  const [savingProfilePet, setSavingProfilePet] = useState(false);
 
   const unit: DistanceUnit = profile?.distance_unit ?? "km";
+  const profilePetEnabled = profile?.profile_pet_enabled !== false;
   const radiusOptions = radiusOptionsForUnit(unit);
 
   async function handleLikeIconChange(next: typeof likeIconStyle) {
@@ -67,6 +71,19 @@ export default function AppearancePreferencesScreen() {
     }
   }
 
+  async function handleProfilePetToggle(next: boolean) {
+    if (!userId || savingProfilePet || next === profilePetEnabled) return;
+    setSavingProfilePet(true);
+    try {
+      await updateProfilePetSettings(userId, { profile_pet_enabled: next });
+      await silentRefresh();
+    } catch (e) {
+      Alert.alert("Could not save", getUserFacingMessage(e));
+    } finally {
+      setSavingProfilePet(false);
+    }
+  }
+
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <ScreenHeader title="Appearance" onBack={() => router.back()} />
@@ -75,6 +92,19 @@ export default function AppearancePreferencesScreen() {
           <ActivityIndicator className="mt-8" color="#5f9470" />
         ) : (
           <>
+            <SettingsGroup
+              title="Profile pet"
+              footer="When enabled, your selected pocket bird hops around on your profile banner. Others can see it too."
+            >
+              <SettingsToggleRow
+                label="Show pet on profile"
+                detail="Display your pocket bird on your profile banner"
+                value={profilePetEnabled}
+                disabled={savingProfilePet}
+                onValueChange={(next) => void handleProfilePetToggle(next)}
+              />
+            </SettingsGroup>
+
             <SettingsGroup
               title="Like button"
               footer="How likes appear for you across the app."

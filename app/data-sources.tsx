@@ -64,6 +64,12 @@ export default function DataSourcesScreen() {
             only. Records under CC BY-NC are excluded from commercial builds.
           </Text>
           <Text className="mt-2 font-sans text-sm leading-relaxed text-muted-foreground">
+            Reference bird calls: Creative Commons (CC BY, CC BY-SA, and CC0)
+            recordings from Wikimedia Commons and Xeno-canto contributors.
+            Per-recording recordist and license details are stored with each
+            call; see Settings → Data sources.
+          </Text>
+          <Text className="mt-2 font-sans text-sm leading-relaxed text-muted-foreground">
             ML models: Google Perch (Apache-2.0), birder vision weights per
             project configuration.
           </Text>

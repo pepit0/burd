@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ChevronRight, Volume2, X } from "lucide-react-native";
+import { SpeciesCallPlayer } from "@/components/SpeciesCallPlayer";
+import { ChevronRight, X } from "lucide-react-native";
 import {
   DismissKeyboardArea,
   dismissKeyboardOnScrollDrag,
@@ -26,6 +27,7 @@ import { getSightingsForSpecies } from "@/lib/fieldGuide";
 import type { LiveDetection } from "@/lib/liveSoundSession";
 import { enrichPrediction } from "@/lib/predictionLabels";
 import { lookupRegionalRarity } from "@/lib/rarity";
+import { hasSpeciesCall } from "@/lib/speciesCalls";
 import {
   getCatalogSpeciesById,
   resolveCatalogSpecies,
@@ -206,15 +208,19 @@ export function LiveSoundFieldGuideSheet({
       >
         <DismissKeyboardArea>
         <View className="rounded-xl border border-dashed border-primary/30 bg-primary/5 px-3 py-3">
-          <View className="flex-row items-center gap-2">
-            <View className="rounded-full bg-primary/15 p-2">
-              <Volume2 size={16} color="#5f9470" />
-            </View>
-            <Text className="font-sans-medium text-sm text-foreground">Compare call</Text>
-          </View>
-          <Text className="mt-2 font-sans text-xs leading-relaxed text-muted-foreground">
-            Use the field guide while Burd listens to help verify the ID.
-          </Text>
+          {species && hasSpeciesCall(species.id) ? (
+            <SpeciesCallPlayer
+              catalogId={species.id}
+              compact
+              title="Compare call"
+            />
+          ) : (
+            <Text className="font-sans text-xs leading-relaxed text-muted-foreground">
+              {species
+                ? "No reference call yet for this species. Use the summary and field marks while Burd listens."
+                : "Use the field guide while Burd listens to help verify the ID."}
+            </Text>
+          )}
         </View>
 
         {!species ? (

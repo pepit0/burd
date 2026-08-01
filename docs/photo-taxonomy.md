@@ -83,3 +83,40 @@ node scripts/fetch-species-images.mjs --limit 50 --refresh
 ```
 
 Skip already-baked ids on re-runs unless `--refresh` is passed. Runtime fetch fills gaps for species not yet in the JSON file.
+
+## Species reference calls (field guide audio)
+
+Reference bird calls on species detail and live sound ID use `lib/speciesCalls.ts` + `components/SpeciesCallPlayer.tsx`.
+
+| File | Purpose |
+|------|---------|
+| `data/species-calls.json` | Baked call metadata keyed by catalog id |
+| `scripts/fetch-species-calls.mjs` | Fetches commercial-safe recordings from Wikimedia Commons (Xeno-canto uploads) |
+
+**License filter:** CC0, CC BY, and CC BY-SA only — **no NC or ND**. Each entry stores recordist, license, and a Wikimedia Commons source link for attribution.
+
+Optional fallback when `XENO_CANTO_API_KEY` is set: script also queries Xeno-canto API v3 for CC-BY / CC0 / CC-BY-SA recordings.
+
+### Rebuild species calls
+
+```bash
+# Fast path: bulk scan + automatic gap fill for missing species
+npm run fetch-species-calls
+
+# Only fetch species still missing from the JSON bake
+node scripts/fetch-species-calls.mjs --missing-only
+
+# Skip per-species gap fill (bulk only)
+node scripts/fetch-species-calls.mjs --no-gap-fill
+
+# Slow per-species search (legacy)
+node scripts/fetch-species-calls.mjs --sequential --limit 200
+
+# Targeted
+node scripts/fetch-species-calls.mjs --sequential --ids turdus-migratorius,cardinalis-cardinalis
+node scripts/fetch-species-calls.mjs --refresh
+```
+
+Suggested attribution (in-app credits):
+
+> Reference bird calls from Wikimedia Commons (Creative Commons). Many recordings were contributed via Xeno-canto.
