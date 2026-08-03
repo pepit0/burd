@@ -21,8 +21,9 @@ export default function AgeRatingScreen() {
             Rated {MINIMUM_AGE}+
           </Text>
           <Text className="mt-2 font-sans text-sm leading-relaxed text-muted-foreground">
-            Burd is intended for users age {MINIMUM_AGE} and older. You must confirm that you
-            meet this minimum age when creating an account.
+            Burd is intended for users age {MINIMUM_AGE} and older. On iOS, new accounts verify
+            eligibility with Apple&apos;s Declared Age Range before social features are enabled.
+            Email sign-up also requires confirming you meet this minimum age.
           </Text>
         </View>
 

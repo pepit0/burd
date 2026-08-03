@@ -11,6 +11,7 @@ import { Link } from "expo-router";
 import { Feather } from "lucide-react-native";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { SocialAuthButtons } from "@/components/SocialAuthButtons";
+import { SignupSocialNotice } from "@/components/SignupConsent";
 import { track } from "@/lib/analytics";
 import { getUserFacingMessage, isNetworkError } from "@/lib/errors";
 import { resendSignupConfirmation } from "@/lib/signup";
@@ -140,6 +141,7 @@ export default function LoginScreen() {
         </Text>
 
         <SocialAuthButtons onError={setError} showDivider className="mb-2" />
+        <SignupSocialNotice className="mb-6" />
 
         <Text className="mb-1 font-sans-medium text-sm text-foreground/80">Email</Text>
         <TextInput

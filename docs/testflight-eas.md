@@ -45,6 +45,21 @@ npm run verify:app-icons
 Commit `assets/icon.png` and `assets/adaptive-icon.png` before building. EAS runs
 `verify:app-icons` automatically after install (`eas-build-post-install`).
 
+## Declared Age Range (App Store age assurance)
+
+If the iOS build fails with:
+
+```
+doesn't support the Declared Age capability
+doesn't include the com.apple.developer.declared-age-range entitlement
+```
+
+1. [Apple Developer → Identifiers](https://developer.apple.com/account/resources/identifiers/list) → **com.burd.app**
+2. Enable **Declared Age Range** → **Save** → confirm **Modify App Capabilities**
+3. Re-run the production build (EAS regenerates the provisioning profile)
+
+Requires a **paid** Apple Developer account (not Personal Team only).
+
 ## 2. Build from Expo website
 
 1. https://expo.dev → **burd** → **Builds** → **Create a build**

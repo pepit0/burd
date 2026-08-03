@@ -256,6 +256,7 @@ export default function ProfileScreen() {
     [publishedSightings, postsFilter],
   );
   const gridPosts = postsFilter === "reposts" ? reposts : filteredPosts;
+  const isPostsEmpty = gridPosts.length === 0;
 
   const displayName = profile?.full_name || profile?.username || "Birder";
   const displayNamePlain = stripDisplayNameColorCodes(displayName);
@@ -462,35 +463,67 @@ export default function ProfileScreen() {
 
         </View>
 
-        <View className="mt-6 border-t border-border">
+        <View className={`mt-6 border-t border-border ${isPostsEmpty ? "flex-1" : ""}`}>
           <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
-          <View className="px-4 pt-2">
-            <SightingPostsGrid
-              sightings={gridPosts}
-              emptyLabel={
-                postsFilter === "reposts"
-                  ? "No reposts yet. Repost public posts you love from the home feed."
-                  : postsFilter === "photos"
-                  ? "No photo posts yet. Publish a sighting from your journal."
-                  : postsFilter === "audio"
-                    ? "No audio posts yet. Publish a sound sighting from your journal."
-                    : "No posts yet. Publish a sighting from your journal."
-              }
-              onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
-            />
-          </View>
-        </View>
-
-        <View className="mt-8 px-4">
-          <ProfileBadgesPreview
-            badges={badges}
-            earnedCount={earnedCount}
-            userId={userId!}
-            username={profile?.username}
-            showcaseBadgeIds={profile?.showcase_badge_ids}
-            isSelf
-            onEditShowcase={() => setBadgeShowcasePickerOpen(true)}
-          />
+          {isPostsEmpty ? (
+            <View className="flex-1 justify-between">
+              <View className="px-4 pt-2">
+                <SightingPostsGrid
+                  sightings={gridPosts}
+                  emptyLabel={
+                    postsFilter === "reposts"
+                      ? "No reposts yet. Repost public posts you love from the home feed."
+                      : postsFilter === "photos"
+                      ? "No photo posts yet. Publish a sighting from your journal."
+                      : postsFilter === "audio"
+                        ? "No audio posts yet. Publish a sound sighting from your journal."
+                        : "No posts yet. Publish a sighting from your journal."
+                  }
+                  onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
+                />
+              </View>
+              <View className="px-4 pt-6">
+                <ProfileBadgesPreview
+                  badges={badges}
+                  earnedCount={earnedCount}
+                  userId={userId!}
+                  username={profile?.username}
+                  showcaseBadgeIds={profile?.showcase_badge_ids}
+                  isSelf
+                  onEditShowcase={() => setBadgeShowcasePickerOpen(true)}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              <View className="px-4 pt-2">
+                <SightingPostsGrid
+                  sightings={gridPosts}
+                  emptyLabel={
+                    postsFilter === "reposts"
+                      ? "No reposts yet. Repost public posts you love from the home feed."
+                      : postsFilter === "photos"
+                      ? "No photo posts yet. Publish a sighting from your journal."
+                      : postsFilter === "audio"
+                        ? "No audio posts yet. Publish a sound sighting from your journal."
+                        : "No posts yet. Publish a sighting from your journal."
+                  }
+                  onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
+                />
+              </View>
+              <View className="mt-8 px-4">
+                <ProfileBadgesPreview
+                  badges={badges}
+                  earnedCount={earnedCount}
+                  userId={userId!}
+                  username={profile?.username}
+                  showcaseBadgeIds={profile?.showcase_badge_ids}
+                  isSelf
+                  onEditShowcase={() => setBadgeShowcasePickerOpen(true)}
+                />
+              </View>
+            </>
+          )}
         </View>
 
         <View className="mt-8 px-4">

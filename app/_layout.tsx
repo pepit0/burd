@@ -42,6 +42,7 @@ import { nativewindColorVars } from "@/lib/colorTheme";
 import { getMyAccountStatus } from "@/lib/moderation";
 import { initRegionalCommunity } from "@/lib/regionalCommunity";
 import { urlHasAuthCompletionParams } from "@/lib/authCallback";
+import { hasAgeAssurance } from "@/lib/ageAssurance";
 import { resolveUsernameSetup, hasCompletedUsernameSetup } from "@/lib/signup";
 import type { AccountStatus } from "@/types";
 
@@ -212,6 +213,11 @@ function RootLayoutInner() {
       segments[0] === "auth" && segments[1] === "callback";
     const onChooseUsername =
       inAuthGroup && segments[1] === "choose-username";
+    const onAgeAssurance =
+      inAuthGroup && segments[1] === "age-assurance";
+    const needsAgeAssurance =
+      Boolean(session?.user) &&
+      !hasAgeAssurance(session?.user?.user_metadata ?? undefined);
 
     if (!session) {
       if (onOAuthCallback) {
@@ -230,10 +236,20 @@ function RootLayoutInner() {
       }
     } else if (usernameGate.needsUsername && !onChooseUsername) {
       router.replace("/(auth)/choose-username");
-    } else if (!usernameGate.needsUsername && inAuthGroup) {
+    } else if (
+      !usernameGate.needsUsername &&
+      needsAgeAssurance &&
+      !onAgeAssurance
+    ) {
+      router.replace("/(auth)/age-assurance");
+    } else if (
+      !usernameGate.needsUsername &&
+      !needsAgeAssurance &&
+      inAuthGroup
+    ) {
       router.replace("/(tabs)/");
     }
-  }, [session, loading, segments, router, usernameGate]);
+  }, [session, loading, segments, router, usernameGate, user?.user_metadata]);
 
   useEffect(() => {
     if (!user?.id || !session) {

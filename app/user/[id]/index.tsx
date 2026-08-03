@@ -36,6 +36,7 @@ import { useProfileBadges } from "@/hooks/useProfileBadges";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useReposts } from "@/hooks/useReposts";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
+import { getPetSoundEnabled } from "@/lib/pocketBird/petSoundStorage";
 import { isProfilePetVisible, resolveProfilePetHatId, resolveProfilePetSpeciesId } from "@/lib/profilePet";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 
@@ -49,6 +50,7 @@ export default function UserProfileScreen() {
   const [moderationOpen, setModerationOpen] = useState(false);
   const [userOptionsOpen, setUserOptionsOpen] = useState(false);
   const [postsFilter, setPostsFilter] = useState<ProfilePostsFilter>("all");
+  const [petSoundEnabled, setPetSoundEnabled] = useState(false);
 
   const {
     profile,
@@ -69,6 +71,16 @@ export default function UserProfileScreen() {
       router.replace("/(tabs)/profile");
     }
   }, [isSelf, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPetSoundEnabled().then((enabled) => {
+      if (!cancelled) setPetSoundEnabled(enabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const speciesCount = useMemo(
     () => new Set(sightings.map((s) => s.species.toLowerCase())).size,
@@ -94,6 +106,7 @@ export default function UserProfileScreen() {
   const displayName = profile?.full_name || profile?.username || "Birder";
   const displayNamePlain = stripDisplayNameColorCodes(displayName);
   const profileId = id ?? "";
+  const isPostsEmpty = gridPosts.length === 0;
   const showProfilePet = profile ? isProfilePetVisible(profile) : false;
 
   const stats: {
@@ -151,7 +164,7 @@ export default function UserProfileScreen() {
           This birder could not be found.
         </Text>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-12">
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="flex-grow pb-12">
           <View className="relative">
             <ProfileCoverWithPet
               coverUrl={profile.cover_url}
@@ -215,7 +228,7 @@ export default function UserProfileScreen() {
 
             {showProfilePet ? (
               <View
-                pointerEvents="none"
+                pointerEvents="box-none"
                 className="absolute left-0 right-0 top-0"
                 style={{
                   height: PROFILE_BANNER_HEIGHT + 48,
@@ -228,8 +241,8 @@ export default function UserProfileScreen() {
                   hatId={resolveProfilePetHatId(profile)}
                   size={PROFILE_PET_SIZE}
                   arenaHeight={PROFILE_BANNER_HEIGHT}
-                  interactive={false}
-                  soundEnabled={false}
+                  interactive
+                  soundEnabled={petSoundEnabled}
                   paused={reduceMotion}
                   grounded
                 />
@@ -237,25 +250,47 @@ export default function UserProfileScreen() {
             ) : null}
           </View>
 
-          <View className="mt-6 border-t border-border">
+          <View className={`mt-6 border-t border-border ${isPostsEmpty ? "flex-1" : ""}`}>
             <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
-            <View className="px-4 pt-2">
-              <SightingPostsGrid
-                sightings={gridPosts}
-                emptyLabel={emptyPostsLabel}
-                onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
-              />
-            </View>
-          </View>
-
-          <View className="mt-8 px-4">
-            <ProfileBadgesPreview
-              badges={badges}
-              earnedCount={earnedCount}
-              userId={profileId}
-              username={profile.username}
-              showcaseBadgeIds={profile.showcase_badge_ids}
-            />
+            {isPostsEmpty ? (
+              <View className="flex-1 justify-between">
+                <View className="px-4 pt-2">
+                  <SightingPostsGrid
+                    sightings={gridPosts}
+                    emptyLabel={emptyPostsLabel}
+                    onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
+                  />
+                </View>
+                <View className="px-4 pt-6">
+                  <ProfileBadgesPreview
+                    badges={badges}
+                    earnedCount={earnedCount}
+                    userId={profileId}
+                    username={profile.username}
+                    showcaseBadgeIds={profile.showcase_badge_ids}
+                  />
+                </View>
+              </View>
+            ) : (
+              <>
+                <View className="px-4 pt-2">
+                  <SightingPostsGrid
+                    sightings={gridPosts}
+                    emptyLabel={emptyPostsLabel}
+                    onPressSighting={(sightingId) => router.push(`/post/${sightingId}`)}
+                  />
+                </View>
+                <View className="mt-8 px-4">
+                  <ProfileBadgesPreview
+                    badges={badges}
+                    earnedCount={earnedCount}
+                    userId={profileId}
+                    username={profile.username}
+                    showcaseBadgeIds={profile.showcase_badge_ids}
+                  />
+                </View>
+              </>
+            )}
           </View>
         </ScrollView>
       )}

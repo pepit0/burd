@@ -55,6 +55,12 @@ export default function AboutPreferencesScreen() {
             borderTop
           />
           <SettingsRow
+            label="Age rating"
+            detail="Rated 13+ · social features"
+            onPress={() => router.push("/age-rating" as never)}
+            borderTop
+          />
+          <SettingsRow
             label="Data sources"
             onPress={() => router.push("/data-sources" as never)}
             borderTop
