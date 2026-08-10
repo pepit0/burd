@@ -160,7 +160,7 @@ export function ColonyTab({ tabBarClearance }: ColonyTabProps) {
           <PocketBirdPet
             speciesId={petId}
             hatId={hatId}
-            size={176}
+            size={160}
             soundEnabled={soundEnabled}
           />
         </View>

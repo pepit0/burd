@@ -40,6 +40,7 @@ import {
   liveRotateIntervalMs,
   LIVE_WINDOW_MS,
 } from "@/lib/audioChunkOverlap";
+import { stabilizeAudioForUpload } from "@/lib/audioUploadStabilize";
 import { runAnimationFrameLoop } from "@/lib/animationFrameLoop";
 import {
   triggerLiveSoundRecordStartHaptic,
@@ -291,13 +292,12 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
           `[LiveSoundId] chunk failed (${sessionRef.current.failedChunks}):`,
           outcome.reason,
         );
-        setChunkWarning(`Could not analyze audio: ${outcome.reason}`);
       }
     },
     [refreshDetections],
   );
 
-  const processChunk = useCallback(
+  const submitAnalysisChunk = useCallback(
     (
       uri: string,
       durationMs: number,
@@ -306,8 +306,6 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     ) => {
       const session = sessionRef.current;
       if (!session) return;
-
-      session.segments.push({ uri, durationMs });
 
       const uploadDurationMs = analyzeDurationMs ?? durationMs;
       if (uploadDurationMs < LIVE_MIN_RECORDING_MS) {
@@ -332,6 +330,29 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     },
     [handleChunkOutcome, updateStatusFromPending],
   );
+
+  const snapshotRecordingForAnalysis =
+    useCallback(async (): Promise<SessionSegment | null> => {
+      const recording = recordingRef.current;
+      if (!recording) return null;
+
+      try {
+        const status = await recording.getStatusAsync();
+        const uri = recording.getURI();
+        if (!uri) return null;
+
+        let durationMs = status.durationMillis ?? 0;
+        if (durationMs < 100 && segmentStartedAtRef.current != null) {
+          durationMs = Date.now() - segmentStartedAtRef.current;
+        }
+        if (durationMs < LIVE_MIN_RECORDING_MS) return null;
+
+        const stableUri = await stabilizeAudioForUpload(uri);
+        return { uri: stableUri, durationMs };
+      } catch {
+        return null;
+      }
+    }, []);
 
   const stopCurrentRecording = useCallback(async (): Promise<SessionSegment | null> => {
     const recording = recordingRef.current;
@@ -383,21 +404,20 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     }
   }, []);
 
-  const rotateSegment = useCallback(async () => {
+  const rotateAnalysis = useCallback(async () => {
     if (!activeRef.current) return;
 
-    const segment = await stopCurrentRecording();
-    if (segment) {
-      const previousUri = previousSegmentUriRef.current;
+    const snapshot = await snapshotRecordingForAnalysis();
+    if (snapshot) {
       const overlapped = await buildOverlappedAnalyzeUri(
-        previousUri,
-        segment.uri,
-        segment.durationMs,
+        previousSegmentUriRef.current,
+        snapshot.uri,
+        snapshot.durationMs,
       );
-      previousSegmentUriRef.current = segment.uri;
-      processChunk(
-        segment.uri,
-        segment.durationMs,
+      previousSegmentUriRef.current = snapshot.uri;
+      submitAnalysisChunk(
+        snapshot.uri,
+        snapshot.durationMs,
         overlapped.uri,
         overlapped.durationMs,
       );
@@ -405,27 +425,11 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
 
     if (!activeRef.current) return;
 
-    const started = await startRecordingSegment();
-    if (!started) {
-      activeRef.current = false;
-      clearSegmentTimer();
-      clearMeteringTimer();
-      setStatus("error");
-      setErrorMessage("Recording stopped unexpectedly.");
-      return;
-    }
-
     clearSegmentTimer();
     segmentTimerRef.current = setTimeout(() => {
-      void rotateSegment();
+      void rotateAnalysis();
     }, liveRotateIntervalMs());
-  }, [
-    clearMeteringTimer,
-    clearSegmentTimer,
-    processChunk,
-    startRecordingSegment,
-    stopCurrentRecording,
-  ]);
+  }, [clearSegmentTimer, snapshotRecordingForAnalysis, submitAnalysisChunk]);
 
   const requestLocationPermission = useCallback(async (): Promise<boolean> => {
     const coords = await refreshLocation();
@@ -539,7 +543,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
 
     clearSegmentTimer();
     segmentTimerRef.current = setTimeout(() => {
-      void rotateSegment();
+      void rotateAnalysis();
     }, liveRotateIntervalMs());
   }, [
     hapticsEnabled,
@@ -549,7 +553,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     clearSegmentTimer,
     refreshDetections,
     requestMicPermission,
-    rotateSegment,
+    rotateAnalysis,
     startRecordingSegment,
   ]);
 
@@ -585,18 +589,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
       setDisplayRows([]);
       setSessionResult(null);
       setStatus("review");
-
-      if (
-        session.detections.size === 0 &&
-        session.failedChunks > 0 &&
-        session.lastChunkError
-      ) {
-        setChunkWarning(
-          `No birds identified — ${session.failedChunks} chunk(s) failed. ${session.lastChunkError}`,
-        );
-      } else {
-        setChunkWarning(null);
-      }
+      setChunkWarning(null);
     } catch (error) {
       setStatus("error");
       setErrorMessage(
@@ -614,12 +607,30 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
       return;
     }
 
+    const segments =
+      session.segments.length > 0
+        ? session.segments
+        : sessionReview
+          ? [
+              {
+                uri: sessionReview.longestUri,
+                durationMs: sessionReview.totalDurationMs,
+              },
+            ]
+          : [];
+
+    if (segments.length === 0) {
+      setStatus("error");
+      setErrorMessage("Session data was lost.");
+      return;
+    }
+
     setStatus("saving");
     setErrorMessage(null);
     try {
       const result = await saveLiveSessionToJournal({
         userId: uid,
-        segments: session.segments,
+        segments,
         detections: session.detections,
         coords: session.coords,
         recordedAt: session.recordedAt,
@@ -643,7 +654,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
         error instanceof Error ? error.message : "Could not save this session.",
       );
     }
-  }, [selectedPrimaryKey, celebrateNewSpecies]);
+  }, [selectedPrimaryKey, celebrateNewSpecies, sessionReview]);
 
   const stopSession = useCallback(async () => {
     if (!activeRef.current) return;
@@ -658,14 +669,15 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     setStatus("processing");
 
     const finalSegment = await stopCurrentRecording();
-    if (finalSegment) {
+    if (finalSegment && sessionRef.current) {
+      sessionRef.current.segments = [finalSegment];
       const overlapped = await buildOverlappedAnalyzeUri(
         previousSegmentUriRef.current,
         finalSegment.uri,
         finalSegment.durationMs,
       );
       previousSegmentUriRef.current = finalSegment.uri;
-      await processChunk(
+      submitAnalysisChunk(
         finalSegment.uri,
         finalSegment.durationMs,
         overlapped.uri,
@@ -682,7 +694,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     clearPruneTimer,
     clearSegmentTimer,
     openReview,
-    processChunk,
+    submitAnalysisChunk,
     stopCurrentRecording,
   ]);
 

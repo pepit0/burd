@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -40,7 +40,6 @@ interface HomeSplitHeaderProps {
   headerAction?: ReactNode;
   toolbar?: ReactNode;
   toolbarProgress: SharedValue<number>;
-  toolbarVisible: boolean;
   onHeightsChange?: (heights: {
     barHeight: number;
     toolbarHeight: number;
@@ -54,18 +53,15 @@ export function HomeSplitHeader({
   headerAction,
   toolbar,
   toolbarProgress,
-  toolbarVisible,
   onHeightsChange,
 }: HomeSplitHeaderProps) {
   const insets = useSafeAreaInsets();
   const [barHeight, setBarHeight] = useState(52);
   const [toolbarHeight, setToolbarHeight] = useState(72);
-  const toolbarHeightRef = useRef(72);
 
   const handleToolbarLayout = useCallback((height: number) => {
     if (height < MIN_TOOLBAR_HEIGHT) return;
-    toolbarHeightRef.current = height;
-    setToolbarHeight((prev) => (prev === height ? prev : height));
+    setToolbarHeight(height);
   }, []);
 
   useEffect(() => {
@@ -73,12 +69,13 @@ export function HomeSplitHeader({
     onHeightsChange?.({ barHeight, toolbarHeight });
   }, [barHeight, toolbarHeight, onHeightsChange]);
 
-  const resolvedToolbarHeight = Math.max(toolbarHeight, toolbarHeightRef.current);
-
-  const toolbarAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: toolbarProgress.value,
-    height: toolbarProgress.value * resolvedToolbarHeight,
-  }), [resolvedToolbarHeight]);
+  const toolbarAnimatedStyle = useAnimatedStyle(
+    () => ({
+      opacity: toolbarProgress.value,
+      height: toolbarProgress.value * toolbarHeight,
+    }),
+    [toolbarHeight],
+  );
 
   return (
     <>
@@ -94,18 +91,21 @@ export function HomeSplitHeader({
 
       {toolbar ? (
         <Animated.View
-          pointerEvents={toolbarVisible ? "box-none" : "none"}
+          pointerEvents="box-none"
           className="absolute left-0 right-0 z-20 overflow-hidden bg-background"
           style={[
             { top: barHeight, left: 0, right: 0 },
             toolbarAnimatedStyle,
           ]}
         >
-          <View
-            className="pb-4 pt-1"
-            onLayout={(event) => handleToolbarLayout(event.nativeEvent.layout.height)}
-          >
-            {toolbar}
+          {/* Absolute so collapse animation clips instead of squishing children. */}
+          <View className="absolute left-0 right-0 top-0">
+            <View
+              className="pb-4 pt-1"
+              onLayout={(event) => handleToolbarLayout(event.nativeEvent.layout.height)}
+            >
+              {toolbar}
+            </View>
           </View>
         </Animated.View>
       ) : null}

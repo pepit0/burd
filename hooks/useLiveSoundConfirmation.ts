@@ -203,7 +203,6 @@ export function useLiveSoundConfirmation(): UseLiveSoundConfirmationResult {
 
       if (!outcome.ok) {
         console.warn("[LiveSoundConfirmation] chunk failed:", outcome.reason);
-        setChunkWarning(`Could not analyze audio: ${outcome.reason}`);
       }
     },
     [refreshDetections],

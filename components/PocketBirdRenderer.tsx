@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import Svg, { Rect } from "react-native-svg";
-import { POCKET_BIRD_GRID } from "@/lib/pocketBird/matchSpecies";
+import { View } from "react-native";
+import { resolvePocketBirdDisplaySize } from "@/lib/pocketBird/displaySize";
 import type { PocketBirdPixel } from "@/lib/pocketBird/render";
 
 interface PocketBirdRendererProps {
@@ -9,25 +9,28 @@ interface PocketBirdRendererProps {
 }
 
 export function PocketBirdRenderer({ pixels, size }: PocketBirdRendererProps) {
+  const { pixelSize, displaySize } = useMemo(
+    () => resolvePocketBirdDisplaySize(size),
+    [size],
+  );
   const runs = useMemo(() => compressPixelRuns(pixels), [pixels]);
 
   return (
-    <Svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${POCKET_BIRD_GRID} ${POCKET_BIRD_GRID}`}
-    >
+    <View style={{ width: displaySize, height: displaySize }}>
       {runs.map((run, index) => (
-        <Rect
+        <View
           key={`${run.x}-${run.y}-${run.width}-${run.fill}-${index}`}
-          x={run.x}
-          y={run.y}
-          width={run.width}
-          height={1}
-          fill={run.fill}
+          style={{
+            position: "absolute",
+            left: run.x * pixelSize,
+            top: run.y * pixelSize,
+            width: run.width * pixelSize,
+            height: pixelSize,
+            backgroundColor: run.fill,
+          }}
         />
       ))}
-    </Svg>
+    </View>
   );
 }
 

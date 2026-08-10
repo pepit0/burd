@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Avatar } from "@/components/Avatar";
+import { DisplayNameText } from "@/components/DisplayNameText";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { listBlockedUsers, unblockUser, type BlockedUser } from "@/lib/blocks";
@@ -90,12 +91,14 @@ export default function BlockedUsersScreen() {
                 size={40}
               />
               <View className="min-w-0 flex-1">
-                <Text className="font-sans-medium text-sm text-foreground">
+                <DisplayNameText
+                  text={row.full_name || row.username}
+                  className="font-sans-medium text-sm text-foreground"
+                  numberOfLines={1}
+                />
+                <Text className="font-mono text-xs text-muted-foreground" numberOfLines={1}>
                   @{row.username}
                 </Text>
-                {row.full_name ? (
-                  <Text className="font-sans text-xs text-muted-foreground">{row.full_name}</Text>
-                ) : null}
               </View>
               <Pressable
                 onPress={() => void handleUnblock(row)}

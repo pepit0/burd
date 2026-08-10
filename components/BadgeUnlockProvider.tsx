@@ -17,10 +17,14 @@ import {
   initializeCelebratedBadges,
   markBadgeCelebrated,
 } from "@/lib/badgeUnlockStorage";
-import type { ProfileBadge } from "@/lib/profileBadges";
+import {
+  fetchProfileBadgesForUser,
+  type ProfileBadge,
+} from "@/lib/profileBadges";
 
 interface BadgeUnlockContextValue {
   syncEarnedBadges: (badges: ProfileBadge[]) => Promise<void>;
+  refreshAndCelebrateBadges: () => Promise<void>;
   previewBadgeUnlock: (badge: ProfileBadge) => void;
 }
 
@@ -38,10 +42,20 @@ export function BadgeUnlockProvider({
   const [canDismiss, setCanDismiss] = useState(false);
   const queueRef = useRef<ProfileBadge[]>([]);
   const isPreviewRef = useRef(false);
-  const syncingRef = useRef(false);
   const showingRef = useRef(false);
+  const celebratingIdsRef = useRef(new Set<string>());
+  const pendingSyncResolvesRef = useRef<Array<() => void>>([]);
+  const syncChainRef = useRef(Promise.resolve());
   const userIdRef = useRef(userId);
   userIdRef.current = userId;
+
+  const flushPendingSyncResolves = useCallback(() => {
+    const resolves = pendingSyncResolvesRef.current;
+    pendingSyncResolvesRef.current = [];
+    for (const resolve of resolves) {
+      resolve();
+    }
+  }, []);
 
   const startNext = useCallback(() => {
     const next = queueRef.current.shift();
@@ -49,6 +63,7 @@ export function BadgeUnlockProvider({
       showingRef.current = false;
       setActiveBadge(null);
       setCanDismiss(false);
+      flushPendingSyncResolves();
       return;
     }
     showingRef.current = true;
@@ -56,7 +71,7 @@ export function BadgeUnlockProvider({
     setActiveBadge(next);
     setUnlockKey((key) => nextBadgeUnlockKey(key));
     void triggerBadgeUnlockHaptic();
-  }, []);
+  }, [flushPendingSyncResolves]);
 
   const dismiss = useCallback(() => {
     if (!canDismiss || !activeBadge) return;
@@ -69,6 +84,7 @@ export function BadgeUnlockProvider({
     if (!preview && userIdRef.current) {
       void markBadgeCelebrated(userIdRef.current, badgeId);
     }
+    celebratingIdsRef.current.delete(badgeId);
 
     showingRef.current = false;
     setActiveBadge(null);
@@ -77,9 +93,18 @@ export function BadgeUnlockProvider({
 
   const enqueue = useCallback(
     (badges: ProfileBadge[], preview: boolean) => {
-      if (badges.length === 0) return;
+      const toShow = preview
+        ? badges
+        : badges.filter((badge) => !celebratingIdsRef.current.has(badge.id));
+      if (toShow.length === 0) return;
+
       isPreviewRef.current = preview;
-      queueRef.current.push(...badges);
+      if (!preview) {
+        for (const badge of toShow) {
+          celebratingIdsRef.current.add(badge.id);
+        }
+      }
+      queueRef.current.push(...toShow);
       if (!showingRef.current) {
         startNext();
       }
@@ -88,25 +113,40 @@ export function BadgeUnlockProvider({
   );
 
   const syncEarnedBadges = useCallback(
-    async (badges: ProfileBadge[]) => {
+    (badges: ProfileBadge[]): Promise<void> => {
       const uid = userIdRef.current;
-      if (!uid || syncingRef.current) return;
+      if (!uid) return Promise.resolve();
 
-      syncingRef.current = true;
-      try {
+      const run = async (): Promise<void> => {
         const earned = badges.filter((badge) => badge.earned);
         const earnedIds = earned.map((badge) => badge.id);
         const newIds = await initializeCelebratedBadges(uid, earnedIds);
-        if (newIds.length === 0) return;
+        const unseenIds = newIds.filter((id) => !celebratingIdsRef.current.has(id));
+        if (unseenIds.length === 0) return;
 
-        const newBadges = earned.filter((badge) => newIds.includes(badge.id));
-        enqueue(newBadges, false);
-      } finally {
-        syncingRef.current = false;
-      }
+        const newBadges = earned.filter((badge) => unseenIds.includes(badge.id));
+        if (newBadges.length === 0) return;
+
+        return new Promise<void>((resolve) => {
+          pendingSyncResolvesRef.current.push(resolve);
+          enqueue(newBadges, false);
+        });
+      };
+
+      const next = syncChainRef.current.then(run, run);
+      syncChainRef.current = next.catch(() => undefined);
+      return next;
     },
     [enqueue],
   );
+
+  const refreshAndCelebrateBadges = useCallback(async (): Promise<void> => {
+    const uid = userIdRef.current;
+    if (!uid) return;
+
+    const badges = await fetchProfileBadgesForUser(uid);
+    await syncEarnedBadges(badges);
+  }, [syncEarnedBadges]);
 
   const previewBadgeUnlock = useCallback(
     (badge: ProfileBadge) => {
@@ -127,9 +167,10 @@ export function BadgeUnlockProvider({
   const value = useMemo(
     () => ({
       syncEarnedBadges,
+      refreshAndCelebrateBadges,
       previewBadgeUnlock,
     }),
-    [syncEarnedBadges, previewBadgeUnlock],
+    [syncEarnedBadges, refreshAndCelebrateBadges, previewBadgeUnlock],
   );
 
   return (

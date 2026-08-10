@@ -2,7 +2,7 @@ export type Rarity = "common" | "uncommon" | "rare";
 
 export type DetectedBy = "manual" | "image" | "audio" | "both";
 
-export type ActivityType = "like" | "follow" | "comment" | "milestone" | "log" | "moderation" | "repost";
+export type ActivityType = "like" | "follow" | "comment" | "milestone" | "log" | "moderation" | "repost" | "post";
 
 export type UserRole = "user" | "admin";
 
@@ -19,6 +19,7 @@ export interface NotificationPrefs {
   comments: boolean;
   follows: boolean;
   reposts: boolean;
+  friend_posts: boolean;
   nearby_rare: boolean;
 }
 
@@ -44,6 +45,11 @@ export interface Prediction {
   species: string;
   scientific_name: string | null;
   confidence: number; // 0..1
+}
+
+export interface PostAudioTrim {
+  startMs: number;
+  endMs: number;
 }
 
 export interface Profile {
@@ -103,6 +109,22 @@ export interface SightingPhotoInput {
   detected_by?: DetectedBy;
 }
 
+/** A birder tagged "with" on a post. */
+export interface SightingCompanion {
+  user_id: string;
+  username: string;
+  avatar_color: string;
+  avatar_url: string | null;
+  full_name?: string | null;
+}
+
+/** Attribution when audio is borrowed from another public post. */
+export interface AudioSourceAttribution {
+  sighting_id: string;
+  user_id: string;
+  username: string;
+}
+
 export interface Sighting {
   id: string;
   user_id: string;
@@ -132,6 +154,14 @@ export interface Sighting {
   author_disqualification_reason?: string | null;
   audio_url?: string | null;
   audio_predictions?: Prediction[] | null;
+  /** When set, audio was borrowed from another user's public post. */
+  audio_source_sighting_id?: string | null;
+  audio_source?: AudioSourceAttribution | null;
+  /** People tagged "with" on this post. */
+  companions?: SightingCompanion[];
+  /** Trim start/end for profile posts; journal keeps full audio_url. */
+  published_audio_start_ms?: number | null;
+  published_audio_end_ms?: number | null;
   /** Set when shared to profile / feed; null = journal-only. */
   published_at?: string | null;
   visibility?: SightingVisibility | null;
@@ -191,7 +221,7 @@ export interface ActivityItem {
   detail: string | null;
   created_at: string;
   read_at: string | null;
-  actor: { username: string; avatar_color: string } | null;
+  actor: { username: string; avatar_color: string; avatar_url: string | null } | null;
   sighting: { species: string; photo_url: string | null; audio_url: string | null } | null;
 }
 
@@ -214,6 +244,12 @@ export interface NewSightingInput {
   audio_url?: string | null;
   audio_predictions?: Prediction[] | null;
   sound_library_id?: string | null;
+  /** Borrow audio from a friend's public post instead of uploading. */
+  audio_source_sighting_id?: string | null;
+  /** User ids tagged "with" on this post. */
+  companion_user_ids?: string[];
+  /** Trim bounds applied when publishing with attached audio. */
+  audio_trim?: PostAudioTrim | null;
   /** When true, sighting appears on profile and in the public feed. */
   publish?: boolean;
   visibility?: SightingVisibility;
@@ -299,6 +335,17 @@ export interface AdminPostEditInput {
 export interface JournalSightingUpdate extends AdminPostEditInput {
   observed_at?: string | null;
   photo_url?: string | null;
+}
+
+/** Add or replace media on an existing sighting (photo and/or audio). */
+export interface SightingMediaUpdate {
+  photo_url?: string | null;
+  photo_count?: number;
+  audio_url?: string | null;
+  audio_predictions?: Prediction[] | null;
+  audio_source_sighting_id?: string | null;
+  published_audio_start_ms?: number | null;
+  published_audio_end_ms?: number | null;
 }
 
 /** Caption-only edits allowed while a sighting stays published. */

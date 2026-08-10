@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View, type LayoutChangeEvent } from "react-native";
 import { Pause, Play } from "lucide-react-native";
+import { AudioScrubBar } from "@/components/AudioScrubBar";
 import type { AudioPlaybackState } from "@/hooks/useAudioPlayback";
 import { PLAYBACK_BAR_COUNT } from "@/hooks/useAudioPlayback";
 
@@ -9,13 +10,6 @@ const FRAME_PADDING_X = 20;
 const FRAME_PADDING_TOP = 12;
 const FRAME_PADDING_BOTTOM_INTERACTIVE = 30;
 const FRAME_PADDING_BOTTOM = 8;
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.round(ms / 1000));
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = totalSeconds % 60;
-  return `${mins}:${String(secs).padStart(2, "0")}`;
-}
 
 function clampLevel(level: number): number {
   return Math.min(1, Math.max(0, level));
@@ -51,11 +45,6 @@ export function PlaybackWaveform({
     variant === "hero" ? 48 : 28,
     frameHeight - FRAME_PADDING_TOP - paddingBottom,
   );
-
-  const timeLabel =
-    playback.playing || playback.positionMs > 0
-      ? formatDuration(playback.positionMs)
-      : formatDuration(playback.durationMs || 0);
 
   const reactiveLevels =
     playback.liveLevels && playback.liveLevels.length > 0 ? playback.liveLevels : null;
@@ -154,13 +143,19 @@ export function PlaybackWaveform({
             </Pressable>
           </View>
 
-          <Text className="absolute bottom-2.5 right-3 z-10 font-mono text-[10px] text-muted-foreground">
-            {timeLabel}
-          </Text>
+          <View className="absolute bottom-2 left-3 right-3 z-10">
+            <AudioScrubBar
+              playback={playback}
+              variant="overlay"
+              showDuration
+              trackClassName="rounded-full bg-background/70"
+              fillClassName="h-full rounded-full bg-primary"
+            />
+          </View>
 
           {playback.error ? (
             <Text
-              className="absolute bottom-2.5 left-3 z-10 max-w-[55%] font-sans text-[10px] text-red-400/90"
+              className="absolute bottom-8 left-3 z-10 max-w-[55%] font-sans text-[10px] text-red-400/90"
               numberOfLines={1}
             >
               {playback.error}

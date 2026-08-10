@@ -9,6 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { BookOpen, Trash2, X } from "lucide-react-native";
+import { AudioPlayer } from "@/components/AudioPlayer";
 import { LiveSoundControlBar } from "@/components/LiveSoundControlBar";
 import { LiveSoundSpaceVisualizer } from "@/components/LiveSoundSpaceVisualizer";
 import {
@@ -344,6 +345,17 @@ export default function AudioIdentifyScreen() {
                   when you are ready.
                 </Text>
               )}
+              {sessionReview ? (
+                <View className="gap-2">
+                  <Text className="font-sans-medium text-xs text-foreground">
+                    Session recording
+                  </Text>
+                  <AudioPlayer
+                    uri={sessionReview.longestUri}
+                    durationMs={sessionReview.totalDurationMs}
+                  />
+                </View>
+              ) : null}
               <View className="mt-1 flex-row gap-2">
                 <Pressable
                   onPress={() => discardSession()}

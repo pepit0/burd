@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Easing,
   cancelAnimation,
-  runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -15,44 +14,32 @@ const SHOW_DELTA = 1;
 /** Downward scroll — ignore small jitter before hiding. */
 const HIDE_DELTA = 10;
 const TOOLBAR_EASING = Easing.bezier(0.4, 0, 0.2, 1);
+const TOOLBAR_TIMING = {
+  duration: TOOLBAR_ANIM_MS,
+  easing: TOOLBAR_EASING,
+} as const;
 
 /** Ignore bottom-edge settle / load-more content growth within this band. */
 const BOTTOM_EDGE_INSET = 32;
 
 export function useCollapsibleToolbar() {
-  const scrollY = useRef(0);
+  const scrollYShared = useSharedValue(0);
   const lastScrollY = useSharedValue(0);
   const lastContentHeight = useSharedValue(0);
+  const toolbarTarget = useSharedValue(1);
   const [barHeight, setBarHeight] = useState(52);
   const [toolbarHeight, setToolbarHeight] = useState(72);
-  const [toolbarVisible, setToolbarVisible] = useState(true);
-  const toolbarVisibleRef = useRef(true);
   const toolbarProgress = useSharedValue(1);
   const tabBarClearance = useTabBarClearance();
 
-  useEffect(() => {
+  const showToolbarOnUiThread = (visible: boolean) => {
+    "worklet";
+    const next = visible ? 1 : 0;
+    if (toolbarTarget.value === next) return;
+    toolbarTarget.value = next;
     cancelAnimation(toolbarProgress);
-    toolbarProgress.value = withTiming(toolbarVisible ? 1 : 0, {
-      duration: TOOLBAR_ANIM_MS,
-      easing: TOOLBAR_EASING,
-    });
-  }, [toolbarVisible, toolbarProgress]);
-
-  const syncScrollY = useCallback((y: number) => {
-    scrollY.current = y;
-  }, []);
-
-  const showToolbar = useCallback(() => {
-    if (toolbarVisibleRef.current) return;
-    toolbarVisibleRef.current = true;
-    setToolbarVisible(true);
-  }, []);
-
-  const hideToolbar = useCallback(() => {
-    if (!toolbarVisibleRef.current) return;
-    toolbarVisibleRef.current = false;
-    setToolbarVisible(false);
-  }, []);
+    toolbarProgress.value = withTiming(next, TOOLBAR_TIMING);
+  };
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -64,22 +51,22 @@ export function useCollapsibleToolbar() {
       const contentGrew = contentHeight > lastContentHeight.value + 1;
       lastScrollY.value = y;
       lastContentHeight.value = contentHeight;
-      runOnJS(syncScrollY)(y);
+      scrollYShared.value = y;
 
       const nearBottom = maxY > 0 && y >= maxY - BOTTOM_EDGE_INSET;
 
       if (y <= 8) {
-        runOnJS(showToolbar)();
+        showToolbarOnUiThread(true);
         return;
       }
 
       if (delta < -SHOW_DELTA && !nearBottom && !contentGrew) {
-        runOnJS(showToolbar)();
+        showToolbarOnUiThread(true);
         return;
       }
 
       if (delta > HIDE_DELTA) {
-        runOnJS(hideToolbar)();
+        showToolbarOnUiThread(false);
       }
     },
   });
@@ -106,13 +93,12 @@ export function useCollapsibleToolbar() {
   );
 
   const resetToolbar = useCallback(() => {
-    lastScrollY.value = scrollY.current;
+    lastScrollY.value = scrollYShared.value;
     lastContentHeight.value = 0;
-    toolbarVisibleRef.current = true;
-    setToolbarVisible(true);
+    toolbarTarget.value = 1;
     cancelAnimation(toolbarProgress);
     toolbarProgress.value = 1;
-  }, [lastContentHeight, lastScrollY, toolbarProgress]);
+  }, [lastContentHeight, lastScrollY, scrollYShared, toolbarProgress, toolbarTarget]);
 
   const contentContainerStyle = {
     paddingTop: barHeight + toolbarHeight + 8,
@@ -143,9 +129,8 @@ export function useCollapsibleToolbar() {
   }, [barHeight, toolbarHeight, tabBarClearance]);
 
   return {
-    scrollY,
+    scrollYShared,
     toolbarProgress,
-    toolbarVisible,
     barHeight,
     toolbarHeight,
     tabBarClearance,

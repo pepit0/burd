@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { InteractionManager } from "react-native";
 import {
   feedPhotoLayout,
   getImagePixelSize,
@@ -23,16 +24,19 @@ export function useFeedPhotoLayout(photoUrl: string | null | undefined): FeedPho
     }
 
     let cancelled = false;
-    getImagePixelSize(photoUrl)
-      .then(({ width, height }) => {
-        if (!cancelled) setLayout(feedPhotoLayout(width, height));
-      })
-      .catch(() => {
-        if (!cancelled) setLayout(DEFAULT_LAYOUT);
-      });
+    const task = InteractionManager.runAfterInteractions(() => {
+      getImagePixelSize(photoUrl)
+        .then(({ width, height }) => {
+          if (!cancelled) setLayout(feedPhotoLayout(width, height));
+        })
+        .catch(() => {
+          if (!cancelled) setLayout(DEFAULT_LAYOUT);
+        });
+    });
 
     return () => {
       cancelled = true;
+      task.cancel();
     };
   }, [photoUrl]);
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  InteractionManager,
   Pressable,
   Text,
   View,
@@ -14,6 +15,7 @@ import { Avatar } from "@/components/Avatar";
 import { MentionText } from "@/components/MentionText";
 import { MentionTextInput } from "@/components/MentionTextInput";
 import { UserStatusBadges } from "@/components/UserStatusBadges";
+import { useBadgeUnlock } from "@/components/BadgeUnlockProvider";
 import {
   countComments,
   createComment,
@@ -191,6 +193,7 @@ export function PostComments({
   onUserBlocked,
 }: PostCommentsProps) {
   const router = useRouter();
+  const { refreshAndCelebrateBadges } = useBadgeUnlock();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -230,6 +233,9 @@ export function PostComments({
       setText("");
       setReplyTo(null);
       await loadComments();
+      InteractionManager.runAfterInteractions(() => {
+        void refreshAndCelebrateBadges();
+      });
     } catch (e) {
       setError(getUserFacingMessage(e));
     } finally {

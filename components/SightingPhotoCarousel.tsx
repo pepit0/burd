@@ -94,6 +94,7 @@ export function SightingPhotoCarousel({
         }
         contentFit={contentFit}
         recyclingKey={uri}
+        priority={pinchEnabled ? "normal" : "low"}
       />
     );
 
@@ -142,6 +143,7 @@ export function SightingPhotoCarousel({
                 contentFit="cover"
                 blurRadius={28}
                 recyclingKey={`${photo.photo_url}-blur`}
+                priority={pinchEnabled ? "normal" : "low"}
               />
             ) : null}
             <View

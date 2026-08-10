@@ -17,7 +17,7 @@ interface PocketBirdHatPickerProps {
   onSelect: (hatId: PocketBirdHatId) => void;
 }
 
-const PREVIEW_SIZE = 56;
+const PREVIEW_SIZE = 64;
 
 function hatLayerToPixels(grid: string[][]): PocketBirdPixel[] {
   const pixels: PocketBirdPixel[] = [];

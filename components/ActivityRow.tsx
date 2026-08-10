@@ -21,6 +21,7 @@ import type { ActivityItem } from "@/types";
 function ActivityIcon({ type }: { type: ActivityItem["type"] }) {
   if (type === "like") return <Heart size={12} color="#f87171" fill="rgba(248,113,113,0.4)" />;
   if (type === "repost") return <Repeat2 size={12} color="#5f9470" />;
+  if (type === "post") return <Feather size={12} color="#c8893a" />;
   if (type === "follow") return <User size={12} color="#5f9470" />;
   if (type === "comment") return <MessageCircle size={12} color="#8a9e82" />;
   if (type === "log") return <Feather size={12} color="#c8893a" />;
@@ -97,7 +98,12 @@ export function ActivityRow({
       }`}
     >
       <Pressable onPress={goToActor} className="relative active:opacity-80">
-        <Avatar user={handle} color={color} size={36} />
+        <Avatar
+          user={handle}
+          color={color}
+          avatarUrl={event.actor?.avatar_url}
+          size={36}
+        />
         <View className="absolute -bottom-0.5 -right-0.5 h-4 w-4 items-center justify-center rounded-full border border-border bg-card">
           <ActivityIcon type={event.type} />
         </View>

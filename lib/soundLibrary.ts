@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { audioUploadMeta, readLocalAudioBytes } from "@/lib/audioUpload";
+import { stabilizeAudioForUpload } from "@/lib/audioUploadStabilize";
 import { enrichPredictions } from "@/lib/predictionLabels";
 import type { Prediction, SoundLibraryEntry } from "@/types";
 
@@ -19,9 +20,10 @@ export async function uploadSoundClip(
   userId: string,
   localUri: string,
 ): Promise<string> {
-  const { ext, contentType } = audioUploadMeta(localUri);
+  const stableUri = await stabilizeAudioForUpload(localUri);
+  const { ext, contentType } = audioUploadMeta(stableUri);
   const path = `${userId}/${Date.now()}.${ext}`;
-  const bytes = await readLocalAudioBytes(localUri);
+  const bytes = await readLocalAudioBytes(stableUri);
 
   const { error } = await supabase.storage
     .from("sound_clips")

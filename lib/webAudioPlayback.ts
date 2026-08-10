@@ -75,6 +75,14 @@ export class WebAudioPlaybackEngine {
     this.playing = true;
   }
 
+  seekTo(ms: number): void {
+    const durationMs = this.getDurationMs();
+    this.pauseOffsetMs = Math.max(0, Math.min(ms, durationMs));
+    if (this.playing) {
+      void this.play();
+    }
+  }
+
   pause(): void {
     if (!this.playing || !this.context) return;
     this.pauseOffsetMs = this.getPositionMs();

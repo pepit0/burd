@@ -9,7 +9,7 @@ import { type PocketBirdHatId } from "@/lib/pocketBird/hats";
 import type { Profile } from "@/types";
 
 const PROFILE_BANNER_HEIGHT = 112;
-const PROFILE_PET_SIZE = 52;
+const PROFILE_PET_SIZE = 64;
 
 export { PROFILE_BANNER_HEIGHT, PROFILE_PET_SIZE };
 

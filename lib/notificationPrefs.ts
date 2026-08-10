@@ -6,6 +6,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   comments: true,
   follows: true,
   reposts: true,
+  friend_posts: true,
   nearby_rare: true,
 };
 
@@ -17,6 +18,7 @@ export function normalizeNotificationPrefs(
     comments: raw?.comments ?? true,
     follows: raw?.follows ?? true,
     reposts: raw?.reposts ?? true,
+    friend_posts: raw?.friend_posts ?? true,
     nearby_rare: raw?.nearby_rare ?? true,
   };
 }
@@ -44,6 +46,8 @@ export function activityTypeToPrefKey(
       return "follows";
     case "repost":
       return "reposts";
+    case "post":
+      return "friend_posts";
     case "milestone":
     case "log":
       return "nearby_rare";
@@ -61,6 +65,11 @@ export const NOTIFICATION_PREF_LABELS: {
   { key: "comments", label: "Comments", detail: "When someone comments on your post" },
   { key: "follows", label: "Friends", detail: "Friend requests and acceptances" },
   { key: "reposts", label: "Reposts", detail: "When someone reposts your sighting" },
+  {
+    key: "friend_posts",
+    label: "Friend posts",
+    detail: "When a friend shares a new sighting",
+  },
   {
     key: "nearby_rare",
     label: "Nearby rare sightings",

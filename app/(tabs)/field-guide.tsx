@@ -237,7 +237,6 @@ export default function FieldGuideScreen() {
   const tabBarClearance = useTabBarClearance();
   const {
     toolbarProgress,
-    toolbarVisible,
     handleHeightsChange,
     scrollHandler,
     handleScrollBeginDrag,
@@ -495,7 +494,7 @@ export default function FieldGuideScreen() {
   const showExploreTab = !viewUserId;
 
   const guideToolbar = (
-    <>
+    <View key={tab}>
       {showExploreTab ? (
         <View className="px-4 pb-1 pt-3">
           <ScrollView
@@ -572,7 +571,7 @@ export default function FieldGuideScreen() {
           </View>
         </View>
       ) : null}
-    </>
+    </View>
   );
 
   return (
@@ -581,7 +580,6 @@ export default function FieldGuideScreen() {
         title={headerTitle}
         toolbar={guideToolbar}
         toolbarProgress={toolbarProgress}
-        toolbarVisible={toolbarVisible}
         onHeightsChange={handleHeightsChange}
       />
 
@@ -628,6 +626,7 @@ export default function FieldGuideScreen() {
             initialNumToRender={5}
             maxToRenderPerBatch={3}
             windowSize={5}
+            updateCellsBatchingPeriod={50}
             removeClippedSubviews
             onScroll={scrollHandler}
             onScrollBeginDrag={() => {

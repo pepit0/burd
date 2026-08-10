@@ -124,18 +124,46 @@ export function getSightingsForSpecies(
     );
 }
 
+/** Normalize names for forgiving search (spaces, dashes, punctuation). */
+export function normalizeFieldGuideSearchText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[_\-–—/]/g, " ")
+    .replace(/[''`]/g, "")
+    .replace(/[.,()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactFieldGuideSearchText(text: string): string {
+  return normalizeFieldGuideSearchText(text).replace(/\s+/g, "");
+}
+
+function matchesFieldGuideQuery(haystack: string, query: string): boolean {
+  const normalizedQuery = normalizeFieldGuideSearchText(query);
+  if (!normalizedQuery) return true;
+
+  const normalizedHaystack = normalizeFieldGuideSearchText(haystack);
+  if (normalizedHaystack.includes(normalizedQuery)) return true;
+
+  return compactFieldGuideSearchText(haystack).includes(
+    compactFieldGuideSearchText(query),
+  );
+}
+
 export function filterCatalog(
   catalog: CatalogSpecies[],
   query: string,
 ): CatalogSpecies[] {
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   if (!q) return catalog;
 
   return catalog.filter(
     (item) =>
-      item.species.toLowerCase().includes(q) ||
-      item.scientific_name.toLowerCase().includes(q) ||
-      item.family.toLowerCase().includes(q),
+      matchesFieldGuideQuery(item.species, q) ||
+      matchesFieldGuideQuery(item.scientific_name, q) ||
+      matchesFieldGuideQuery(item.family, q),
   );
 }
 
@@ -192,13 +220,13 @@ export function filterFieldGuide(
   entries: FieldGuideEntry[],
   query: string,
 ): FieldGuideEntry[] {
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   if (!q) return entries;
 
   return entries.filter(
     (entry) =>
-      entry.species.toLowerCase().includes(q) ||
-      entry.scientific_name.toLowerCase().includes(q) ||
-      entry.family.toLowerCase().includes(q),
+      matchesFieldGuideQuery(entry.species, q) ||
+      matchesFieldGuideQuery(entry.scientific_name, q) ||
+      matchesFieldGuideQuery(entry.family, q),
   );
 }

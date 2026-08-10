@@ -9,6 +9,7 @@ import {
   type TextInputProps,
 } from "react-native";
 import { Avatar } from "@/components/Avatar";
+import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { applyMention, getActiveMentionQuery } from "@/lib/mentions";
 import { searchUsersForMention, type UserListItem } from "@/lib/social";
 
@@ -98,16 +99,23 @@ export function MentionTextInput({
                 onPress={() => pickUser(user)}
                 className="flex-row items-center gap-2.5 border-b border-border/40 px-3 py-2.5 active:bg-card"
               >
-                <Avatar user={user.username} color={user.avatar_color} size={28} />
+                <Avatar
+                  user={user.username}
+                  color={user.avatar_color}
+                  avatarUrl={user.avatar_url}
+                  size={28}
+                />
                 <View className="min-w-0 flex-1">
-                  <Text className="font-sans-medium text-sm text-foreground">
+                  <DisplayNameWithBadges
+                    text={user.full_name || user.username}
+                    isVerified={user.is_verified}
+                    isBeta={user.is_beta}
+                    className="font-sans-medium text-sm text-foreground"
+                    numberOfLines={1}
+                  />
+                  <Text className="font-mono text-xs text-muted-foreground" numberOfLines={1}>
                     @{user.username}
                   </Text>
-                  {user.full_name ? (
-                    <Text className="font-sans text-xs text-muted-foreground">
-                      {user.full_name}
-                    </Text>
-                  ) : null}
                 </View>
               </Pressable>
             ))

@@ -57,9 +57,8 @@ export function ScrollScreen<T = unknown>({
   const listRef = useRef<FlatList<T>>(null);
   const [headerHeight, setHeaderHeight] = useState(DEFAULT_TAB_HEADER_HEIGHT);
   const {
-    scrollY,
+    scrollYShared,
     toolbarProgress,
-    toolbarVisible,
     handleHeightsChange,
     scrollHandler,
     handleScrollBeginDrag,
@@ -91,12 +90,19 @@ export function ScrollScreen<T = unknown>({
     useCallback(() => {
       if (!hideHeaderOnScroll) return;
       resetToolbar();
-      if (scrollY.current < 0) {
+      if (scrollYShared.value < 0) {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
         listRef.current?.scrollToOffset({ offset: 0, animated: false });
-        scrollY.current = 0;
+        scrollYShared.value = 0;
       }
-    }, [hideHeaderOnScroll, resetToolbar, scrollY]),
+    }, [hideHeaderOnScroll, resetToolbar, scrollYShared]),
+  );
+
+  const renderFlatListItem = useCallback(
+    (info: Parameters<NonNullable<typeof renderListItem>>[0]) => (
+      <View className={listItemClassName}>{renderListItem!(info)}</View>
+    ),
+    [renderListItem, listItemClassName],
   );
 
   const scrollContentStyle = {
@@ -127,7 +133,6 @@ export function ScrollScreen<T = unknown>({
           headerAction={headerAction}
           toolbar={toolbar}
           toolbarProgress={toolbarProgress}
-          toolbarVisible={toolbarVisible}
           onHeightsChange={handleToolbarHeights}
         />
         <Animated.View
@@ -138,9 +143,7 @@ export function ScrollScreen<T = unknown>({
               ref={listRef as RefObject<FlatList<T>>}
               data={listData as T[]}
               keyExtractor={listKeyExtractor}
-              renderItem={(info) => (
-                <View className={listItemClassName}>{renderListItem(info)}</View>
-              )}
+              renderItem={renderFlatListItem}
               ListEmptyComponent={
                 ListEmptyComponent ? (
                   <View className={`${listItemClassName} pt-2`}>{ListEmptyComponent}</View>
@@ -160,9 +163,10 @@ export function ScrollScreen<T = unknown>({
               contentContainerStyle={listContentStyle}
               refreshControl={refreshControl}
               removeClippedSubviews
-              initialNumToRender={4}
-              maxToRenderPerBatch={6}
-              windowSize={7}
+              initialNumToRender={3}
+              maxToRenderPerBatch={4}
+              windowSize={5}
+              updateCellsBatchingPeriod={50}
               {...keyboardAwareScrollProps}
             />
           ) : (

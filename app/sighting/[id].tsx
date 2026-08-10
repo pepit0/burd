@@ -25,7 +25,13 @@ import {
 } from "lucide-react-native";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SightingPhotoCarousel } from "@/components/SightingPhotoCarousel";
+import { AudioPlayer } from "@/components/AudioPlayer";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
+import { AudioTrimModal } from "@/components/AudioTrimModal";
+import {
+  SpeciesPickerSheet,
+  type SpeciesPickerSuggestion,
+} from "@/components/SpeciesPickerSheet";
 import {
   DismissKeyboardArea,
   dismissKeyboardOnScrollDrag,
@@ -34,7 +40,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { getLoadErrorMessage, getUserFacingMessage } from "@/lib/errors";
-import { deleteMySighting, getSightingById, publishSighting, unpublishSighting } from "@/lib/sightings";
+import { deleteMySighting, getSightingById, publishSighting, unpublishSighting, correctJournalSightingSpecies } from "@/lib/sightings";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
 import {
   displayScientificName,
@@ -49,7 +55,12 @@ import {
   sightingAddress,
   sightingCity,
 } from "@/lib/sightingFormat";
-import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
+import {
+  sightingHasAttachedAudio,
+  sightingHeroIsAudio,
+  sightingHeroIsPhoto,
+} from "@/lib/sightingMedia";
+import type { PostAudioTrim } from "@/lib/sightingAudio";
 import { SIGHTING_PHOTO_ASPECT } from "@/lib/sightingPhotoFrame";
 import {
   detectedByLabel,
@@ -100,6 +111,9 @@ export default function SightingDetailScreen() {
   const [resolvedCity, setResolvedCity] = useState<string | null>(null);
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [speciesPickerOpen, setSpeciesPickerOpen] = useState(false);
+  const [correctingSpecies, setCorrectingSpecies] = useState(false);
+  const [audioTrimModalOpen, setAudioTrimModalOpen] = useState(false);
   const audioPlayback = useAudioPlayback(sighting?.audio_url ?? null);
   const entryPhotos = useMemo(
     () => (sighting ? sightingPhotosForDisplay(sighting) : []),
@@ -184,22 +198,105 @@ export default function SightingDetailScreen() {
   const isJournalOnly = Boolean(sighting && !sighting.published_at);
   const isPosted = Boolean(sighting?.published_at);
 
+  const speciesSuggestions = useMemo((): SpeciesPickerSuggestion[] => {
+    if (!sighting) return [];
+
+    const suggestions: SpeciesPickerSuggestion[] = [];
+    const seen = new Set<string>();
+
+    function addSuggestion(
+      speciesName: string,
+      scientificName: string | null | undefined,
+      subtitle?: string,
+    ) {
+      const key = `${speciesName.trim().toLowerCase()}|${(scientificName ?? "").trim().toLowerCase()}`;
+      if (!speciesName.trim() || seen.has(key)) return;
+      seen.add(key);
+      suggestions.push({
+        species: speciesName.trim(),
+        scientific_name: scientificName?.trim() || "",
+        subtitle,
+      });
+    }
+
+    for (const prediction of sighting.audio_predictions ?? []) {
+      addSuggestion(
+        prediction.species,
+        prediction.scientific_name,
+        prediction.confidence != null
+          ? `${Math.round(prediction.confidence * 100)}% heard in clip`
+          : "Heard in clip",
+      );
+    }
+
+    for (const photo of entryPhotos) {
+      if (photo.species?.trim()) {
+        addSuggestion(
+          photo.species,
+          photo.scientific_name,
+          photo.confidence != null
+            ? `${Math.round(photo.confidence * 100)}% from photo`
+            : "From photo",
+        );
+      }
+    }
+
+    return suggestions;
+  }, [entryPhotos, sighting]);
+
+  async function handleSpeciesCorrection(species: string, scientific_name: string) {
+    if (!sighting || correctingSpecies) return;
+
+    setCorrectingSpecies(true);
+    try {
+      const updated = await correctJournalSightingSpecies(
+        sighting,
+        species,
+        scientific_name || null,
+      );
+      setSighting(updated);
+      setActivePhotoIndex(0);
+    } catch (e) {
+      Alert.alert("Could not update species", getUserFacingMessage(e));
+    } finally {
+      setCorrectingSpecies(false);
+    }
+  }
+
   useEffect(() => {
     if (loading || !sighting) return;
     if (userId && sighting.user_id === userId) return;
     router.replace(`/post/${sighting.id}`);
   }, [loading, router, sighting, userId]);
 
-  async function handlePublish() {
+  function beginPublish() {
+    if (!userId || !sighting || sighting.published_at) return;
+    if (sightingHasAttachedAudio(sighting)) {
+      setAudioTrimModalOpen(true);
+      return;
+    }
+    void handlePublish(null);
+  }
+
+  async function handlePublish(audioTrim: PostAudioTrim | null) {
     if (!userId || !sighting || sighting.published_at) return;
 
     setPublishing(true);
     try {
-      await publishSighting(userId, sighting.id);
-      setSighting({ ...sighting, published_at: new Date().toISOString() });
+      await publishSighting(userId, sighting.id, { audioTrim });
+      const publishedAt = new Date().toISOString();
+      setSighting({
+        ...sighting,
+        published_at: publishedAt,
+        published_audio_start_ms: audioTrim?.startMs ?? null,
+        published_audio_end_ms: audioTrim?.endMs ?? null,
+      });
+      setAudioTrimModalOpen(false);
       Alert.alert(
         "Posted to profile",
-        "This sighting is now visible on your profile and in the feed.",
+        sightingHasAttachedAudio(sighting)
+          ? "Your trimmed clip is now visible on your profile and in the feed. The full recording stays in your journal."
+          : "This sighting is now visible on your profile and in the feed.",
         [
           { text: "View post", onPress: () => router.push(`/post/${sighting.id}`) },
           { text: "OK", style: "cancel" },
@@ -228,7 +325,12 @@ export default function SightingDetailScreen() {
               setUnpublishing(true);
               try {
                 await unpublishSighting(userId, sighting.id);
-                setSighting({ ...sighting, published_at: null });
+                setSighting({
+                  ...sighting,
+                  published_at: null,
+                  published_audio_start_ms: null,
+                  published_audio_end_ms: null,
+                });
               } catch (e) {
                 Alert.alert("Could not remove post", getUserFacingMessage(e));
               } finally {
@@ -302,7 +404,7 @@ export default function SightingDetailScreen() {
           {...keyboardAwareScrollProps}
         >
           <DismissKeyboardArea>
-          {isPhotoSighting(sighting) ? (
+          {sightingHeroIsPhoto(sighting) ? (
             <View className="overflow-hidden bg-muted/40">
               <SightingPhotoCarousel
                 photos={entryPhotos}
@@ -311,7 +413,7 @@ export default function SightingDetailScreen() {
                 onIndexChange={setActivePhotoIndex}
               />
             </View>
-          ) : isAudioSighting(sighting) ? (
+          ) : sightingHeroIsAudio(sighting) ? (
             <View className="h-56 bg-muted">
               <PlaybackWaveform
                 playback={audioPlayback}
@@ -325,6 +427,17 @@ export default function SightingDetailScreen() {
               <Feather size={36} color="#3a4e35" />
             </View>
           )}
+
+          {sightingHeroIsPhoto(sighting) && sightingHasAttachedAudio(sighting) ? (
+            <View className="border-b border-border px-4 py-4">
+              <AudioPlayer uri={sighting.audio_url!} />
+              {sighting.audio_source ? (
+                <Text className="mt-2 text-right font-sans text-xs text-muted-foreground">
+                  recorded by @{sighting.audio_source.username}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
           {(() => {
             const heard = sighting.audio_predictions ?? [];
@@ -351,9 +464,21 @@ export default function SightingDetailScreen() {
                     : "Also heard in this clip"}
                 </Text>
                 {displayList.map((prediction, index) => (
-                  <View
+                  <Pressable
                     key={`${prediction.species}-${index}`}
-                    className="flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5"
+                    onPress={
+                      isOwner
+                        ? () =>
+                            void handleSpeciesCorrection(
+                              prediction.species,
+                              prediction.scientific_name ?? "",
+                            )
+                        : undefined
+                    }
+                    disabled={!isOwner || correctingSpecies}
+                    className={`flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 ${
+                      isOwner ? "active:opacity-90" : ""
+                    }`}
                   >
                     <Mic size={14} color="#5f9470" />
                     <View className="min-w-0 flex-1">
@@ -369,27 +494,60 @@ export default function SightingDetailScreen() {
                     <Text className="font-mono text-[10px] text-muted-foreground">
                       {Math.round(prediction.confidence * 100)}%
                     </Text>
-                  </View>
+                  </Pressable>
                 ))}
+                {isOwner ? (
+                  <Text className="font-sans text-xs text-muted-foreground">
+                    Tap a suggestion to use it as the logged species.
+                  </Text>
+                ) : null}
               </View>
             );
           })()}
 
           <View className="gap-5 px-4 pt-5">
             <View>
-              <Text className="font-serif-semibold text-2xl text-foreground">
-                {displaySpeciesName({
-                  species: activePhoto?.species?.trim() || sighting.species,
-                  scientific_name:
-                    activePhoto?.scientific_name ?? sighting.scientific_name,
-                  confidence: activePhoto?.confidence ?? sighting.confidence ?? 0,
-                })}
-              </Text>
-              {(activePhoto?.scientific_name ?? sighting.scientific_name) ? (
-                <Text className="mt-1 font-serif-italic text-sm text-foreground/60">
-                  {activePhoto?.scientific_name ?? sighting.scientific_name}
-                </Text>
-              ) : null}
+              {isOwner ? (
+                <Pressable
+                  onPress={() => setSpeciesPickerOpen(true)}
+                  disabled={correctingSpecies}
+                  className="active:opacity-90"
+                  accessibilityLabel="Change species"
+                >
+                  <Text className="font-serif-semibold text-2xl text-foreground">
+                    {displaySpeciesName({
+                      species: activePhoto?.species?.trim() || sighting.species,
+                      scientific_name:
+                        activePhoto?.scientific_name ?? sighting.scientific_name,
+                      confidence: activePhoto?.confidence ?? sighting.confidence ?? 0,
+                    })}
+                  </Text>
+                  {(activePhoto?.scientific_name ?? sighting.scientific_name) ? (
+                    <Text className="mt-1 font-serif-italic text-sm text-foreground/60">
+                      {activePhoto?.scientific_name ?? sighting.scientific_name}
+                    </Text>
+                  ) : null}
+                  <Text className="mt-2 font-sans-medium text-xs text-primary">
+                    {correctingSpecies ? "Updating species…" : "Tap to change species"}
+                  </Text>
+                </Pressable>
+              ) : (
+                <>
+                  <Text className="font-serif-semibold text-2xl text-foreground">
+                    {displaySpeciesName({
+                      species: activePhoto?.species?.trim() || sighting.species,
+                      scientific_name:
+                        activePhoto?.scientific_name ?? sighting.scientific_name,
+                      confidence: activePhoto?.confidence ?? sighting.confidence ?? 0,
+                    })}
+                  </Text>
+                  {(activePhoto?.scientific_name ?? sighting.scientific_name) ? (
+                    <Text className="mt-1 font-serif-italic text-sm text-foreground/60">
+                      {activePhoto?.scientific_name ?? sighting.scientific_name}
+                    </Text>
+                  ) : null}
+                </>
+              )}
               <View className="mt-3 flex-row flex-wrap items-center gap-2">
                 <RarityBadge rarity={rarity} />
                 <Text className="font-mono text-sm text-accent">
@@ -458,6 +616,7 @@ export default function SightingDetailScreen() {
                 <Text className="flex-1 font-sans text-xs text-foreground/80">
                   Identified by {detectionSourceLabel(sighting.detected_by)} ·{" "}
                   {Math.round(sighting.confidence * 100)}% match
+                  {isOwner ? ". Tap the species name above to correct it." : ""}
                 </Text>
               </View>
             ) : null}
@@ -470,6 +629,9 @@ export default function SightingDetailScreen() {
                 <Text className="font-sans text-xs leading-relaxed text-muted-foreground">
                   This sighting is private in your journal. Edit it anytime, or share it when you
                   are ready for it to appear on your profile.
+                  {sightingHasAttachedAudio(sighting)
+                    ? " You'll be able to trim the clip before posting."
+                    : ""}
                 </Text>
                 <View className="flex-row gap-2">
                   <Pressable
@@ -480,7 +642,7 @@ export default function SightingDetailScreen() {
                     <Text className="font-sans-medium text-sm text-foreground">Edit entry</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => void handlePublish()}
+                    onPress={beginPublish}
                     disabled={publishing}
                     className="flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-primary py-3 active:opacity-90 disabled:opacity-60"
                   >
@@ -572,6 +734,17 @@ export default function SightingDetailScreen() {
               ) : null}
             </View>
 
+            {sighting.companions && sighting.companions.length > 0 ? (
+              <View>
+                <Text className="mb-1.5 font-sans-medium text-sm text-foreground/80">
+                  With you
+                </Text>
+                <Text className="font-sans text-sm text-foreground/85">
+                  {sighting.companions.map((companion) => `@${companion.username}`).join(", ")}
+                </Text>
+              </View>
+            ) : null}
+
             {sighting.notes ? (
               <View>
                 <Text className="mb-1.5 font-sans-medium text-sm text-foreground/80">
@@ -596,6 +769,27 @@ export default function SightingDetailScreen() {
           </DismissKeyboardArea>
         </ScrollView>
       )}
+
+      <SpeciesPickerSheet
+        visible={speciesPickerOpen}
+        title="Change species"
+        suggestions={speciesSuggestions}
+        onClose={() => setSpeciesPickerOpen(false)}
+        onSelect={(selection) => {
+          void handleSpeciesCorrection(selection.species, selection.scientific_name);
+        }}
+      />
+
+      {sighting?.audio_url ? (
+        <AudioTrimModal
+          visible={audioTrimModalOpen}
+          audioUrl={sighting.audio_url}
+          onCancel={() => setAudioTrimModalOpen(false)}
+          onConfirm={(trim) => {
+            void handlePublish(trim);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

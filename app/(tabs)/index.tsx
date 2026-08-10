@@ -26,24 +26,22 @@ import {
   type FeedNearbyFilter,
   type FeedRarityFilter,
 } from "@/lib/filters";
-import { getMyProfile } from "@/lib/sightings";
+import { getMyProfile, searchFeedByHashtag } from "@/lib/sightings";
 import { isSpeciesRarityVisible } from "@/lib/rarity";
+import { matchesSightingSearch } from "@/lib/sightingSearch";
 import type { ActivityItem, FeedSighting } from "@/types";
 
 const HOME_TABS = [
   { id: "for_you", label: "For you" },
   { id: "following", label: "Friends" },
-  { id: "new", label: "New" },
   { id: "activity", label: "Activity" },
 ] as const;
 
 type Tab = (typeof HOME_TABS)[number]["id"];
 
 const EMPTY_COPY: Record<FeedFilter, string> = {
-  for_you:
-    "No suggestions yet. Explore New or find birders near you to get personalized picks.",
+  for_you: "Recent posts from birders everywhere will appear here.",
   following: "Posts from birders you're friends with will appear here.",
-  new: "No new sightings from around the world yet.",
 };
 
 function TabChip({
@@ -82,6 +80,7 @@ export default function HomeScreen() {
   const [radiusKm, setRadiusKm] = useState<number | null>(25);
   const [tab, setTab] = useState<Tab>("for_you");
   const [search, setSearch] = useState("");
+  const [hashtagMatches, setHashtagMatches] = useState<FeedSighting[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [contentFilters, setContentFilters] = useState<FeedContentFilters>(
     DEFAULT_FEED_CONTENT_FILTERS,
@@ -130,21 +129,72 @@ export default function HomeScreen() {
   const needsNearbyLocation =
     !isActivity && contentFilters.nearby === "nearby" && !coords;
 
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) {
+      setHashtagMatches([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void searchFeedByHashtag(q)
+        .then(setHashtagMatches)
+        .catch(() => setHashtagMatches([]));
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const visibleSightings = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     let rows = applyFeedContentFilters(sightings, contentFilters, {
       coords,
       radiusKm,
     });
     if (!q) return rows;
-    return rows.filter(
-      (s) =>
-        s.species.toLowerCase().includes(q) ||
-        (s.scientific_name ?? "").toLowerCase().includes(q) ||
-        (s.location_name ?? "").toLowerCase().includes(q) ||
-        s.username.toLowerCase().includes(q),
+
+    const filtered = rows.filter((s) =>
+      matchesSightingSearch(
+        {
+          species: s.species,
+          scientific_name: s.scientific_name,
+          location_name: s.location_name,
+          notes: s.notes,
+          username: s.username,
+        },
+        q,
+      ),
     );
-  }, [sightings, search, contentFilters, coords, radiusKm]);
+
+    const merged = [...filtered];
+    const seen = new Set(filtered.map((row) => row.id));
+    const hashtagRows = applyFeedContentFilters(hashtagMatches, contentFilters, {
+      coords,
+      radiusKm,
+    });
+
+    for (const row of hashtagRows) {
+      if (seen.has(row.id)) continue;
+      if (
+        !matchesSightingSearch(
+          {
+            species: row.species,
+            scientific_name: row.scientific_name,
+            location_name: row.location_name,
+            notes: row.notes,
+            username: row.username,
+          },
+          q,
+        )
+      ) {
+        continue;
+      }
+      merged.push(row);
+      seen.add(row.id);
+    }
+
+    return merged;
+  }, [sightings, search, contentFilters, coords, radiusKm, hashtagMatches]);
 
   const feedBusy = feedLoading && sightings.length === 0;
   const activityBusy = activityLoading && activity.length === 0;
@@ -174,7 +224,7 @@ export default function HomeScreen() {
         <SearchBar
           value={search}
           onChangeText={setSearch}
-          placeholder="Search sightings, species, locations..."
+          placeholder="Search species, locations, #hashtags..."
         />
       )}
 
@@ -302,13 +352,8 @@ export default function HomeScreen() {
           action={
             activeFilterCount > 0 || search.trim()
               ? undefined
-              : feedFilter === "following"
-                ? { label: "Add birders", onPress: () => router.push("/users") }
-                : feedFilter === "for_you"
-                  ? {
-                      label: "Find birders near you",
-                      onPress: () => router.push("/users"),
-                    }
+                : feedFilter === "for_you" || feedFilter === "following"
+                  ? { label: "Add birders", onPress: () => router.push("/users") }
                   : undefined
           }
         >

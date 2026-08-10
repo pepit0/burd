@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, type ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { memo, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
+import { InteractionManager, Pressable, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   IMAGE_OVERLAY_BADGE_SHADOW,
@@ -21,6 +21,7 @@ import { Avatar } from "@/components/Avatar";
 import { PostOptionsMenu } from "@/components/PostOptionsMenu";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesNameLink } from "@/components/SpeciesNameLink";
+import { PostInlineAudio } from "@/components/PostInlineAudio";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
@@ -29,7 +30,12 @@ import { useSingleDoubleTap } from "@/hooks/useSingleDoubleTap";
 import { sightingPlaceLine, postedDate } from "@/lib/sightingFormat";
 import { rarityForSighting } from "@/lib/rarity";
 import { timeAgo } from "@/lib/time";
-import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
+import {
+  isCombinedMediaSighting,
+  sightingHeroIsAudio,
+  sightingHeroIsPhoto,
+} from "@/lib/sightingMedia";
+import { postAudioPlaybackOptions } from "@/lib/sightingAudio";
 import { useFeedPhotoLayout } from "@/hooks/useFeedPhotoLayout";
 import { getSightingPhotos, sightingPhotosForDisplay } from "@/lib/sightingPhotos";
 import type { FeedSighting, SightingPhoto } from "@/types";
@@ -125,16 +131,19 @@ function CardPhotoArea({
   useEffect(() => {
     if ((sighting.photo_count ?? 0) <= 1 && !sighting.photos?.length) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const rows = await getSightingPhotos(sighting.id);
-        if (!cancelled && rows.length > 0) setPhotos(rows);
-      } catch {
-        // keep cover photo fallback
-      }
-    })();
+    const task = InteractionManager.runAfterInteractions(() => {
+      void (async () => {
+        try {
+          const rows = await getSightingPhotos(sighting.id);
+          if (!cancelled && rows.length > 0) setPhotos(rows);
+        } catch {
+          // keep cover photo fallback
+        }
+      })();
+    });
     return () => {
       cancelled = true;
+      task.cancel();
     };
   }, [sighting.id, sighting.photo_count, sighting.photos?.length]);
 
@@ -171,7 +180,12 @@ function CardPhotoArea({
   );
 }
 
-export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }: SightingCardProps) {
+export const SightingCard = memo(function SightingCard({
+  sighting: s,
+  liked,
+  onToggleLike,
+  onUserBlocked,
+}: SightingCardProps) {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -180,7 +194,18 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
   const openPost = useCallback(() => {
     router.push(`/post/${s.id}`);
   }, [router, s.id]);
-  const audioPlayback = useAudioPlayback(isAudioSighting(s) ? s.audio_url : null);
+  const audioOptions = useMemo(
+    () => ({
+      ...postAudioPlaybackOptions(s),
+      deferLoad: true,
+    }),
+    [s.published_at, s.published_audio_start_ms, s.published_audio_end_ms],
+  );
+  const audioPlayback = useAudioPlayback(
+    sightingHeroIsAudio(s) ? s.audio_url : null,
+    undefined,
+    audioOptions,
+  );
   const placeLine = sightingPlaceLine(s);
   const rarity = rarityForSighting(s);
   const { likeIconStyle } = useLikeIconStyle();
@@ -193,7 +218,7 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
 
   return (
     <View className="overflow-hidden rounded-3xl bg-card">
-      {isAudioSighting(s) ? (
+      {sightingHeroIsAudio(s) ? (
         <View className="aspect-[4/5] bg-muted" style={{ aspectRatio: 4 / 5 }}>
           <PlaybackWaveform
             playback={audioPlayback}
@@ -217,7 +242,7 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
         </View>
       ) : (
         <View className="active:opacity-98">
-          {isPhotoSighting(s) ? (
+          {sightingHeroIsPhoto(s) ? (
             <CardPhotoArea
               sighting={s}
               onPhotoPress={onPhotoPress}
@@ -274,6 +299,27 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
           </View>
         </View>
 
+        {isCombinedMediaSighting(s) ? (
+          <View className="px-5">
+            <PostInlineAudio
+              audioUrl={s.audio_url!}
+              trimOptions={postAudioPlaybackOptions(s)}
+              deferLoad
+            />
+            {s.audio_source ? (
+              <Text className="mt-1 text-right font-sans text-[11px] text-muted-foreground">
+                recorded by @{s.audio_source.username}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {s.companions && s.companions.length > 0 ? (
+          <Text className="px-5 font-sans text-xs text-muted-foreground">
+            with {s.companions.map((c) => `@${c.username}`).join(", ")}
+          </Text>
+        ) : null}
+
         {s.notes ? (
           <Pressable onPress={openPost} className="active:opacity-80">
             <Text
@@ -301,4 +347,9 @@ export function SightingCard({ sighting: s, liked, onToggleLike, onUserBlocked }
       />
     </View>
   );
-}
+}, (prev, next) =>
+  prev.sighting.id === next.sighting.id &&
+  prev.liked === next.liked &&
+  prev.sighting.like_count === next.sighting.like_count &&
+  prev.sighting.comment_count === next.sighting.comment_count,
+);

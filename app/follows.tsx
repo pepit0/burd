@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  InteractionManager,
   Pressable,
   Text,
   View,
@@ -12,6 +13,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { Avatar } from "@/components/Avatar";
 import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { FollowButton } from "@/components/FollowButton";
+import { useBadgeUnlock } from "@/components/BadgeUnlockProvider";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { useFriendshipChangeListener } from "@/hooks/useFriendshipChangeListener";
@@ -50,6 +52,7 @@ export default function FollowsScreen() {
   }>();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const { refreshAndCelebrateBadges } = useBadgeUnlock();
   const profileId = Array.isArray(profileIdParam) ? profileIdParam[0] : profileIdParam;
   const profileUserId = profileId ?? userId;
   const isOwnList = !profileId || profileId === userId;
@@ -139,14 +142,20 @@ export default function FollowsScreen() {
       if (prev === "incoming") {
         // Primary action: accept.
         apply("friends");
-        acceptFriendRequest(target.id).catch(() => apply("incoming"));
+        acceptFriendRequest(target.id)
+          .then(() => {
+            InteractionManager.runAfterInteractions(() => {
+              void refreshAndCelebrateBadges();
+            });
+          })
+          .catch(() => apply("incoming"));
         return;
       }
 
       apply("outgoing");
       sendFriendRequest(target.id).catch(() => apply("none"));
     },
-    [userId],
+    [userId, refreshAndCelebrateBadges],
   );
 
   const declineRequest = useCallback(

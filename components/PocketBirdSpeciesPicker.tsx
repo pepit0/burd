@@ -13,7 +13,7 @@ interface PocketBirdSpeciesPickerProps {
   onSelect: (speciesId: string) => void;
 }
 
-const PREVIEW_SIZE = 56;
+const PREVIEW_SIZE = 64;
 
 function SpeciesTile({
   species,

@@ -547,9 +547,12 @@ export default function CameraScreen() {
         ? 36
         : 0;
   const soundBannerTop = liveBannerTop + (photoBannerBlock > 0 ? photoBannerBlock + 8 : 0);
+  const activeSoundRows = liveSound.enabled
+    ? liveSound.displayRows.filter((row) => !row.isExpiring).length
+    : 0;
   const soundBannerBlock =
-    liveSound.enabled && liveSound.primaryDetection
-      ? 72
+    liveSound.enabled && activeSoundRows > 0
+      ? 72 + Math.max(0, Math.min(activeSoundRows, 3) - 1) * 52
       : liveSound.enabled && (liveSound.isProcessing || liveSound.chunkWarning)
         ? 36
         : 0;
@@ -624,6 +627,7 @@ export default function CameraScreen() {
         isProcessing={liveSound.isProcessing}
         chunkWarning={liveSound.chunkWarning}
         soundDetection={liveSound.primaryDetection}
+        displayRows={liveSound.displayRows}
         photoDetection={livePhoto.primaryDetection}
         bannerTop={soundBannerTop}
         uiRotation={uiRotation}

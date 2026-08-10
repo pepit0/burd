@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 import type { PocketBirdAnimationId } from "@/lib/pocketBird/animations";
 import { playBirdChirp } from "@/lib/pocketBird/birdsong";
+import { resolvePocketBirdDisplaySize } from "@/lib/pocketBird/displaySize";
 import { NO_HAT_ID, type PocketBirdHatId } from "@/lib/pocketBird/hats";
 import { usePocketBirdAnimation } from "@/lib/pocketBird/usePocketBirdAnimation";
 import { usePocketBirdMovement } from "@/lib/pocketBird/usePocketBirdMovement";
@@ -31,14 +32,18 @@ export function PocketBirdPet({
   paused = false,
   grounded = false,
 }: PocketBirdPetProps) {
+  const { displaySize } = useMemo(
+    () => resolvePocketBirdDisplaySize(size),
+    [size],
+  );
   const [petting, setPetting] = useState(false);
   const [arenaWidth, setArenaWidth] = useState(0);
-  const playAreaHeight = arenaHeight ?? size;
+  const playAreaHeight = arenaHeight ?? displaySize;
 
   const arenaReady = arenaWidth > 0;
 
   const { posX, posY, facingScale, moveAnimation, touch } = usePocketBirdMovement(
-    { width: arenaWidth, height: playAreaHeight, birdSize: size, grounded },
+    { width: arenaWidth, height: playAreaHeight, birdSize: displaySize, grounded },
     paused,
   );
 
@@ -57,10 +62,10 @@ export function PocketBirdPet({
 
   const animatedStyle = useAnimatedStyle(() => ({
     position: "absolute",
-    left: posX.value - size / 2,
-    top: posY.value - size / 2,
-    width: size,
-    height: size,
+    left: posX.value - displaySize / 2,
+    top: posY.value - displaySize / 2,
+    width: displaySize,
+    height: displaySize,
     transform: [{ scaleX: facingScale.value }],
   }));
 
@@ -90,7 +95,7 @@ export function PocketBirdPet({
   };
 
   const birdVisual = (
-    <PocketBirdRenderer pixels={pixels} size={size} />
+    <PocketBirdRenderer pixels={pixels} size={displaySize} />
   );
 
   const bird = (
@@ -109,7 +114,7 @@ export function PocketBirdPet({
             accessibilityRole="button"
             accessibilityLabel="Pet your bird"
             onPress={onPet}
-            style={{ width: size, height: size }}
+            style={{ width: displaySize, height: displaySize }}
           >
             {birdVisual}
           </Pressable>

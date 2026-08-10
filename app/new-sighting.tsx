@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,10 +15,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { Camera, Mic, Minus, Plus, Sparkles, Volume2, X } from "lucide-react-native";
+import { Camera, Mic, Minus, Plus, Sparkles, UserPlus, Volume2, X } from "lucide-react-native";
 import { AudioPlayer } from "@/components/AudioPlayer";
-import { SoundLibraryPicker } from "@/components/SoundLibraryPicker";
+import { AudioTrimModal } from "@/components/AudioTrimModal";
+import {
+  AttachSoundSheet,
+  type AttachedSoundSelection,
+} from "@/components/AttachSoundSheet";
+import { CompanionPicker } from "@/components/CompanionPicker";
 import { useNewSpeciesUnlock } from "@/components/NewSpeciesUnlockProvider";
+import { useBadgeUnlock } from "@/components/BadgeUnlockProvider";
 import { useGlobalPostSendOff } from "@/components/PostSendOffProvider";
 import { SightingPhotoCropModal } from "@/components/SightingPhotoCropModal";
 import { KeyboardScreen } from "@/components/KeyboardScreen";
@@ -70,7 +76,9 @@ import {
 import { SIGHTING_PHOTO_ASPECT, type CroppedSightingPhoto } from "@/lib/sightingPhotoFrame";
 import { VISIBILITY_OPTIONS } from "@/lib/privacySettings";
 import { isSensitiveSpecies, getSensitiveSpeciesEntry } from "@/lib/sensitiveSpecies";
-import type { DetectedBy, Prediction, Rarity, SightingPhotoInput, SightingVisibility, SoundLibraryEntry } from "@/types";
+import type { PostAudioTrim } from "@/lib/sightingAudio";
+import type { DetectedBy, Prediction, Rarity, SightingCompanion, SightingPhotoInput, SightingVisibility, SoundLibraryEntry } from "@/types";
+import type { FriendSoundPost } from "@/lib/friendSounds";
 
 function parseCount(value: string | undefined): number {
   const n = Number(value);
@@ -228,6 +236,7 @@ export default function NewSightingScreen() {
   const privacyDefaults = profilePrivacyDefaults(profile);
   const { playSendOff } = useGlobalPostSendOff();
   const { celebrateNewSpecies } = useNewSpeciesUnlock();
+  const { refreshAndCelebrateBadges } = useBadgeUnlock();
 
   const params = useLocalSearchParams<SightingParams>();
 
@@ -266,7 +275,10 @@ export default function NewSightingScreen() {
       null,
   );
   const [libraryEntry, setLibraryEntry] = useState<SoundLibraryEntry | null>(null);
-  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+  const [friendSound, setFriendSound] = useState<FriendSoundPost | null>(null);
+  const [soundPickerOpen, setSoundPickerOpen] = useState(false);
+  const [companions, setCompanions] = useState<SightingCompanion[]>([]);
+  const [companionPickerOpen, setCompanionPickerOpen] = useState(false);
   const [publishToProfile, setPublishToProfile] = useState(false);
   const [postVisibility, setPostVisibility] = useState<SightingVisibility>(
     privacyDefaults.defaultVisibility,
@@ -285,6 +297,28 @@ export default function NewSightingScreen() {
   const [photoAuthMessage, setPhotoAuthMessage] = useState<string | null>(null);
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropSourceUri, setCropSourceUri] = useState<string | null>(null);
+  const [audioTrimModalOpen, setAudioTrimModalOpen] = useState(false);
+
+  const attachedAudioForTrim = useMemo(() => {
+    if (libraryEntry) {
+      return {
+        url: libraryEntry.audio_url,
+        durationMs: libraryEntry.duration_ms,
+      };
+    }
+    if (friendSound) {
+      return {
+        url: friendSound.audio_url,
+      };
+    }
+    if (sessionAudio) {
+      return {
+        url: sessionAudio.uri,
+        durationMs: sessionAudio.durationMs,
+      };
+    }
+    return null;
+  }, [friendSound, libraryEntry, sessionAudio]);
 
   const [detectedBy, setDetectedBy] = useState<DetectedBy>(bootstrap.detectedBy);
   const [confidence, setConfidence] = useState<number | null>(bootstrap.confidence);
@@ -453,7 +487,9 @@ export default function NewSightingScreen() {
     };
   }, [photoUri, photoBase64, router]);
 
-  const hasAudio = Boolean(libraryEntry?.audio_url || sessionAudio || soundLibraryId);
+  const hasAudio = Boolean(
+    libraryEntry?.audio_url || friendSound?.audio_url || sessionAudio || soundLibraryId,
+  );
   const libraryLoading = Boolean(soundLibraryId && !libraryEntry);
   const hasPhotos = photoEntries.length > 0;
   const canSubmit =
@@ -642,7 +678,6 @@ export default function NewSightingScreen() {
   }
 
   function handlePhotoPress() {
-    if (audioOnly) return;
     if (photoUri) {
       openPhotoCrop();
       return;
@@ -652,6 +687,7 @@ export default function NewSightingScreen() {
 
   function attachLibraryEntry(entry: SoundLibraryEntry) {
     setLibraryEntry(entry);
+    setFriendSound(null);
     setSoundLibraryId(entry.id);
     setHeardSpecies(entry.predictions);
     if (!species.trim() && entry.predictions[0]) {
@@ -660,15 +696,57 @@ export default function NewSightingScreen() {
     }
   }
 
-  function detachLibraryAudio() {
+  function attachFriendSound(post: FriendSoundPost) {
+    setFriendSound(post);
     setLibraryEntry(null);
+    setSoundLibraryId(null);
+    setHeardSpecies(post.audio_predictions);
+    if (!species.trim() && post.audio_predictions[0]) {
+      setSpecies(post.audio_predictions[0].species);
+      setScientific(post.audio_predictions[0].scientific_name ?? "");
+    } else if (!species.trim()) {
+      setSpecies(post.species);
+      setScientific(post.scientific_name ?? "");
+    }
+  }
+
+  function attachSoundSelection(selection: AttachedSoundSelection) {
+    if (selection.kind === "library") {
+      attachLibraryEntry(selection.entry);
+      return;
+    }
+    attachFriendSound(selection.post);
+  }
+
+  function detachAttachedAudio() {
+    setLibraryEntry(null);
+    setFriendSound(null);
     setSoundLibraryId(null);
     if (!sessionAudio) {
       setHeardSpecies([]);
     }
   }
 
-  async function handleSubmit() {
+  function beginSubmit() {
+    if (!userId || !species.trim()) {
+      Alert.alert("Species required", "Please enter the species you spotted.");
+      return;
+    }
+    if (photoUri && PHOTO_AUTHENTICITY_ENABLED && photoAuthStatus !== "passed") {
+      Alert.alert(
+        "Photo not accepted",
+        photoAuthMessage ?? "Please wait for photo validation to finish.",
+      );
+      return;
+    }
+    if (publishToProfile && attachedAudioForTrim) {
+      setAudioTrimModalOpen(true);
+      return;
+    }
+    void handleSubmit(null);
+  }
+
+  async function handleSubmit(audioTrim: PostAudioTrim | null = null) {
     if (!userId) return;
     if (!species.trim()) {
       Alert.alert("Species required", "Please enter the species you spotted.");
@@ -707,7 +785,7 @@ export default function NewSightingScreen() {
 
       let photoUrl: string | null = null;
       let uploadedPhotos: SightingPhotoInput[] = [];
-      if (!(audioOnly || detectedBy === "audio") && entriesForSave.length > 0) {
+      if (!(audioOnly && !hasPhotos) && entriesForSave.length > 0) {
         uploadedPhotos = [];
         for (const entry of entriesForSave) {
           let base64 = entry.base64;
@@ -728,9 +806,11 @@ export default function NewSightingScreen() {
         photoUrl = uploadedPhotos[0]?.photo_url ?? null;
       }
 
-      let audioUrl: string | null = libraryEntry?.audio_url ?? null;
+      let audioUrl: string | null =
+        libraryEntry?.audio_url ?? friendSound?.audio_url ?? null;
       let audioPredictions: Prediction[] | null =
         libraryEntry?.predictions ??
+        friendSound?.audio_predictions ??
         (heardSpecies.length > 0 ? heardSpecies : null);
 
       if (!audioUrl && sessionAudio) {
@@ -755,13 +835,18 @@ export default function NewSightingScreen() {
           photos: uploadedPhotos,
           audio_url: audioUrl,
           audio_predictions: audioPredictions,
+          audio_source_sighting_id: friendSound?.sighting_id ?? null,
+          companion_user_ids: companions.map((companion) => companion.user_id),
           confidence,
           detected_by: detectedBy,
           publish: publishToProfile,
           visibility: postVisibility,
+          audio_trim: publishToProfile && attachedAudioForTrim ? audioTrim : null,
         },
         profile,
       );
+
+      setAudioTrimModalOpen(false);
 
       if (soundLibraryId) {
         await linkSoundToSighting(soundLibraryId, sightingId);
@@ -787,6 +872,7 @@ export default function NewSightingScreen() {
           if (celebration) {
             await celebrateNewSpecies(celebration);
           }
+          await refreshAndCelebrateBadges();
           if (shouldPlaySendOff) {
             await playSendOff();
           }
@@ -836,13 +922,14 @@ export default function NewSightingScreen() {
         contentContainerClassName="px-5 pb-24 pt-6"
       >
         <View className={sectionClassName}>
-          <Text className={`${sectionLabelClassName} mb-3`}>Photo</Text>
+          <Text className={`${sectionLabelClassName} mb-3`}>
+            {audioOnly && !hasPhotos ? "Photo (optional)" : "Photo"}
+          </Text>
           <Pressable
             onPress={handlePhotoPress}
-            disabled={audioOnly}
             className="overflow-hidden rounded-2xl border border-border bg-black/30"
           >
-            {photoDisplayUri && !audioOnly ? (
+            {photoDisplayUri ? (
               <Image
                 source={{ uri: photoDisplayUri }}
                 style={{ width: "100%", aspectRatio: SIGHTING_PHOTO_ASPECT }}
@@ -857,14 +944,14 @@ export default function NewSightingScreen() {
                   }
                 }}
               />
-            ) : audioOnly ? (
+            ) : audioOnly && !hasPhotos ? (
               <View
                 className="items-center justify-center gap-2 px-6"
                 style={{ aspectRatio: SIGHTING_PHOTO_ASPECT }}
               >
-                <Mic size={28} color="#5f9470" />
+                <Camera size={28} color="#5f9470" />
                 <Text className="text-center font-sans text-sm text-muted-foreground">
-                  Sound-only sighting
+                  Tap to add a photo to this sound sighting
                 </Text>
               </View>
             ) : (
@@ -879,13 +966,13 @@ export default function NewSightingScreen() {
               </View>
             )}
           </Pressable>
-          {photoDisplayUri && !audioOnly ? (
+          {photoDisplayUri ? (
             <Text className="mt-3 text-center font-sans text-xs leading-5 text-muted-foreground">
               Tap photo to crop or zoom
             </Text>
           ) : null}
 
-          {photoEntries.length > 0 && !audioOnly ? (
+          {photoEntries.length > 0 ? (
             <View className={`${cardClassName} mt-5`} style={cardStyle}>
               <View className="flex-row items-start justify-between gap-3">
                 <Text className={`${fieldLabelClassName} min-w-0 flex-1 shrink leading-relaxed`}>
@@ -987,7 +1074,7 @@ export default function NewSightingScreen() {
           </View>
         </View>
 
-        {sessionAudio || libraryEntry ? (
+        {sessionAudio || libraryEntry || friendSound ? (
           <View className={`${cardClassName} ${sectionClassName}`} style={cardStyle}>
             <Text className={sectionLabelClassName}>Bird call</Text>
             <View className="flex-row items-center justify-between gap-3">
@@ -995,9 +1082,9 @@ export default function NewSightingScreen() {
                 <Mic size={15} color="#5f9470" />
                 <Text className={fieldLabelClassName}>Attached</Text>
               </View>
-              {libraryEntry && !sessionAudio ? (
+              {(libraryEntry || friendSound) && !sessionAudio ? (
                 <Pressable
-                  onPress={detachLibraryAudio}
+                  onPress={detachAttachedAudio}
                   className="rounded-full px-2 py-1 active:opacity-70"
                 >
                   <Text className="font-sans text-xs text-muted-foreground">
@@ -1006,11 +1093,18 @@ export default function NewSightingScreen() {
                 </Pressable>
               ) : null}
             </View>
+            {friendSound ? (
+              <Text className="font-sans text-xs text-muted-foreground">
+                From @{friendSound.username}&apos;s post · they&apos;ll be credited as the recorder
+              </Text>
+            ) : null}
             {libraryEntry ? (
               <AudioPlayer
                 uri={libraryEntry.audio_url}
                 durationMs={libraryEntry.duration_ms}
               />
+            ) : friendSound ? (
+              <AudioPlayer uri={friendSound.audio_url} compact />
             ) : sessionAudio ? (
               <>
                 <AudioPlayer
@@ -1044,15 +1138,53 @@ export default function NewSightingScreen() {
           </View>
         ) : !sessionAudio ? (
           <Pressable
-            onPress={() => setLibraryPickerOpen(true)}
+            onPress={() => setSoundPickerOpen(true)}
             className={`${sectionClassName} flex-row items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-primary/5 px-5 py-5 active:opacity-90`}
           >
             <Volume2 size={16} color="#5f9470" />
             <Text className="font-sans-medium text-sm text-foreground">
-              Attach bird call from library
+              Attach bird call
             </Text>
           </Pressable>
         ) : null}
+
+        <View className={`${cardClassName} ${sectionClassName}`} style={cardStyle}>
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="min-w-0 flex-1">
+              <Text className={sectionLabelClassName}>With you</Text>
+              <Text className="mt-2 font-sans text-xs leading-5 text-muted-foreground">
+                Tag friends who were birding with you on this post.
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setCompanionPickerOpen(true)}
+              className="shrink-0 flex-row items-center gap-1.5 rounded-full border border-border px-3 py-2 active:opacity-80"
+            >
+              <UserPlus size={14} color="#5f9470" />
+              <Text className="font-sans-medium text-xs text-primary">Add</Text>
+            </Pressable>
+          </View>
+          {companions.length > 0 ? (
+            <View className="flex-row flex-wrap gap-2">
+              {companions.map((companion) => (
+                <Pressable
+                  key={companion.user_id}
+                  onPress={() =>
+                    setCompanions((prev) =>
+                      prev.filter((row) => row.user_id !== companion.user_id),
+                    )
+                  }
+                  className="flex-row items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5"
+                >
+                  <Text className="font-sans-medium text-xs text-primary">
+                    @{companion.username}
+                  </Text>
+                  <X size={12} color="#5f9470" />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
 
         <View className={`${cardClassName} ${sectionClassName}`} style={cardStyle}>
           <Text className={sectionLabelClassName}>Sighting details</Text>
@@ -1161,6 +1293,11 @@ export default function NewSightingScreen() {
               <Text className={fieldLabelClassName}>Share on profile</Text>
               <Text className="mt-2 font-sans text-xs leading-5 text-muted-foreground">
                 Off saves to your journal only. Turn on to post to your profile and feed.
+                {hasAudio && hasPhotos
+                  ? " You'll trim the attached bird call before posting."
+                  : hasAudio
+                    ? " You'll trim the clip before posting."
+                    : ""}
               </Text>
             </View>
             <View className="shrink-0 pt-1">
@@ -1214,7 +1351,7 @@ export default function NewSightingScreen() {
 
         <View className="gap-4">
           <Pressable
-            onPress={handleSubmit}
+            onPress={beginSubmit}
             disabled={!canSubmit}
             className={`items-center rounded-2xl px-5 py-4 ${
               canSubmit ? "bg-primary active:opacity-90" : "bg-primary/40"
@@ -1243,11 +1380,19 @@ export default function NewSightingScreen() {
         </View>
       </KeyboardScreen>
 
-      <SoundLibraryPicker
-        visible={libraryPickerOpen}
+      <AttachSoundSheet
+        visible={soundPickerOpen}
         userId={userId}
-        onClose={() => setLibraryPickerOpen(false)}
-        onSelect={attachLibraryEntry}
+        onClose={() => setSoundPickerOpen(false)}
+        onSelect={attachSoundSelection}
+      />
+
+      <CompanionPicker
+        visible={companionPickerOpen}
+        userId={userId}
+        selected={companions}
+        onClose={() => setCompanionPickerOpen(false)}
+        onChange={setCompanions}
       />
 
       <SightingPhotoCropModal
@@ -1256,6 +1401,18 @@ export default function NewSightingScreen() {
         onCancel={() => setCropModalOpen(false)}
         onConfirm={applyCroppedPhoto}
       />
+
+      {attachedAudioForTrim ? (
+        <AudioTrimModal
+          visible={audioTrimModalOpen}
+          audioUrl={attachedAudioForTrim.url}
+          durationMs={attachedAudioForTrim.durationMs}
+          onCancel={() => setAudioTrimModalOpen(false)}
+          onConfirm={(trim) => {
+            void handleSubmit(trim);
+          }}
+        />
+      ) : null}
 
     </SafeAreaView>
   );

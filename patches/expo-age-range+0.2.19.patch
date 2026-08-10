@@ -1,0 +1,24 @@
+diff --git a/node_modules/expo-age-range/ios/AgeRangeModule.swift b/node_modules/expo-age-range/ios/AgeRangeModule.swift
+index faf1089..f55f64a 100644
+--- a/node_modules/expo-age-range/ios/AgeRangeModule.swift
++++ b/node_modules/expo-age-range/ios/AgeRangeModule.swift
+@@ -1,7 +1,7 @@
+ import ExpoModulesCore
+ import DeclaredAgeRange
+ 
+-public class AgeRangeModule: Module {
++public final class AgeRangeModule: Module, @unchecked Sendable {
+ 
+   public func definition() -> ModuleDefinition {
+     Name("ExpoAgeRange")
+@@ -11,8 +11,8 @@ public class AgeRangeModule: Module {
+         return AgeRangeResponse()
+       }
+ 
+-      let currentVc: UIViewController? = await MainActor.run { [appContext] in
+-        appContext?.utilities?.currentViewController()
++      let currentVc: UIViewController? = await MainActor.run { [weak self] in
++        self?.appContext?.utilities?.currentViewController()
+       }
+ 
+       guard let currentVc else {

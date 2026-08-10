@@ -18,6 +18,9 @@
       "autoIncrement": true,
       "ios": {
         "simulator": false
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
@@ -25,6 +28,10 @@
     "production": {
       "ios": {
         "ascAppId": "6786673789"
+      },
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
       }
     }
   }

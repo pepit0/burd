@@ -25,6 +25,7 @@ import {
   type AdminUserDiagnostics,
 } from "@/lib/adminSupport";
 import { getUserFacingMessage } from "@/lib/errors";
+import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
 import { timeAgo } from "@/lib/time";
 
 function DiagnosticRow({
@@ -103,7 +104,7 @@ function UserDiagnosticsCard({
         label="Profile"
         value={
           row.has_profile
-            ? `@${row.profile_username ?? "?"} · ${row.profile_full_name ?? "—"}`
+            ? `@${row.profile_username ?? "?"} · ${stripDisplayNameColorCodes(row.profile_full_name ?? "—")}`
             : "Missing"
         }
       />

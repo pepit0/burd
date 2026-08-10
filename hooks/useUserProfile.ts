@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { InteractionManager } from "react-native";
+import { useBadgeUnlock } from "@/components/BadgeUnlockProvider";
 import {
   getMyProfile,
   getMySightings,
@@ -26,6 +28,7 @@ export function useUserProfile(
   targetId: string | null,
   currentUserId: string | null,
 ): UseUserProfile {
+  const { refreshAndCelebrateBadges } = useBadgeUnlock();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [friends, setFriends] = useState(0);
   const [sightings, setSightings] = useState<Sighting[]>([]);
@@ -95,6 +98,9 @@ export function useUserProfile(
       if (prev === "incoming") {
         apply("friends");
         await acceptFriendRequest(targetId);
+        InteractionManager.runAfterInteractions(() => {
+          void refreshAndCelebrateBadges();
+        });
         return;
       }
       apply("outgoing");
@@ -102,7 +108,7 @@ export function useUserProfile(
     } catch {
       apply(prev);
     }
-  }, [currentUserId, targetId, isSelf, status]);
+  }, [currentUserId, targetId, isSelf, status, refreshAndCelebrateBadges]);
 
   const declineRequest = useCallback(async () => {
     if (!currentUserId || !targetId || isSelf) return;

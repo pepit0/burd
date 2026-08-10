@@ -29,7 +29,8 @@ import { PostComments } from "@/components/PostComments";
 import { PostOptionsMenu } from "@/components/PostOptionsMenu";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { SightingDetailsSection } from "@/components/SightingDetailsSection";
-import { SpeciesNameLink } from "@/components/SpeciesNameLink";
+import { PostCaption } from "@/components/PostCaption";
+import { PostInlineAudio } from "@/components/PostInlineAudio";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
@@ -44,7 +45,12 @@ import {
   setRepost,
 } from "@/lib/sightings";
 import { postedDate, sightingPlaceLine } from "@/lib/sightingFormat";
-import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
+import {
+  sightingHasAttachedAudio,
+  sightingHeroIsAudio,
+  sightingHeroIsPhoto,
+} from "@/lib/sightingMedia";
+import { postAudioPlaybackOptions } from "@/lib/sightingAudio";
 import { SIGHTING_PHOTO_ASPECT } from "@/lib/sightingPhotoFrame";
 import { sightingPhotosForDisplay } from "@/lib/sightingPhotos";
 import { timeAgo } from "@/lib/time";
@@ -124,7 +130,11 @@ export default function PostScreen() {
   const scrollRef = useRef<React.ElementRef<typeof KeyboardScreen>>(null);
   const commentsYRef = useRef(0);
   const initialLoadDoneRef = useRef(false);
-  const audioPlayback = useAudioPlayback(post?.audio_url ?? null);
+  const audioPlayback = useAudioPlayback(
+    post?.audio_url ?? null,
+    undefined,
+    post ? postAudioPlaybackOptions(post) : undefined,
+  );
   const { likeIconStyle } = useLikeIconStyle();
   const postPhotos = useMemo(
     () => (post ? sightingPhotosForDisplay(post) : []),
@@ -334,7 +344,7 @@ export default function PostScreen() {
             className="bg-muted"
             style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
           >
-            {isPhotoSighting(post) && !isRemoved ? (
+            {sightingHeroIsPhoto(post) && !isRemoved ? (
               <SightingPhotoCarousel
                 photos={postPhotos}
                 contentFit="contain"
@@ -342,7 +352,7 @@ export default function PostScreen() {
                 style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
                 onIndexChange={setActivePhotoIndex}
               />
-              ) : isAudioSighting(post) && !isRemoved ? (
+              ) : sightingHeroIsAudio(post) && !isRemoved ? (
                 <PlaybackWaveform
                   playback={audioPlayback}
                   className="h-full w-full"
@@ -360,55 +370,75 @@ export default function PostScreen() {
           {!isRemoved ? (
             <>
           <View className="flex-row items-center gap-1 px-3 py-2">
-            <PostAction onPress={toggleLike} disabled={!userId || liking}>
-              <LikeIcon
-                liked={liked}
-                style={likeIconStyle}
-                size={ACTION_ICON_SIZE}
-                inactiveColor={INACTIVE_ICON_COLOR_ON_DARK}
+            <View className="flex-row items-center">
+              <PostAction onPress={toggleLike} disabled={!userId || liking}>
+                <LikeIcon
+                  liked={liked}
+                  style={likeIconStyle}
+                  size={ACTION_ICON_SIZE}
+                  inactiveColor={INACTIVE_ICON_COLOR_ON_DARK}
+                />
+              </PostAction>
+              <PostAction onPress={scrollToComments}>
+                <MessageCircle size={ACTION_ICON_SIZE} color="#eee8d4" />
+              </PostAction>
+              <PostAction
+                onPress={toggleRepost}
+                disabled={!userId || reposting || post.user_id === userId}
+              >
+                <Repeat2
+                  size={ACTION_ICON_SIZE}
+                  color={reposted ? "#5f9470" : "#eee8d4"}
+                />
+              </PostAction>
+              <PostAction disabled>
+                <Share2 size={ACTION_ICON_SIZE} color="#eee8d4" />
+              </PostAction>
+            </View>
+            {sightingHeroIsPhoto(post) && sightingHasAttachedAudio(post) ? (
+              <PostInlineAudio
+                audioUrl={post.audio_url!}
+                trimOptions={postAudioPlaybackOptions(post)}
               />
-            </PostAction>
-            <PostAction onPress={scrollToComments}>
-              <MessageCircle size={ACTION_ICON_SIZE} color="#eee8d4" />
-            </PostAction>
-            <PostAction
-              onPress={toggleRepost}
-              disabled={!userId || reposting || post.user_id === userId}
-            >
-              <Repeat2
-                size={ACTION_ICON_SIZE}
-                color={reposted ? "#5f9470" : "#eee8d4"}
-              />
-            </PostAction>
-            <PostAction disabled>
-              <Share2 size={ACTION_ICON_SIZE} color="#eee8d4" />
-            </PostAction>
+            ) : null}
           </View>
 
           <View className="px-4">
             <Text className="font-sans-medium text-sm text-foreground">
               {likeLabel(likeCount)}
             </Text>
-            <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
-              {commentLabel(commentCount)}
-            </Text>
+            <View className="mt-0.5 flex-row items-start justify-between gap-3">
+              <Text className="min-w-0 flex-1 font-sans text-xs text-muted-foreground">
+                {commentLabel(commentCount)}
+              </Text>
+              {post.audio_source ? (
+                <Text className="shrink-0 font-sans text-xs text-muted-foreground">
+                  recorded by{" "}
+                  <Text
+                    className="font-sans-medium text-primary"
+                    onPress={() => router.push(`/user/${post.audio_source!.user_id}`)}
+                  >
+                    @{post.audio_source.username}
+                  </Text>
+                </Text>
+              ) : null}
+            </View>
             {repostCount > 0 ? (
               <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
                 {repostLabel(repostCount)}
               </Text>
             ) : null}
 
-            <Text className="mt-2 font-sans text-sm leading-relaxed text-foreground">
-              <Text className="font-sans-medium">@{post.username}</Text>{" "}
-              <SpeciesNameLink
+            <View className="mt-2">
+              <PostCaption
+                authorUsername={post.username}
+                authorUserId={post.user_id}
+                companions={post.companions}
                 species={activePhoto?.species?.trim() || post.species}
                 scientificName={activePhoto?.scientific_name ?? post.scientific_name}
-                className="font-serif-semibold text-primary"
+                notes={post.notes}
               />
-              {post.notes ? (
-                <Text className="text-foreground/85"> · {post.notes}</Text>
-              ) : null}
-            </Text>
+            </View>
 
             {publicPlaceLine ? (
               <Text className="mt-1 font-sans text-xs text-muted-foreground">

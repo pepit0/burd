@@ -32,6 +32,9 @@ import {
 import type { IdentifyResult } from "@/lib/identify";
 import type { Prediction } from "@/types";
 
+/** Fallback journal label when no species was identified. */
+export const JOURNAL_UNIDENTIFIED_SPECIES = "Unidentified bird";
+
 export const LIVE_DETECTION_TTL_MS = 20_000;
 
 /** Minimum recorded audio before sending a chunk to Perch (matches server). */
@@ -513,65 +516,89 @@ export async function saveLiveSessionToJournal(
     label: libraryLabelForReview(review, primary),
   });
 
-  if (!primary) {
+  const geocode = await resolveGeocodeFields(coords);
+  const existingSightings = await getMySightings(userId);
+
+  if (primary) {
+    const enriched = enrichPrediction(primary.prediction);
+    const isNewSpecies = isFirstLogForSpecies(
+      existingSightings,
+      enriched.species,
+      enriched.scientific_name,
+    );
+    const lifeListCount = lifeListCountAfterAdd(existingSightings, isNewSpecies);
+    const rarity = lookupRegionalRarity({
+      species: enriched.species,
+      scientificName: enriched.scientific_name,
+      lat: coords?.latitude ?? null,
+      lng: coords?.longitude ?? null,
+      observedAt,
+    });
+
+    const sightingId = await createSighting(userId, {
+      species: enriched.species,
+      scientific_name: enriched.scientific_name,
+      location_name: geocode.label,
+      location_city: geocode.city,
+      location_address: geocode.address,
+      latitude: coords?.latitude ?? null,
+      longitude: coords?.longitude ?? null,
+      observed_at: observedAt,
+      rarity,
+      count: 1,
+      audio_url: libraryEntry.audio_url,
+      audio_predictions: review.sessionPredictions,
+      confidence: primary.peakConfidence,
+      detected_by: "audio",
+      publish: false,
+    });
+
+    await linkSoundToSighting(libraryEntry.id, sightingId);
+
+    void maybeGenerateSpeciesProfileAfterSighting(
+      enriched.species,
+      enriched.scientific_name,
+      null,
+    );
+
     return {
-      kind: "library_only",
-      message: "Clip saved to your sound library.",
+      kind: "journal",
+      sightingId,
+      species: enriched.species,
+      scientificName: enriched.scientific_name,
       soundLibraryId: libraryEntry.id,
+      isNewSpecies,
+      lifeListCount,
     };
   }
 
-  const enriched = enrichPrediction(primary.prediction);
-  const geocode = await resolveGeocodeFields(coords);
-  const existingSightings = await getMySightings(userId);
-  const isNewSpecies = isFirstLogForSpecies(
-    existingSightings,
-    enriched.species,
-    enriched.scientific_name,
-  );
-  const lifeListCount = lifeListCountAfterAdd(existingSightings, isNewSpecies);
-  const rarity = lookupRegionalRarity({
-    species: enriched.species,
-    scientificName: enriched.scientific_name,
-    lat: coords?.latitude ?? null,
-    lng: coords?.longitude ?? null,
-    observedAt,
-  });
-
   const sightingId = await createSighting(userId, {
-    species: enriched.species,
-    scientific_name: enriched.scientific_name,
+    species: JOURNAL_UNIDENTIFIED_SPECIES,
+    scientific_name: null,
     location_name: geocode.label,
     location_city: geocode.city,
     location_address: geocode.address,
     latitude: coords?.latitude ?? null,
     longitude: coords?.longitude ?? null,
     observed_at: observedAt,
-    rarity,
+    rarity: "common",
     count: 1,
     audio_url: libraryEntry.audio_url,
     audio_predictions: review.sessionPredictions,
-    confidence: primary.peakConfidence,
     detected_by: "audio",
     publish: false,
   });
 
   await linkSoundToSighting(libraryEntry.id, sightingId);
 
-  void maybeGenerateSpeciesProfileAfterSighting(
-    enriched.species,
-    enriched.scientific_name,
-    null,
-  );
-
   return {
     kind: "journal",
     sightingId,
-    species: enriched.species,
-    scientificName: enriched.scientific_name,
+    species: JOURNAL_UNIDENTIFIED_SPECIES,
+    scientificName: null,
     soundLibraryId: libraryEntry.id,
-    isNewSpecies,
-    lifeListCount,
+    isNewSpecies: false,
+    lifeListCount: lifeListCountAfterAdd(existingSightings, false),
   };
 }
 

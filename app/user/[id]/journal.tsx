@@ -37,6 +37,7 @@ import {
   journalLogDate,
   sightingCity,
 } from "@/lib/sightingFormat";
+import { matchesSightingSearch } from "@/lib/sightingSearch";
 import type { Sighting } from "@/types";
 
 type JournalMediaTab = "photos" | "sounds";
@@ -69,16 +70,17 @@ function groupLabel(dateString: string): string {
 }
 
 function matchesSearch(sighting: Sighting, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-
-  return (
-    sighting.species.toLowerCase().includes(q) ||
-    (sighting.scientific_name ?? "").toLowerCase().includes(q) ||
-    (sighting.location_name ?? "").toLowerCase().includes(q) ||
-    (sighting.location_city ?? "").toLowerCase().includes(q) ||
-    (sighting.location_address ?? "").toLowerCase().includes(q) ||
-    sightingCity(sighting).toLowerCase().includes(q)
+  return matchesSightingSearch(
+    {
+      species: sighting.species,
+      scientific_name: sighting.scientific_name,
+      location_name: sighting.location_name,
+      location_city: sighting.location_city,
+      location_address: sighting.location_address,
+      notes: sighting.notes,
+      resolvedCity: sightingCity(sighting),
+    },
+    query,
   );
 }
 

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getFollowingFeed,
   getForYouFeed,
-  getGlobalFeed,
   getMyLikedIds,
   setLike,
 } from "@/lib/sightings";
@@ -13,7 +12,7 @@ import { useRetryOnRecover } from "@/hooks/useRetryOnRecover";
 import type { FeedSighting } from "@/types";
 import type { Coords } from "@/hooks/useCurrentLocation";
 
-export type FeedFilter = "for_you" | "following" | "new";
+export type FeedFilter = "for_you" | "following";
 
 interface UseFeedArgs {
   filter: FeedFilter;
@@ -108,8 +107,6 @@ export function useFeed({
           );
         } else if (activeFilter === "following") {
           rows = await getFollowingFeed(userId);
-        } else if (activeFilter === "new") {
-          rows = await getGlobalFeed();
         }
         rows = applyBlockedFilter(rows);
         const liked = await getMyLikedIds(userId);

@@ -1,8 +1,10 @@
 import { buildSightingIndex, countLoggedInCatalog } from "@/lib/fieldGuide";
 import { rarityForSighting } from "@/lib/rarity";
+import { getFriendCounts } from "@/lib/social";
+import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
+import { getMySightings } from "@/lib/sightings";
 import { SPECIES_CATALOG } from "@/lib/speciesCatalog";
 import { supabase } from "@/lib/supabase";
-import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import type { Sighting } from "@/types";
 
 export type BadgeFamily =
@@ -545,6 +547,21 @@ function computeMetrics(sightings: Sighting[]): SightingMetrics {
     after8pm,
     twilightCount,
   };
+}
+
+/** Load sightings, social counts, and extras, then compute badge progress for a user. */
+export async function fetchProfileBadgesForUser(userId: string): Promise<ProfileBadge[]> {
+  const [sightings, counts, extras] = await Promise.all([
+    getMySightings(userId),
+    getFriendCounts(userId),
+    fetchProfileBadgeExtras(userId),
+  ]);
+
+  return buildProfileBadges({
+    sightings,
+    friends: counts.friends,
+    extras,
+  });
 }
 
 export async function fetchProfileBadgeExtras(userId: string): Promise<ProfileBadgeExtras> {

@@ -83,7 +83,9 @@ Deno.serve(async (req) => {
           ? "follows"
           : type === "repost"
             ? "reposts"
-            : type === "milestone" || type === "log"
+            : type === "post"
+              ? "friend_posts"
+              : type === "milestone" || type === "log"
               ? "nearby_rare"
               : null;
 
