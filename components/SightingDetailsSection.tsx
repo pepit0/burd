@@ -8,7 +8,6 @@ import {
   MapPin,
   Sparkles,
 } from "lucide-react-native";
-import { RarityBadge } from "@/components/RarityBadge";
 import { detectionSourceLabel, formatPhotoAccuracy } from "@/lib/fusePredictions";
 import {
   canViewPreciseSightingLocation,
@@ -24,7 +23,6 @@ import {
   sightingAddress,
   sightingCity,
 } from "@/lib/sightingFormat";
-import { rarityForSighting } from "@/lib/rarity";
 import type { Sighting } from "@/types";
 
 function DetailLine({ label, value }: { label: string; value: string }) {
@@ -85,7 +83,6 @@ export function SightingDetailsSection({
   }, [isOwner, sighting]);
 
   const when = observedDate(sighting);
-  const rarity = rarityForSighting(sighting);
   const displayCity = resolvedCity ?? sightingCity(sighting);
   const displayAddress = resolvedAddress ?? sightingAddress(sighting);
   const displayArea = resolvedArea ?? publicSightingArea(sighting);
@@ -115,7 +112,6 @@ export function SightingDetailsSection({
       {open ? (
         <View className="gap-3 border-t border-border/60 px-4 pb-4 pt-3">
           <View className="flex-row flex-wrap items-center gap-2">
-            <RarityBadge rarity={rarity} />
             <Text className="font-mono text-xs text-accent">×{sighting.count}</Text>
             {sighting.scientific_name ? (
               <Text className="font-serif-italic text-xs text-foreground/60">

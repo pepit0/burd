@@ -72,15 +72,30 @@ function passesDisplayThreshold(detection: LivePhotoDetection): boolean {
   return detection.hitCount >= LIVE_PHOTO_MIN_HITS;
 }
 
-/** Strong enough Live ID to skip a full Done re-identify. */
+/** Strong enough Live ID to skip a full Done re-identify (same bar as the overlay). */
 export function canReuseLivePhotoDetection(
   detection: LivePhotoDetection | null | undefined,
 ): detection is LivePhotoDetection {
   if (!detection) return false;
-  return (
-    detection.peakConfidence >= LIVE_PHOTO_STRONG_CONFIDENCE &&
-    detection.hitCount >= LIVE_PHOTO_MIN_HITS
-  );
+  return passesDisplayThreshold(detection);
+}
+
+export function snapshotLivePhotoIdentification(
+  primary: LivePhotoDetection,
+  displayRows: LivePhotoDisplayRow[],
+): { primary: LivePhotoDetection; displayRows: LivePhotoDisplayRow[] } {
+  const cloneDetection = (detection: LivePhotoDetection): LivePhotoDetection => ({
+    ...detection,
+    prediction: { ...detection.prediction },
+  });
+
+  return {
+    primary: cloneDetection(primary),
+    displayRows: displayRows.map((row) => ({
+      ...row,
+      detection: cloneDetection(row.detection),
+    })),
+  };
 }
 
 function sortDetections(

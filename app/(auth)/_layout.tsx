@@ -9,10 +9,10 @@ export default function AuthLayout() {
         contentStyle: { backgroundColor: "#181e16" },
       }}
     >
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
-      <Stack.Screen name="choose-username" />
-      <Stack.Screen name="age-assurance" />
+      <Stack.Screen name="login" dangerouslySingular />
+      <Stack.Screen name="register" dangerouslySingular />
+      <Stack.Screen name="choose-username" dangerouslySingular />
+      <Stack.Screen name="age-assurance" dangerouslySingular />
     </Stack>
   );
 }

@@ -15,7 +15,7 @@ import Animated from "react-native-reanimated";
 import { FlatList } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Check, Filter } from "lucide-react-native";
+import { Bird, Check, Filter } from "lucide-react-native";
 import { SearchBar } from "@/components/SearchBar";
 import { HomeSplitHeader, REFRESH_GAP, useTabBarClearance } from "@/components/CollapsibleHeader";
 import {
@@ -25,6 +25,8 @@ import {
 import { TabEmptyState } from "@/components/TabEmptyState";
 import { FilterSheet } from "@/components/FilterSheet";
 import { FieldGuideExploreTab } from "@/components/FieldGuideExploreTab";
+import { FieldGuideCollectionTab } from "@/components/FieldGuideCollectionTab";
+import { TourSpotlight } from "@/components/TourSpotlight";
 import { ColonyTab } from "@/components/ColonyTab";
 import {
   IMAGE_OVERLAY_BADGE_SHADOW,
@@ -56,7 +58,7 @@ import {
 } from "@/lib/filters";
 import { resetFieldGuideImageLoader, primeFieldGuideImages } from "@/lib/fieldGuideImageLoader";
 import { getMyProfile } from "@/lib/sightings";
-import { consumeFieldGuideIntent } from "@/lib/navigationIntent";
+import { consumeFieldGuideIntent, subscribeFieldGuideIntent } from "@/lib/navigationIntent";
 import { SPECIES_CATALOG } from "@/lib/speciesCatalog";
 import { isSpeciesRarityVisible } from "@/lib/rarity";
 
@@ -64,8 +66,9 @@ const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 const FIELD_GUIDE_TABS = [
   { id: "guide", label: "Guide" },
+  { id: "collection", label: "Collection" },
   { id: "explore", label: "Explore" },
-  { id: "pet", label: "Pet" },
+  { id: "pet", label: "My Pet" },
 ] as const;
 
 type FieldGuideTab = (typeof FIELD_GUIDE_TABS)[number]["id"];
@@ -143,25 +146,25 @@ const SpeciesCard = memo(function SpeciesCard({
         </View>
       ) : null}
       <View className="absolute bottom-0 left-0 right-0 p-2.5">
-        <View className="flex-row items-end justify-between gap-2">
+        <ImageOverlayText
+          className="font-serif text-sm leading-tight text-foreground"
+          containerClassName="w-full"
+          numberOfLines={2}
+        >
+          {entry.species}
+        </ImageOverlayText>
+        <View className="mt-0.5 flex-row items-center justify-between gap-2">
           <ImageOverlayText
-            className="min-w-0 flex-1 font-serif text-sm leading-tight text-foreground"
+            className="min-w-0 flex-1 font-serif-italic text-[10px] text-foreground"
             containerClassName="min-w-0 flex-1"
-            numberOfLines={2}
+            numberOfLines={1}
           >
-            {entry.species}
+            {entry.scientific_name}
           </ImageOverlayText>
           <View className="shrink-0" style={IMAGE_OVERLAY_BADGE_SHADOW}>
             <RarityBadge rarity={entry.rarity} />
           </View>
         </View>
-        <ImageOverlayText
-          className="mt-0.5 font-serif-italic text-[10px] text-foreground"
-          containerClassName="w-full"
-          numberOfLines={1}
-        >
-          {entry.scientific_name}
-        </ImageOverlayText>
       </View>
     </Pressable>
   );
@@ -223,13 +226,15 @@ export default function FieldGuideScreen() {
   );
   const [filterOpen, setFilterOpen] = useState(false);
   const [tab, setTab] = useState<FieldGuideTab>("guide");
-  const showPetTab = !viewUserId;
+  const showSelfTabs = !viewUserId;
+  const showPetTab = showSelfTabs;
   const visibleTabs = useMemo(
     () =>
       FIELD_GUIDE_TABS.filter(
-        (item) => item.id !== "pet" || showPetTab,
+        (item) =>
+          (item.id !== "pet" && item.id !== "collection") || showSelfTabs,
       ),
-    [showPetTab],
+    [showSelfTabs],
   );
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
   const activeFilterCount = countActiveFieldGuideFilters(guideFilters);
@@ -258,22 +263,29 @@ export default function FieldGuideScreen() {
   const visibleCountRef = useRef(INITIAL_COUNT);
   const filteredLengthRef = useRef(SPECIES_CATALOG.length);
 
+  const applyFieldGuideIntent = useCallback(
+    (intent: NonNullable<ReturnType<typeof consumeFieldGuideIntent>>) => {
+      setSortLoggedFirst(intent.sortLoggedFirst);
+      setViewUserId(intent.userId);
+      setTab(intent.tab ?? "guide");
+      setVisibleCount(INITIAL_COUNT);
+      visibleCountRef.current = INITIAL_COUNT;
+      resetFieldGuideImageLoader();
+      if (intent.userId) {
+        void getMyProfile(intent.userId).then(setViewProfile);
+      } else {
+        setViewProfile(null);
+      }
+    },
+    [],
+  );
+
   const firstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
       const intent = consumeFieldGuideIntent();
       if (intent) {
-        setSortLoggedFirst(intent.sortLoggedFirst);
-        setViewUserId(intent.userId);
-        setTab("guide");
-        setVisibleCount(INITIAL_COUNT);
-        visibleCountRef.current = INITIAL_COUNT;
-        resetFieldGuideImageLoader();
-        if (intent.userId) {
-          void getMyProfile(intent.userId).then(setViewProfile);
-        } else {
-          setViewProfile(null);
-        }
+        applyFieldGuideIntent(intent);
       }
 
       if (firstFocus.current) {
@@ -281,8 +293,12 @@ export default function FieldGuideScreen() {
         return;
       }
       silentRefresh();
-    }, [silentRefresh]),
+    }, [applyFieldGuideIntent, silentRefresh]),
   );
+
+  useEffect(() => {
+    return subscribeFieldGuideIntent(applyFieldGuideIntent);
+  }, [applyFieldGuideIntent]);
 
   useFocusEffect(
     useCallback(() => {
@@ -301,10 +317,10 @@ export default function FieldGuideScreen() {
   );
 
   useEffect(() => {
-    if (tab === "pet" && !showPetTab) {
+    if ((tab === "pet" || tab === "collection") && !showSelfTabs) {
       setTab("guide");
     }
-  }, [showPetTab, tab]);
+  }, [showSelfTabs, tab]);
 
   const sightingIndex = useMemo(
     () => buildSightingIndex(sightings),
@@ -497,6 +513,7 @@ export default function FieldGuideScreen() {
     <View key={tab}>
       {showExploreTab ? (
         <View className="px-4 pb-1 pt-3">
+          <TourSpotlight target="guide-tabs" style={{ borderRadius: 999 }}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -504,12 +521,19 @@ export default function FieldGuideScreen() {
           >
             {visibleTabs.map((item) => {
               const active = tab === item.id;
+              const isPet = item.id === "pet";
               return (
                 <Pressable
                   key={item.id}
                   onPress={() => setTab(item.id)}
-                  className={`rounded-full px-3 py-1 ${
-                    active ? "bg-primary" : "border border-border bg-card"
+                  className={`flex-row items-center gap-1 rounded-full px-3 py-1 ${
+                    active ? "bg-primary" : "bg-card"
+                  } ${
+                    isPet
+                      ? "border border-[#c8893a]"
+                      : active
+                        ? ""
+                        : "border border-border"
                   }`}
                 >
                   <Text
@@ -521,14 +545,22 @@ export default function FieldGuideScreen() {
                   >
                     {item.label}
                   </Text>
+                  {isPet ? (
+                    <Bird
+                      size={12}
+                      color={active ? "#f0ead6" : "#c8893a"}
+                      strokeWidth={2}
+                    />
+                  ) : null}
                 </Pressable>
               );
             })}
           </ScrollView>
+          </TourSpotlight>
         </View>
       ) : null}
 
-      {tab !== "explore" && tab !== "pet" ? (
+      {tab === "guide" ? (
         <View className="gap-3 px-4 pb-0 pt-3">
           <View className="flex-row items-center gap-2">
             <View className="flex-1">
@@ -598,6 +630,10 @@ export default function FieldGuideScreen() {
       ) : tab === "pet" && showPetTab ? (
         <Animated.View style={[listFrameBaseStyle, listFrameStyle, { flex: 1 }]}>
           <ColonyTab tabBarClearance={tabBarClearance} />
+        </Animated.View>
+      ) : tab === "collection" && showSelfTabs ? (
+        <Animated.View style={[listFrameBaseStyle, listFrameStyle, { flex: 1 }]}>
+          <FieldGuideCollectionTab tabBarClearance={tabBarClearance} />
         </Animated.View>
       ) : (
         <>

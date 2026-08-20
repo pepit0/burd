@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Camera, Pencil } from "lucide-react-native";
 import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
+import { PocketBirdPet } from "@/components/PocketBirdPet";
 import { LinkableText } from "@/components/LinkableText";
 import { ProfileDetailsEditSheet } from "@/components/ProfileDetailsEditSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -21,8 +22,11 @@ import { SettingsRow } from "@/components/settings/SettingsRow";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { getUserFacingMessage } from "@/lib/errors";
+import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { supabase } from "@/lib/supabase";
-import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
+import { DEFAULT_PET, getPetSpeciesId } from "@/lib/pocketBird/petStorage";
+import { getPetHatId } from "@/lib/pocketBird/petHatStorage";
+import { NO_HAT_ID, type PocketBirdHatId } from "@/lib/pocketBird/hats";
 
 export default function AccountPreferencesScreen() {
   const router = useRouter();
@@ -32,9 +36,24 @@ export default function AccountPreferencesScreen() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [detailsEditOpen, setDetailsEditOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [petSpeciesId, setPetSpeciesId] = useState(DEFAULT_PET);
+  const [petHatId, setPetHatId] = useState<PocketBirdHatId>(NO_HAT_ID);
 
   const displayName = profile?.full_name || profile?.username || "Birder";
-  const displayNamePlain = stripDisplayNameColorCodes(displayName);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPetSpeciesId().then((id) => {
+      if (!cancelled) setPetSpeciesId(id);
+    });
+    void getPetHatId().then((id) => {
+      if (!cancelled) setPetHatId(id);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function pickProfilePhoto() {
     if (!userId || avatarUploading) return;
@@ -84,7 +103,10 @@ export default function AccountPreferencesScreen() {
           <>
             <SettingsGroup title="Profile">
               <View className="items-center px-4 py-5">
-                <Pressable onPress={() => void pickProfilePhoto()} className="relative active:opacity-90">
+                <Pressable
+                  onPress={() => void pickProfilePhoto()}
+                  className="relative active:opacity-90"
+                >
                   {profile?.avatar_url ? (
                     <Image
                       source={{ uri: profile.avatar_url }}
@@ -108,6 +130,7 @@ export default function AccountPreferencesScreen() {
                     )}
                   </View>
                 </Pressable>
+
                 <DisplayNameWithBadges
                   text={displayName}
                   isVerified={profile?.is_verified}
@@ -115,7 +138,9 @@ export default function AccountPreferencesScreen() {
                   containerClassName="mt-3 justify-center"
                   className="font-serif-semibold text-lg text-foreground"
                 />
-                <Text className="font-mono text-xs text-muted-foreground">@{profile?.username}</Text>
+                <Text className="font-mono text-xs text-muted-foreground">
+                  @{profile?.username}
+                </Text>
                 {profile?.bio ? (
                   <LinkableText className="mt-2 text-center font-sans text-sm text-muted-foreground">
                     {profile.bio}
@@ -126,11 +151,41 @@ export default function AccountPreferencesScreen() {
                   className="mt-3 flex-row items-center gap-1.5 rounded-full border border-border px-3 py-1.5 active:bg-card/80"
                 >
                   <Pencil size={13} color="#8a9e82" />
-                  <Text className="font-sans-medium text-xs text-foreground">Edit name & bio</Text>
+                  <Text className="font-sans-medium text-xs text-foreground">
+                    Edit name & bio
+                  </Text>
                 </Pressable>
               </View>
               <SettingsRow label="Username" value={`@${profile?.username ?? "—"}`} showChevron={false} borderTop />
               <SettingsRow label="Email" value={user?.email ?? "—"} showChevron={false} borderTop />
+            </SettingsGroup>
+
+            <SettingsGroup title="Pocket Bird">
+              <View className="items-center px-4 py-5">
+                <View className="h-28 w-28">
+                  <PocketBirdPet
+                    speciesId={petSpeciesId}
+                    hatId={petHatId}
+                    size={110}
+                    interactive={false}
+                    paused
+                    grounded
+                    soundEnabled={false}
+                  />
+                </View>
+
+                <Pressable
+                  onPress={() => {
+                    requestFieldGuideView({ tab: "pet" });
+                    router.push("/(tabs)/field-guide");
+                  }}
+                  className="mt-3 flex-row items-center gap-1.5 rounded-full border border-border px-3 py-1.5 active:bg-card/80"
+                >
+                  <Text className="font-sans-medium text-xs text-foreground">
+                    Edit in Field Guide
+                  </Text>
+                </Pressable>
+              </View>
             </SettingsGroup>
 
             <SettingsGroup title="Session">

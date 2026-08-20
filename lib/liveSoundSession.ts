@@ -535,7 +535,7 @@ export async function saveLiveSessionToJournal(
       observedAt,
     });
 
-    const sightingId = await createSighting(userId, {
+    const { id: sightingId } = await createSighting(userId, {
       species: enriched.species,
       scientific_name: enriched.scientific_name,
       location_name: geocode.label,
@@ -572,7 +572,7 @@ export async function saveLiveSessionToJournal(
     };
   }
 
-  const sightingId = await createSighting(userId, {
+  const { id: sightingId } = await createSighting(userId, {
     species: JOURNAL_UNIDENTIFIED_SPECIES,
     scientific_name: null,
     location_name: geocode.label,

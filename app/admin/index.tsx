@@ -21,6 +21,7 @@ import {
 import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { UserBadgeAdminPanel } from "@/components/UserBadgeAdminPanel";
 import { UserModerationSheet } from "@/components/UserModerationSheet";
+import { useAppTour } from "@/components/AppTourProvider";
 import { useBadgeUnlock } from "@/components/BadgeUnlockProvider";
 import { useNewSpeciesUnlock } from "@/components/NewSpeciesUnlockProvider";
 import { useAuth } from "@/hooks/useAuth";
@@ -55,6 +56,7 @@ export default function AdminHubScreen() {
   const { isAdmin, loading: adminLoading, refresh: refreshAdmin } = useAdmin(userId);
   const { previewBadgeUnlock } = useBadgeUnlock();
   const { previewNewSpecies } = useNewSpeciesUnlock();
+  const { startTestTour } = useAppTour();
   const badgeDefinitions = useMemo(() => listAllBadgeDefinitions(), []);
 
   const [reports, setReports] = useState<PostReport[]>([]);
@@ -614,6 +616,23 @@ export default function AdminHubScreen() {
             <Text className="font-sans-medium text-sm text-foreground">Preview new species</Text>
             <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
               Sample: American Robin · species #12
+            </Text>
+          </Pressable>
+
+          <Text className="mb-2 mt-2 font-serif-semibold text-lg text-foreground">
+            App tour
+          </Text>
+          <Text className="mb-3 font-sans text-xs leading-relaxed text-muted-foreground">
+            Replay the required first-run, including mock Photo ID and navigation steps.
+            Progress is not saved in this test.
+          </Text>
+          <Pressable
+            onPress={() => startTestTour()}
+            className="mb-4 rounded-xl border border-border bg-card px-4 py-3 active:opacity-90"
+          >
+            <Text className="font-sans-medium text-sm text-foreground">Test app tour</Text>
+            <Text className="mt-0.5 font-sans text-xs text-muted-foreground">
+              Welcome through Photo ID and navigation
             </Text>
           </Pressable>
 

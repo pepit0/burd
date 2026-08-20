@@ -18,13 +18,14 @@ import {
   SIGHTING_PHOTO_ASPECT,
   centerContainTransform,
   exportSightingPhotoFromFrame,
-  getImagePixelSize,
+  prepareImageForManipulation,
   type CroppedSightingPhoto,
 } from "@/lib/sightingPhotoFrame";
 
 interface SightingPhotoCropModalProps {
   visible: boolean;
   uri: string | null;
+  base64?: string | null;
   onCancel: () => void;
   onConfirm: (photo: CroppedSightingPhoto) => void;
 }
@@ -37,6 +38,7 @@ function clamp(value: number, min: number, max: number): number {
 export function SightingPhotoCropModal({
   visible,
   uri,
+  base64,
   onCancel,
   onConfirm,
 }: SightingPhotoCropModalProps) {
@@ -47,10 +49,12 @@ export function SightingPhotoCropModal({
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [localUri, setLocalUri] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -84,16 +88,19 @@ export function SightingPhotoCropModal({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setSaveError(null);
     setImageSize(null);
+    setLocalUri(null);
 
     (async () => {
       try {
-        const size = await getImagePixelSize(uri);
+        const prepared = await prepareImageForManipulation(uri, base64);
         if (cancelled) return;
-        setImageSize(size);
-        imageW.value = size.width;
-        imageH.value = size.height;
-        applyContainTransform(size.width, size.height);
+        setLocalUri(prepared.uri);
+        setImageSize({ width: prepared.width, height: prepared.height });
+        imageW.value = prepared.width;
+        imageH.value = prepared.height;
+        applyContainTransform(prepared.width, prepared.height);
       } catch {
         if (!cancelled) {
           setError("Could not load this photo.");
@@ -106,7 +113,7 @@ export function SightingPhotoCropModal({
     return () => {
       cancelled = true;
     };
-  }, [applyContainTransform, imageH, imageW, uri, visible]);
+  }, [applyContainTransform, base64, imageH, imageW, uri, visible]);
 
   const panGesture = useMemo(
     () =>
@@ -196,12 +203,13 @@ export function SightingPhotoCropModal({
   }
 
   async function handleConfirm() {
-    if (!uri || !imageSize || saving) return;
+    if (!localUri || !imageSize || saving) return;
 
     setSaving(true);
+    setSaveError(null);
     try {
       const cropped = await exportSightingPhotoFromFrame(
-        uri,
+        localUri,
         imageSize.width,
         imageSize.height,
         frameWidth,
@@ -212,7 +220,7 @@ export function SightingPhotoCropModal({
       );
       onConfirm(cropped);
     } catch {
-      setError("Could not save this photo. Try again.");
+      setSaveError("Could not save this photo. Try again.");
     } finally {
       setSaving(false);
     }
@@ -231,7 +239,7 @@ export function SightingPhotoCropModal({
           <Text className="font-serif-semibold text-base text-foreground">Adjust photo</Text>
           <Pressable
             onPress={handleConfirm}
-            disabled={loading || saving || !imageSize || Boolean(error)}
+            disabled={loading || saving || !imageSize || !localUri || Boolean(error)}
             className="px-1 py-1"
           >
             <Text className="font-sans-semibold text-base text-primary">
@@ -286,6 +294,12 @@ export function SightingPhotoCropModal({
             >
               <Text className="font-sans-medium text-sm text-primary">Fit full photo</Text>
             </Pressable>
+          ) : null}
+
+          {saveError ? (
+            <Text className="mt-4 px-2 text-center font-sans text-sm text-red-400">
+              {saveError}
+            </Text>
           ) : null}
         </View>
       </View>

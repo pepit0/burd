@@ -74,6 +74,59 @@ function gridToPixels(
   return pixels;
 }
 
+interface PixelRun {
+  x: number;
+  y: number;
+  width: number;
+  fill: string;
+}
+
+function compressPixelRuns(pixels: PocketBirdPixel[]): PixelRun[] {
+  const rows = new Map<number, PocketBirdPixel[]>();
+  for (const pixel of pixels) {
+    const row = rows.get(pixel.y) ?? [];
+    row.push(pixel);
+    rows.set(pixel.y, row);
+  }
+
+  const runs: PixelRun[] = [];
+  for (const [y, rowPixels] of rows) {
+    rowPixels.sort((a, b) => a.x - b.x);
+    let run: PixelRun | null = null;
+
+    for (const pixel of rowPixels) {
+      if (run && run.fill === pixel.fill && run.x + run.width === pixel.x) {
+        run.width += 1;
+        continue;
+      }
+      if (run) runs.push(run);
+      run = { x: pixel.x, y, width: 1, fill: pixel.fill };
+    }
+    if (run) runs.push(run);
+  }
+
+  return runs;
+}
+
+/** One SVG for a sprite frame — cheaper than a View per pixel. */
+export function pixelsToSvg(pixels: PocketBirdPixel[]): string {
+  let maxX = POCKET_BIRD_GRID;
+  let maxY = POCKET_BIRD_GRID;
+  for (const pixel of pixels) {
+    maxX = Math.max(maxX, pixel.x + 1);
+    maxY = Math.max(maxY, pixel.y + 1);
+  }
+
+  const rects = compressPixelRuns(pixels)
+    .map(
+      (run) =>
+        `<rect x="${run.x}" y="${run.y}" width="${run.width}" height="1" fill="${run.fill}"/>`,
+    )
+    .join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxX} ${maxY}" width="${maxX}" height="${maxY}" shape-rendering="crispEdges">${rects}</svg>`;
+}
+
 function layerIndices(frameId: PocketBirdFrameId, hasTuft: boolean): number[] {
   switch (frameId) {
     case "base":

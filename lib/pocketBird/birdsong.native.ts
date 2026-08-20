@@ -3,10 +3,12 @@ import * as FileSystem from "expo-file-system/legacy";
 import {
   encodeWavBase64,
   synthesizeChirpPcm,
+  synthesizeUnlockTweetPcm,
 } from "@/lib/pocketBird/birdsongCore";
 
 const SAMPLE_RATE = 44100;
 let audioModeReady = false;
+let unlockTweetPath: string | null = null;
 
 async function ensurePlaybackMode(): Promise<void> {
   if (audioModeReady) return;
@@ -18,6 +20,19 @@ async function ensurePlaybackMode(): Promise<void> {
     playThroughEarpieceAndroid: false,
   });
   audioModeReady = true;
+}
+
+async function playWav(uri: string, volume: number): Promise<void> {
+  const { sound } = await Audio.Sound.createAsync(
+    { uri },
+    { shouldPlay: true, volume },
+  );
+
+  sound.setOnPlaybackStatusUpdate((status) => {
+    if (status.isLoaded && status.didJustFinish) {
+      void sound.unloadAsync();
+    }
+  });
 }
 
 /** Procedural chirp synthesized to WAV and played with expo-av. */
@@ -47,4 +62,23 @@ export async function playBirdChirp(): Promise<void> {
       void FileSystem.deleteAsync(path, { idempotent: true });
     }
   });
+}
+
+/** Short two-note tweet for badge and card unlocks. */
+export async function playUnlockTweet(): Promise<void> {
+  await ensurePlaybackMode();
+
+  const cacheDir = FileSystem.cacheDirectory;
+  if (!cacheDir) return;
+
+  if (!unlockTweetPath) {
+    const base64 = encodeWavBase64(synthesizeUnlockTweetPcm(SAMPLE_RATE), SAMPLE_RATE);
+    const path = `${cacheDir}burd-unlock-tweet.wav`;
+    await FileSystem.writeAsStringAsync(path, base64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    unlockTweetPath = path;
+  }
+
+  await playWav(unlockTweetPath, 0.85);
 }

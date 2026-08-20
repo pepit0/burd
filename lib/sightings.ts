@@ -11,6 +11,7 @@ import type { PostAudioTrim } from "@/lib/sightingAudio";
 import { getSightingPhotos, insertSightingPhotos, isSightingPhotosSchemaMissing, sightingPhotosForDisplay } from "@/lib/sightingPhotos";
 import { insertSightingCompanions, getSightingCompanions, getSightingCompanionsForSightings } from "@/lib/sightingCompanions";
 import { getAudioSourceAttribution, getAudioSourceAttributions } from "@/lib/friendSounds";
+import { tryGrantSpeciesCard } from "@/lib/speciesCards";
 import type {
   FeedSighting,
   JournalSightingUpdate,
@@ -20,7 +21,13 @@ import type {
   Sighting,
   SightingMediaUpdate,
   SightingVisibility,
+  SpeciesCard,
 } from "@/types";
+
+export interface CreateSightingResult {
+  id: string;
+  unlockedCard: SpeciesCard | null;
+}
 
 export async function getNearbyFeed(
   lat: number,
@@ -933,7 +940,7 @@ export async function createSighting(
   userId: string,
   input: NewSightingInput,
   profile?: Profile | null,
-): Promise<string> {
+): Promise<CreateSightingResult> {
   let ownerProfile = profile;
   if (!ownerProfile) {
     ownerProfile = await getMyProfile(userId);
@@ -1011,5 +1018,21 @@ export async function createSighting(
     await insertSightingCompanions(sightingId, companionIds);
   }
 
-  return sightingId;
+  const unlockedCard = await tryGrantSpeciesCard({
+    userId,
+    sightingId,
+    species: insertRow.species,
+    scientificName: insertRow.scientific_name,
+    photoUrl: insertRow.photo_url,
+    detectedBy: insertRow.detected_by,
+    locationCity: insertRow.location_city,
+    locationCountry: input.species_card?.locationCountry ?? null,
+    latitude: insertRow.latitude,
+    longitude: insertRow.longitude,
+    observedAt: insertRow.observed_at,
+    fromCamera: Boolean(input.species_card?.fromCamera),
+    photoIdCatalogId: input.species_card?.photoIdCatalogId ?? null,
+  });
+
+  return { id: sightingId, unlockedCard };
 }

@@ -7,6 +7,10 @@ export default function AdminLayout() {
         headerShown: false,
         contentStyle: { backgroundColor: "#181e16" },
       }}
-    />
+    >
+      <Stack.Screen name="index" dangerouslySingular />
+      <Stack.Screen name="user-support" dangerouslySingular />
+      <Stack.Screen name="edit-post/[id]" dangerouslySingular />
+    </Stack>
   );
 }

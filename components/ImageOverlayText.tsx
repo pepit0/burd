@@ -26,6 +26,7 @@ function inferStrokeWidth(className?: string): number {
   if (/\btext-sm\b/.test(className)) return 1.1;
   if (/\btext-2xl\b/.test(className)) return 1.53;
   if (/\btext-xl\b/.test(className)) return 1.41;
+  if (/\btext-lg\b/.test(className)) return 1.35;
   return 1.23;
 }
 

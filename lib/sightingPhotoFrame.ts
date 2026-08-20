@@ -1,5 +1,6 @@
 import { Image } from "react-native";
 import * as ImageManipulator from "expo-image-manipulator";
+import { ensureLocalImageUri } from "@/lib/localImageFile";
 
 /** Matches post detail frames (4:5 portrait). */
 export const SIGHTING_PHOTO_ASPECT = 4 / 5;
@@ -70,6 +71,28 @@ export async function getImagePixelSize(
   });
 }
 
+/** Copy/download and re-encode so crop math matches the manipulator's pixel size. */
+export async function prepareImageForManipulation(
+  uri: string,
+  base64?: string | null,
+): Promise<{ uri: string; width: number; height: number }> {
+  const localUri = await ensureLocalImageUri(uri, base64);
+  try {
+    const result = await ImageManipulator.manipulateAsync(localUri, [], {
+      compress: 1,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
+    return {
+      uri: result.uri,
+      width: result.width,
+      height: result.height,
+    };
+  } catch {
+    const size = await getImagePixelSize(localUri);
+    return { uri: localUri, width: size.width, height: size.height };
+  }
+}
+
 export function centerCropRect(
   imageWidth: number,
   imageHeight: number,
@@ -97,6 +120,30 @@ export function centerCropRect(
   };
 }
 
+export function sanitizeCropRect(
+  crop: ImageCropRect,
+  imageWidth: number,
+  imageHeight: number,
+): ImageCropRect {
+  const maxWidth = Math.max(1, Math.round(imageWidth));
+  const maxHeight = Math.max(1, Math.round(imageHeight));
+  let originX = Math.max(0, Math.round(crop.originX));
+  let originY = Math.max(0, Math.round(crop.originY));
+  let width = Math.max(1, Math.round(crop.width));
+  let height = Math.max(1, Math.round(crop.height));
+
+  if (originX >= maxWidth) originX = Math.max(0, maxWidth - 1);
+  if (originY >= maxHeight) originY = Math.max(0, maxHeight - 1);
+  if (originX + width > maxWidth) width = maxWidth - originX;
+  if (originY + height > maxHeight) height = maxHeight - originY;
+
+  if (width < 1 || height < 1) {
+    return { originX: 0, originY: 0, width: maxWidth, height: maxHeight };
+  }
+
+  return { originX, originY, width, height };
+}
+
 export function cropRectFromFrameTransform(
   imageWidth: number,
   imageHeight: number,
@@ -106,17 +153,32 @@ export function cropRectFromFrameTransform(
   translateX: number,
   translateY: number,
 ): ImageCropRect {
-  const cropWidth = frameWidth / scale;
-  const cropHeight = frameHeight / scale;
-  const originX = clamp(-translateX / scale, 0, imageWidth - cropWidth);
-  const originY = clamp(-translateY / scale, 0, imageHeight - cropHeight);
+  const safeScale = Math.max(scale, 0.0001);
+  const visibleLeft = -translateX / safeScale;
+  const visibleTop = -translateY / safeScale;
+  const visibleRight = visibleLeft + frameWidth / safeScale;
+  const visibleBottom = visibleTop + frameHeight / safeScale;
 
-  return {
-    originX: Math.round(originX),
-    originY: Math.round(originY),
-    width: Math.round(Math.min(cropWidth, imageWidth - originX)),
-    height: Math.round(Math.min(cropHeight, imageHeight - originY)),
-  };
+  const left = clamp(visibleLeft, 0, imageWidth);
+  const top = clamp(visibleTop, 0, imageHeight);
+  const right = clamp(visibleRight, 0, imageWidth);
+  const bottom = clamp(visibleBottom, 0, imageHeight);
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+
+  if (width < 1 || height < 1) {
+    return sanitizeCropRect(
+      { originX: 0, originY: 0, width: imageWidth, height: imageHeight },
+      imageWidth,
+      imageHeight,
+    );
+  }
+
+  return sanitizeCropRect(
+    { originX: left, originY: top, width, height },
+    imageWidth,
+    imageHeight,
+  );
 }
 
 export function minCoverScale(
@@ -177,9 +239,27 @@ export function isFullPhotoVisible(
   frameWidth: number,
   frameHeight: number,
   scale: number,
+  translateX = 0,
+  translateY = 0,
 ): boolean {
   const containScale = minContainScale(imageWidth, imageHeight, frameWidth, frameHeight);
-  return scale <= containScale * 1.02;
+  if (scale <= containScale * 1.02) return true;
+
+  const crop = cropRectFromFrameTransform(
+    imageWidth,
+    imageHeight,
+    frameWidth,
+    frameHeight,
+    scale,
+    translateX,
+    translateY,
+  );
+  return (
+    crop.originX <= 1 &&
+    crop.originY <= 1 &&
+    crop.originX + crop.width >= imageWidth - 1 &&
+    crop.originY + crop.height >= imageHeight - 1
+  );
 }
 
 export function clampPan(
@@ -217,6 +297,23 @@ export async function cropSightingPhoto(
   };
 }
 
+async function encodeSightingPhoto(
+  uri: string,
+  quality: number,
+): Promise<CroppedSightingPhoto> {
+  const result = await ImageManipulator.manipulateAsync(uri, [], {
+    compress: quality,
+    format: ImageManipulator.SaveFormat.JPEG,
+    base64: true,
+  });
+  return {
+    uri: result.uri,
+    base64: result.base64 ?? null,
+    width: result.width,
+    height: result.height,
+  };
+}
+
 export async function exportSightingPhotoFromFrame(
   uri: string,
   imageWidth: number,
@@ -228,18 +325,18 @@ export async function exportSightingPhotoFromFrame(
   translateY: number,
   quality = 0.85,
 ): Promise<CroppedSightingPhoto> {
-  if (isFullPhotoVisible(imageWidth, imageHeight, frameWidth, frameHeight, scale)) {
-    const result = await ImageManipulator.manipulateAsync(uri, [], {
-      compress: quality,
-      format: ImageManipulator.SaveFormat.JPEG,
-      base64: true,
-    });
-    return {
-      uri: result.uri,
-      base64: result.base64 ?? null,
-      width: result.width,
-      height: result.height,
-    };
+  if (
+    isFullPhotoVisible(
+      imageWidth,
+      imageHeight,
+      frameWidth,
+      frameHeight,
+      scale,
+      translateX,
+      translateY,
+    )
+  ) {
+    return encodeSightingPhoto(uri, quality);
   }
 
   const crop = cropRectFromFrameTransform(
@@ -251,7 +348,26 @@ export async function exportSightingPhotoFromFrame(
     translateX,
     translateY,
   );
-  return cropSightingPhoto(uri, crop, quality);
+
+  try {
+    return await cropSightingPhoto(uri, crop, quality);
+  } catch {
+    const inset = sanitizeCropRect(
+      {
+        originX: crop.originX,
+        originY: crop.originY,
+        width: Math.max(1, crop.width - 2),
+        height: Math.max(1, crop.height - 2),
+      },
+      imageWidth,
+      imageHeight,
+    );
+    try {
+      return await cropSightingPhoto(uri, inset, quality);
+    } catch {
+      return encodeSightingPhoto(uri, quality);
+    }
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -1,4 +1,5 @@
 import type { AuthError, User } from "@supabase/supabase-js";
+import { markAppTourPending } from "@/lib/appTourStorage";
 import { getEmailAuthRedirectUri } from "@/lib/authRedirect";
 import { getUserFacingMessage, isNetworkError } from "@/lib/errors";
 import { withTransientRetry } from "@/lib/retry";
@@ -209,6 +210,11 @@ export async function claimUsername(
   });
 
   await supabase.auth.refreshSession();
+  try {
+    await markAppTourPending(userId);
+  } catch {
+    // Tour start should not block signup.
+  }
 }
 
 export function signupAvailabilityMessage(

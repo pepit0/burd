@@ -87,13 +87,31 @@ export function encodeWavBase64(samples: Int16Array, sampleRate: number): string
 
 export function synthesizeChirpPcm(sampleRate = 44100): Int16Array {
   const count = chirpBurstCount();
-  const gapSec = 0.12;
+  const bursts = Array.from({ length: count }, () => chirpFrequencies(count));
+  return synthesizeChirpBurstsPcm(bursts, 0.12, sampleRate);
+}
+
+/** Two bright tweets for badge / card unlocks. */
+export const UNLOCK_TWEET_FREQUENCIES: readonly (readonly number[])[] = [
+  [2400, 3450, 2550, 1850],
+  [2900, 4100, 3050, 2100],
+];
+
+export function synthesizeUnlockTweetPcm(sampleRate = 44100): Int16Array {
+  return synthesizeChirpBurstsPcm(UNLOCK_TWEET_FREQUENCIES, 0.1, sampleRate);
+}
+
+function synthesizeChirpBurstsPcm(
+  bursts: readonly (readonly number[])[],
+  gapSec: number,
+  sampleRate: number,
+): Int16Array {
   const chirpDuration = CHIRP_TIMES[CHIRP_TIMES.length - 1]!;
-  const totalSec = chirpDuration + (count - 1) * gapSec;
+  const totalSec = chirpDuration + Math.max(0, bursts.length - 1) * gapSec;
   const float = new Float32Array(Math.ceil(totalSec * sampleRate));
 
-  for (let c = 0; c < count; c++) {
-    const frequencies = chirpFrequencies(count);
+  for (let c = 0; c < bursts.length; c++) {
+    const frequencies = bursts[c]!;
     const startSample = Math.floor(c * gapSec * sampleRate);
     const chirpSamples = Math.ceil(chirpDuration * sampleRate);
     let phase = 0;

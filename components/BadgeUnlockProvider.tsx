@@ -13,6 +13,7 @@ import {
   nextBadgeUnlockKey,
 } from "@/components/BadgeUnlockOverlay";
 import { triggerBadgeUnlockHaptic } from "@/lib/haptics";
+import { playUnlockTweet } from "@/lib/pocketBird/birdsong";
 import {
   initializeCelebratedBadges,
   markBadgeCelebrated,
@@ -71,6 +72,7 @@ export function BadgeUnlockProvider({
     setActiveBadge(next);
     setUnlockKey((key) => nextBadgeUnlockKey(key));
     void triggerBadgeUnlockHaptic();
+    void playUnlockTweet().catch(() => undefined);
   }, [flushPendingSyncResolves]);
 
   const dismiss = useCallback(() => {

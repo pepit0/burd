@@ -8,8 +8,8 @@ export default function UserProfileLayout() {
         contentStyle: { backgroundColor: "#181e16" },
       }}
     >
-      <Stack.Screen name="index" />
-      <Stack.Screen name="journal" />
+      <Stack.Screen name="index" dangerouslySingular />
+      <Stack.Screen name="journal" dangerouslySingular />
     </Stack>
   );
 }

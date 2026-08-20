@@ -19,6 +19,8 @@ import {
   type PocketBirdMovementState,
 } from "@/lib/pocketBird/movement";
 
+const IDLE_CHECK_MS = 100;
+
 interface MovementSnapshot {
   currentState: PocketBirdMovementState;
   stateStart: number;
@@ -69,6 +71,7 @@ export function usePocketBirdMovement(
     lastActionTimestamp: Date.now(),
   });
   const facingRightRef = useRef(true);
+  const rescheduleAfk = useRef(() => {});
 
   const updateFacing = (facingRight: boolean) => {
     if (facingRight === facingRightRef.current) return;
@@ -105,6 +108,7 @@ export function usePocketBirdMovement(
 
   const touch = () => {
     snapshot.current.lastActionTimestamp = Date.now();
+    rescheduleAfk.current();
   };
 
   useLayoutEffect(() => {
@@ -136,25 +140,34 @@ export function usePocketBirdMovement(
   useEffect(() => {
     if (paused || !ready) return;
 
-    const tick = () => {
+    let cancelled = false;
+    let hopTimer: ReturnType<typeof setTimeout> | undefined;
+    let hopRollTimer: ReturnType<typeof setTimeout> | undefined;
+    let afkTimer: ReturnType<typeof setTimeout> | undefined;
+    let raf = 0;
+
+    const hopChancePerCheck =
+      1 - (1 - POCKET_BIRD_HOP_CHANCE) ** (IDLE_CHECK_MS / POCKET_BIRD_UPDATE_MS);
+
+    const clearTimers = () => {
+      if (hopTimer) clearTimeout(hopTimer);
+      if (hopRollTimer) clearTimeout(hopRollTimer);
+      if (afkTimer) clearTimeout(afkTimer);
+      hopTimer = undefined;
+      hopRollTimer = undefined;
+      afkTimer = undefined;
+    };
+
+    const stopRaf = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    };
+
+    const tickMotion = () => {
+      if (cancelled) return;
       const state = snapshot.current;
 
-      if (state.currentState === "idle") {
-        if (grounded && state.birdY !== groundY) {
-          state.birdY = groundY;
-          posY.value = groundY;
-        }
-
-        if (
-          Date.now() - state.stateStart > POCKET_BIRD_HOP_DELAY_MS &&
-          Math.random() < POCKET_BIRD_HOP_CHANCE
-        ) {
-          beginHop();
-        } else if (Date.now() - state.lastActionTimestamp > POCKET_BIRD_AFK_MS) {
-          beginFly();
-          state.lastActionTimestamp = Date.now();
-        }
-      } else if (state.currentState === "hop") {
+      if (state.currentState === "hop") {
         const step = advanceParabolicPath(
           state.startX,
           state.startY,
@@ -177,6 +190,8 @@ export function usePocketBirdMovement(
             posY.value = groundY;
           }
           setState("idle");
+          scheduleIdle();
+          return;
         }
       } else if (state.currentState === "flying") {
         const step = advanceParabolicPath(
@@ -202,12 +217,77 @@ export function usePocketBirdMovement(
             posY.value = groundY;
           }
           setState("idle");
+          scheduleIdle();
+          return;
         }
+      } else {
+        scheduleIdle();
+        return;
       }
+
+      raf = requestAnimationFrame(tickMotion);
     };
 
-    const interval = setInterval(tick, POCKET_BIRD_UPDATE_MS);
-    return () => clearInterval(interval);
+    const startMotionLoop = () => {
+      clearTimers();
+      stopRaf();
+      raf = requestAnimationFrame(tickMotion);
+    };
+
+    const scheduleAfk = () => {
+      if (cancelled || snapshot.current.currentState !== "idle") return;
+      if (afkTimer) clearTimeout(afkTimer);
+      const wait = Math.max(
+        0,
+        POCKET_BIRD_AFK_MS - (Date.now() - snapshot.current.lastActionTimestamp),
+      );
+      afkTimer = setTimeout(() => {
+        if (cancelled || snapshot.current.currentState !== "idle") return;
+        beginFly();
+        snapshot.current.lastActionTimestamp = Date.now();
+        startMotionLoop();
+      }, wait);
+    };
+
+    rescheduleAfk.current = scheduleAfk;
+
+    const scheduleIdle = () => {
+      stopRaf();
+      clearTimers();
+
+      if (grounded && snapshot.current.birdY !== groundY) {
+        snapshot.current.birdY = groundY;
+        posY.value = groundY;
+      }
+
+      hopTimer = setTimeout(() => {
+        const roll = () => {
+          if (cancelled || snapshot.current.currentState !== "idle") return;
+          if (Math.random() < hopChancePerCheck) {
+            beginHop();
+            startMotionLoop();
+            return;
+          }
+          hopRollTimer = setTimeout(roll, IDLE_CHECK_MS);
+        };
+        roll();
+      }, POCKET_BIRD_HOP_DELAY_MS);
+
+      scheduleAfk();
+    };
+
+    if (snapshot.current.currentState === "idle") {
+      scheduleIdle();
+    } else {
+      startMotionLoop();
+    }
+
+    return () => {
+      cancelled = true;
+      rescheduleAfk.current = () => {};
+      clearTimers();
+      stopRaf();
+    };
   }, [arenaSpan, groundY, grounded, paused, posX, posY, ready]);
 
   return {

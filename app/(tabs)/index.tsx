@@ -14,6 +14,7 @@ import { FilterSheet } from "@/components/FilterSheet";
 import { ScrollScreen } from "@/components/ScrollScreen";
 import { TabEmptyState } from "@/components/TabEmptyState";
 import { SightingCard } from "@/components/SightingCard";
+import { TourSpotlight } from "@/components/TourSpotlight";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivity } from "@/hooks/useActivity";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
@@ -24,10 +25,8 @@ import {
   DEFAULT_FEED_CONTENT_FILTERS,
   type FeedContentFilters,
   type FeedNearbyFilter,
-  type FeedRarityFilter,
 } from "@/lib/filters";
 import { getMyProfile, searchFeedByHashtag } from "@/lib/sightings";
-import { isSpeciesRarityVisible } from "@/lib/rarity";
 import { matchesSightingSearch } from "@/lib/sightingSearch";
 import type { ActivityItem, FeedSighting } from "@/types";
 
@@ -228,6 +227,7 @@ export default function HomeScreen() {
         />
       )}
 
+      <TourSpotlight target="feed-tabs" style={{ borderRadius: 999 }}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -257,6 +257,7 @@ export default function HomeScreen() {
           </Pressable>
         )}
       </ScrollView>
+      </TourSpotlight>
     </View>
   );
 
@@ -421,25 +422,6 @@ export default function HomeScreen() {
               { value: "nearby", label: "Nearby only" },
             ],
           },
-          ...(isSpeciesRarityVisible()
-            ? [
-                {
-                  title: "Rarity",
-                  value: contentFilters.rarity,
-                  onSelect: (value: string) =>
-                    setContentFilters((prev) => ({
-                      ...prev,
-                      rarity: value as FeedRarityFilter,
-                    })),
-                  options: [
-                    { value: "all", label: "All" },
-                    { value: "common", label: "Common" },
-                    { value: "uncommon", label: "Uncommon" },
-                    { value: "rare", label: "Rare" },
-                  ],
-                },
-              ]
-            : []),
         ]}
       />
     </>

@@ -1,4 +1,5 @@
 import { displaySpeciesName } from "@/lib/predictionLabels";
+import { resolveCatalogSpecies } from "@/lib/speciesCatalog";
 import { speciesMatchKey } from "@/lib/speciesMatch";
 import type { Sighting } from "@/types";
 
@@ -12,6 +13,7 @@ export interface NewSpeciesCelebration {
 export function loggedSpeciesKeys(sightings: Sighting[]): Set<string> {
   const keys = new Set<string>();
   for (const sighting of sightings) {
+    if (!resolveCatalogSpecies(sighting.species, sighting.scientific_name)) continue;
     const key = speciesMatchKey({
       species: sighting.species,
       scientific_name: sighting.scientific_name,
@@ -26,6 +28,7 @@ export function isFirstLogForSpecies(
   species: string,
   scientificName?: string | null,
 ): boolean {
+  if (!resolveCatalogSpecies(species, scientificName)) return false;
   const key = speciesMatchKey({
     species,
     scientific_name: scientificName,

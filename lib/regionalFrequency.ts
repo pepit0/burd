@@ -11,6 +11,8 @@ import {
 import {
   exploreChecklistPrior,
   neighborDistanceWeight,
+  rarityChecklistPrior,
+  raritySpeciesCandidates,
 } from "@/lib/exploreChecklist";
 import {
   checklistPrior,
@@ -296,6 +298,47 @@ export function lookupSpeciesScore(
     expected,
     rarity: rarityFromFrequency(frequency, expected),
   };
+}
+
+/**
+ * Rarity display only — strict GBIF + rarity checklist prior + community boost.
+ * Photo/sound ID does not use this (those use geoPrior / checklistPrior).
+ */
+export function lookupRarityDisplayFrequency(
+  ctx: RegionalContext,
+  scientificName: string,
+): number {
+  const key = normalizeScientificName(scientificName);
+  if (!key) return 0;
+
+  const gbif = gbifFrequencyStrict(ctx, key);
+  const checklist = rarityChecklistPrior(
+    { lat: ctx.lat, lng: ctx.lng, month: ctx.month },
+    key,
+  );
+  const base = Math.max(gbif, checklist);
+  const boost = communityBoost(ctx, key);
+  return base + boost * COMMUNITY_WEIGHT;
+}
+
+/** Rarity display only — species pool for percentile ranking at a location/month. */
+export function collectRaritySpeciesCandidates(
+  lat: number,
+  lng: number,
+  date: Date = new Date(),
+): string[] {
+  const ctx = getRegionalContext(lat, lng, date);
+  const candidates = new Set<string>();
+
+  for (const key of raritySpeciesCandidates(lat, lng, ctx.month)) {
+    candidates.add(key);
+  }
+
+  for (const key of collectRegionalSpeciesCandidates(lat, lng, date)) {
+    candidates.add(key);
+  }
+
+  return [...candidates];
 }
 
 /** Seasonal abundance score — month-matched GBIF, no cross-month bleed. */

@@ -112,12 +112,11 @@ export default function UserProfileScreen() {
   const stats: {
     label: string;
     value: number;
-    onPress: () => void;
+    onPress?: () => void;
   }[] = [
     {
       label: "Posts",
       value: sightings.length,
-      onPress: () => router.push(`/user/${profileId}/journal`),
     },
     {
       label: "Species",
@@ -130,11 +129,6 @@ export default function UserProfileScreen() {
     {
       label: "Friends",
       value: friends,
-      onPress: () =>
-        router.push({
-          pathname: "/follows",
-          params: { tab: "friends", profileId },
-        }),
     },
   ];
 
@@ -173,7 +167,7 @@ export default function UserProfileScreen() {
             />
 
             <View className="-mt-9 px-4">
-              <View className="mb-3">
+              <View className="mb-3 flex-row items-end gap-3">
                 <ProfileAvatarPeek
                   avatarUrl={profile.avatar_url}
                   avatarColor={profile.avatar_color}
@@ -199,7 +193,7 @@ export default function UserProfileScreen() {
                 </View>
               ) : null}
 
-              <View className="flex-row items-center justify-between gap-3">
+              <View className="flex-row items-start justify-between gap-3">
                 <View className="min-w-0 flex-1">
                   <DisplayNameWithBadges
                     text={displayName}
@@ -209,12 +203,12 @@ export default function UserProfileScreen() {
                     badgeSize="md"
                     className="font-serif-semibold text-xl text-foreground"
                   />
-                  <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
+                  <Text className="-mt-0.5 font-mono text-xs text-muted-foreground">
                     @{profile.username}
                     {profile.location_name ? ` · ${profile.location_name}` : ""}
                   </Text>
                 </View>
-                <View className="mr-2">
+                <View className="mr-2 -mt-0.5">
                   <ProfileStatsRow stats={stats} variant="inline" />
                 </View>
               </View>

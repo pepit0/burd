@@ -12,6 +12,7 @@ export function usePocketBirdAnimation(
   animationId: PocketBirdAnimationId,
   onComplete?: () => void,
   hatId?: PocketBirdHatId,
+  paused = false,
 ): PocketBirdPixel[] {
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -32,6 +33,12 @@ export function usePocketBirdAnimation(
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     setPixels(getPocketBirdFrame(speciesId, def.frames[0]!, resolvedHatId));
+
+    if (paused) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const advance = () => {
       if (cancelled) return;
@@ -59,7 +66,7 @@ export function usePocketBirdAnimation(
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [animationId, resolvedHatId, speciesId]);
+  }, [animationId, paused, resolvedHatId, speciesId]);
 
   return pixels;
 }

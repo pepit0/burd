@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, {
   interpolateColor,
@@ -19,9 +19,13 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import { Avatar } from "@/components/Avatar";
+import { useAppTourOptional } from "@/components/AppTourProvider";
+import { TourSpotlight } from "@/components/TourSpotlight";
 import { useAuth } from "@/hooks/useAuth";
 import { triggerTabHaptic } from "@/lib/haptics";
 import { getMyProfile } from "@/lib/sightings";
+import { setGuideTabCenter } from "@/lib/tabBarTargets";
+import type { AppTourSpotlight } from "@/lib/appTourSteps";
 
 const TABS: Record<string, { label: string; icon: LucideIcon }> = {
   index: { label: "Home", icon: Feather },
@@ -37,6 +41,15 @@ const ICON_BASE = 22;
 const PROFILE_RING = 32;
 const PROFILE_AVATAR = 26;
 const PROFILE_BORDER = 1;
+const TOUR_MAGNIFY = 2.1;
+const TOUR_LIFT = 12;
+
+const TAB_SPOTLIGHT: Record<string, AppTourSpotlight> = {
+  index: "tab-home",
+  journal: "tab-journal",
+  "field-guide": "tab-guide",
+  profile: "tab-profile",
+};
 
 type ProfileTabAvatar = {
   username: string;
@@ -86,34 +99,44 @@ function TabButton({
   profileAvatar?: ProfileTabAvatar | null;
 }) {
   const meta = TABS[routeName];
+  const tour = useAppTourOptional();
+  const tourHighlight =
+    tour?.phase === "tour" && tour.spotlight === TAB_SPOTLIGHT[routeName];
+  const tabRef = useRef<View>(null);
   const scale = useSharedValue(focused ? 1.14 : 1);
+  const lift = useSharedValue(0);
   const goldMix = useSharedValue(focused ? 1 : 0);
 
   useEffect(() => {
-    scale.value = withSpring(focused ? 1.14 : 1, {
-      damping: 14,
-      stiffness: 220,
+    scale.value = withSpring(tourHighlight ? TOUR_MAGNIFY : focused ? 1.14 : 1, {
+      damping: 13,
+      stiffness: 180,
     });
-    goldMix.value = withTiming(focused ? 1 : 0, { duration: 240 });
-  }, [focused, goldMix, scale]);
+    lift.value = withSpring(tourHighlight ? -TOUR_LIFT : 0, {
+      damping: 13,
+      stiffness: 180,
+    });
+    goldMix.value = withTiming(tourHighlight || focused ? 1 : 0, { duration: 240 });
+  }, [focused, goldMix, lift, scale, tourHighlight]);
 
   const iconStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [{ translateY: lift.value }, { scale: scale.value }],
   }));
   const inactiveStyle = useAnimatedStyle(() => ({
-    opacity: focused ? 0 : 1,
+    opacity: focused || tourHighlight ? 0 : 1,
   }));
   const greenStyle = useAnimatedStyle(() => ({
-    opacity: focused ? 1 - goldMix.value : 0,
+    opacity: tourHighlight ? 0 : focused ? 1 - goldMix.value : 0,
   }));
   const goldStyle = useAnimatedStyle(() => ({
-    opacity: focused ? goldMix.value : 0,
+    opacity: tourHighlight ? 1 : focused ? goldMix.value : 0,
   }));
   const profileRingStyle = useAnimatedStyle(() => ({
-    opacity: focused ? 1 : 0.72,
-    borderColor: focused
-      ? interpolateColor(goldMix.value, [0, 1], [GREEN, GOLD])
-      : INACTIVE,
+    opacity: focused || tourHighlight ? 1 : 0.72,
+    borderColor:
+      focused || tourHighlight
+        ? interpolateColor(goldMix.value, [0, 1], [GREEN, GOLD])
+        : INACTIVE,
   }));
 
   if (!meta) return null;
@@ -123,13 +146,27 @@ function TabButton({
 
   return (
     <Pressable
+      ref={tabRef}
       key={routeKey}
       onPress={onPress}
+      onLayout={() => {
+        if (routeName !== "field-guide") return;
+        tabRef.current?.measureInWindow((x, y, width, height) => {
+          setGuideTabCenter({ x: x + width / 2, y: y + height / 2 });
+        });
+      }}
       accessibilityLabel={meta.label}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
       className="flex-1 items-center justify-center py-3"
+      style={{ zIndex: tourHighlight ? 8 : 0, overflow: "visible" }}
     >
+      <TourSpotlight
+        target={TAB_SPOTLIGHT[routeName] ?? "none"}
+        magnify={TOUR_MAGNIFY}
+        lift={TOUR_LIFT}
+        style={{ borderRadius: 999, overflow: "visible" }}
+      >
       {showProfileAvatar ? (
         <Animated.View style={[iconStyle, iconLayer.profileStack]}>
           <Animated.View style={[iconLayer.profileRing, profileRingStyle]}>
@@ -154,6 +191,7 @@ function TabButton({
           </Animated.View>
         </Animated.View>
       )}
+      </TourSpotlight>
     </Pressable>
   );
 }
@@ -162,6 +200,8 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const tour = useAppTourOptional();
+  const tourLocksTabs = tour != null && tour.phase !== "idle";
   const [profileAvatar, setProfileAvatar] = useState<ProfileTabAvatar | null>(null);
   const routes = state.routes.filter((r) => TABS[r.name]);
   const left = routes.slice(0, 2);
@@ -200,6 +240,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         focused={focused}
         profileAvatar={route.name === "profile" ? profileAvatar : null}
         onPress={() => {
+          if (tourLocksTabs) return;
           const event = navigation.emit({
             type: "tabPress",
             target: route.key,
@@ -224,8 +265,8 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       }}
     >
       <View
-        className="rounded-[28px] border border-border/50 bg-card/95"
         style={{
+          overflow: "visible",
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.35,
@@ -233,17 +274,26 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
           elevation: 12,
         }}
       >
-        <View className="flex-row items-center">
+        <View
+          pointerEvents="none"
+          className="absolute inset-0 rounded-[28px] border border-border/50 bg-card/95"
+        />
+        <View className="flex-row items-center" style={{ overflow: "visible" }}>
           {left.map(renderTab)}
 
           <View className="px-2">
+            <TourSpotlight
+              target="camera-fab"
+              style={{ borderRadius: 999, marginTop: -32, overflow: "visible" }}
+            >
             <Pressable
               onPress={() => {
+                if (tourLocksTabs) return;
                 triggerTabHaptic();
                 router.push("/camera");
               }}
               accessibilityLabel="Camera"
-              className="-mt-8 h-[72px] w-[72px] items-center justify-center rounded-full border-[5px] border-card bg-primary active:opacity-90"
+              className="h-[72px] w-[72px] items-center justify-center rounded-full border-[5px] border-card bg-primary active:opacity-90"
               style={{
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 4 },
@@ -254,6 +304,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
             >
               <Camera size={28} color="#f0ead6" strokeWidth={2.25} />
             </Pressable>
+            </TourSpotlight>
           </View>
 
           {right.map(renderTab)}

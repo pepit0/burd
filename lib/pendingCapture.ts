@@ -1,3 +1,4 @@
+import type { LivePhotoDetection, LivePhotoDisplayRow } from "@/lib/livePhotoSession";
 import type { DetectedBy, Prediction } from "@/types";
 
 /**
@@ -5,11 +6,28 @@ import type { DetectedBy, Prediction } from "@/types";
  * can't carry large base64 strings, so the camera stashes them here and the
  * new-sighting screen consumes them once.
  */
+export interface SessionLiveIdentification {
+  primary: LivePhotoDetection;
+  displayRows: LivePhotoDisplayRow[];
+}
+
 export interface SessionPhoto {
   id: string;
   uri: string;
   base64: string | null;
   capturedAt: string;
+  /** Locked Live ID from the moment this still was taken. */
+  liveIdentification?: SessionLiveIdentification;
+}
+
+/** Drop in-memory Live ID + base64 before writing a draft. */
+export function toPersistedSessionPhoto(photo: SessionPhoto): SessionPhoto {
+  return {
+    id: photo.id,
+    uri: photo.uri,
+    base64: null,
+    capturedAt: photo.capturedAt,
+  };
 }
 
 export interface SessionAudio {
@@ -35,6 +53,10 @@ export interface PendingCapture {
   audio?: SessionAudio | null;
   analysis?: SessionAnalysis;
   soundLibraryId?: string | null;
+  /** Photos are ready; species should be identified on the log screen. */
+  needsIdentification?: boolean;
+  /** In-memory only: stills came from the in-app camera, not the gallery. */
+  fromCamera?: boolean;
 }
 
 let pending: PendingCapture | null = null;

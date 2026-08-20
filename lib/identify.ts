@@ -3,6 +3,7 @@ import type { Prediction } from "@/types";
 import { audioUploadMeta } from "@/lib/audioUpload";
 import { resolveHeardSpecies } from "@/lib/heardSpecies";
 import { readLocalFileBytes } from "@/lib/localFileBytes";
+import { ensureLocalImageUri } from "@/lib/localImageFile";
 import { enrichPredictions } from "@/lib/predictionLabels";
 import {
   getRegionalContext,
@@ -357,13 +358,14 @@ export async function identifyImage(
     geo?: IdentifyGeoOptions;
   },
 ): Promise<IdentifyResult> {
+  const localUri = await ensureLocalImageUri(uri, options?.base64);
   if (PHOTO_AUTHENTICITY_ENABLED && !options?.skipAuthenticity) {
-    await validatePhotoAuthenticity(uri, options?.base64);
+    await validatePhotoAuthenticity(localUri, options?.base64);
   }
   return postFile(
     "/identify/image",
     "image",
-    uri,
+    localUri,
     "photo.jpg",
     "image/jpeg",
     options?.geo,

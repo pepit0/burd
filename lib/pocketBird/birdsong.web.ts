@@ -1,6 +1,7 @@
 import {
   CHIRP_TIMES,
   CHIRP_VOLUMES,
+  UNLOCK_TWEET_FREQUENCIES,
   chirpBurstCount,
   chirpFrequencies,
 } from "@/lib/pocketBird/birdsongCore";
@@ -57,4 +58,51 @@ export async function playBirdChirp(): Promise<void> {
       oscillator.stop(now + CHIRP_TIMES[CHIRP_TIMES.length - 1]!);
     }, i * 120);
   }
+}
+
+function playWebChirpBursts(bursts: readonly (readonly number[])[], gapMs: number): void {
+  if (!audioContext) return;
+  const ctx = audioContext;
+
+  for (let i = 0; i < bursts.length; i++) {
+    window.setTimeout(() => {
+      const frequencies = bursts[i]!;
+      const oscillator = ctx.createOscillator();
+      oscillator.type = "sine";
+      const gain = ctx.createGain();
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+      for (let k = 0; k < CHIRP_TIMES.length; k++) {
+        const time = CHIRP_TIMES[k]! + now;
+        if (k === 0) {
+          oscillator.frequency.setValueAtTime(frequencies[k]!, time);
+          gain.gain.setValueAtTime(CHIRP_VOLUMES[k]!, time);
+        } else {
+          oscillator.frequency.exponentialRampToValueAtTime(frequencies[k]!, time);
+          gain.gain.exponentialRampToValueAtTime(CHIRP_VOLUMES[k]!, time);
+        }
+      }
+
+      oscillator.start(now);
+      oscillator.stop(now + CHIRP_TIMES[CHIRP_TIMES.length - 1]!);
+    }, i * gapMs);
+  }
+}
+
+/** Short two-note tweet for badge and card unlocks. */
+export async function playUnlockTweet(): Promise<void> {
+  const AudioCtx = getAudioContextCtor();
+  if (!AudioCtx) return;
+
+  if (!audioContext) {
+    audioContext = new AudioCtx();
+  }
+  const ctx = audioContext;
+  if (ctx.state === "suspended") {
+    await ctx.resume();
+  }
+
+  playWebChirpBursts(UNLOCK_TWEET_FREQUENCIES, 100);
 }

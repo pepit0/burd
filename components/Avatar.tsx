@@ -1,4 +1,5 @@
-import { Image, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import { Image } from "expo-image";
 
 interface AvatarProps {
   user: string;
@@ -10,14 +11,15 @@ interface AvatarProps {
 export function Avatar({ user, color, avatarUrl, size = 36 }: AvatarProps) {
   return (
     <View
-      className="items-center justify-center rounded-full"
+      className="items-center justify-center overflow-hidden rounded-full"
       style={{ width: size, height: size, backgroundColor: color }}
     >
       {avatarUrl ? (
         <Image
           source={{ uri: avatarUrl }}
-          className="h-full w-full rounded-full"
-          resizeMode="cover"
+          style={{ width: size, height: size }}
+          contentFit="cover"
+          recyclingKey={avatarUrl}
         />
       ) : (
         <Text

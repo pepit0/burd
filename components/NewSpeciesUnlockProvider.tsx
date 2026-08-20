@@ -8,13 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import { View } from "react-native";
-import { Feather } from "lucide-react-native";
 import {
   CelebrationUnlockOverlay,
   nextCelebrationUnlockKey,
 } from "@/components/CelebrationUnlockOverlay";
-import { FAMILY_STYLES } from "@/components/ProfileBadges";
 import { triggerBadgeUnlockHaptic } from "@/lib/haptics";
+import { playUnlockTweet } from "@/lib/pocketBird/birdsong";
+import { resolveCatalogSpecies } from "@/lib/speciesCatalog";
 import {
   buildNewSpeciesCelebration,
   newSpeciesCelebrationDescription,
@@ -28,8 +28,6 @@ interface NewSpeciesUnlockContextValue {
 }
 
 const NewSpeciesUnlockContext = createContext<NewSpeciesUnlockContextValue | null>(null);
-
-const LIFE_LIST_ICON = FAMILY_STYLES.life_list;
 
 export function NewSpeciesUnlockProvider({ children }: { children: ReactNode }) {
   const [activeCelebration, setActiveCelebration] = useState<NewSpeciesCelebration | null>(
@@ -63,6 +61,7 @@ export function NewSpeciesUnlockProvider({ children }: { children: ReactNode }) 
     setActiveCelebration(next);
     setUnlockKey((key) => nextCelebrationUnlockKey(key));
     void triggerBadgeUnlockHaptic();
+    void playUnlockTweet().catch(() => undefined);
   }, [flushPendingResolves]);
 
   const dismiss = useCallback(() => {
@@ -126,9 +125,15 @@ export function NewSpeciesUnlockProvider({ children }: { children: ReactNode }) 
         activeCelebration.scientificName,
       )
     : "";
-  const description = activeCelebration
+  const catalog = activeCelebration
+    ? resolveCatalogSpecies(
+        activeCelebration.species,
+        activeCelebration.scientificName,
+      )
+    : undefined;
+  const pill = activeCelebration
     ? newSpeciesCelebrationDescription(activeCelebration.lifeListCount)
-    : "";
+    : undefined;
 
   return (
     <NewSpeciesUnlockContext.Provider value={value}>
@@ -139,14 +144,17 @@ export function NewSpeciesUnlockProvider({ children }: { children: ReactNode }) 
           visible={Boolean(activeCelebration)}
           kicker="New species"
           title={title}
-          description={description}
-          icon={Feather}
-          iconStyle={{
-            backgroundColor: LIFE_LIST_ICON.earnedBg,
-            borderColor: LIFE_LIST_ICON.earnedIcon,
-            iconColor: LIFE_LIST_ICON.earnedIcon,
-            iconFill: LIFE_LIST_ICON.earnedIconFill,
-          }}
+          subtitle={activeCelebration?.scientificName ?? undefined}
+          pill={pill}
+          photo={
+            activeCelebration
+              ? {
+                  catalogId: catalog?.id ?? null,
+                  scientificName:
+                    activeCelebration.scientificName ?? activeCelebration.species,
+                }
+              : null
+          }
           canDismiss={canDismiss}
           onIntroComplete={onIntroComplete}
           onDismiss={dismiss}

@@ -1,1 +1,1 @@
-export { playBirdChirp } from "@/lib/pocketBird/birdsong.native";
+export { playBirdChirp, playUnlockTweet } from "@/lib/pocketBird/birdsong.native";

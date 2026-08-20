@@ -255,6 +255,30 @@ export interface NewSightingInput {
   visibility?: SightingVisibility;
   share_exact_coordinates?: boolean;
   location_fuzz_km?: number;
+  /** Camera Photo ID grant — create only; never persist or send on edits. */
+  species_card?: {
+    fromCamera: boolean;
+    photoIdCatalogId: string | null;
+    locationCountry: string | null;
+  };
+}
+
+/** Collectible card earned from in-app camera Photo ID. */
+export interface SpeciesCard {
+  id: string;
+  user_id: string;
+  species: string;
+  scientific_name: string;
+  catalog_id: string;
+  photo_url: string;
+  location_city: string | null;
+  location_country: string | null;
+  sighting_id: string | null;
+  unlocked_at: string;
+  /** From linked sighting — used for regional rarity on the card. */
+  latitude?: number | null;
+  longitude?: number | null;
+  observed_at?: string | null;
 }
 
 export interface AccountStatus {

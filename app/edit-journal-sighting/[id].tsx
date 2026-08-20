@@ -92,6 +92,7 @@ export default function EditJournalSightingScreen() {
   const [photoDisplayUri, setPhotoDisplayUri] = useState<string | null>(null);
   const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
   const [cropSourceUri, setCropSourceUri] = useState<string | null>(null);
+  const [cropSourceBase64, setCropSourceBase64] = useState<string | null>(null);
   const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
   const [pendingPhotoBase64, setPendingPhotoBase64] = useState<string | null>(null);
   const [photoChanged, setPhotoChanged] = useState(false);
@@ -202,6 +203,7 @@ export default function EditJournalSightingScreen() {
     const uri = originalPhotoUri ?? sighting?.photo_url ?? null;
     if (!uri) return;
     setCropSourceUri(uri);
+    setCropSourceBase64(null);
     setCropModalOpen(true);
   }
 
@@ -224,6 +226,7 @@ export default function EditJournalSightingScreen() {
 
     const asset = result.assets[0];
     setCropSourceUri(asset.uri);
+    setCropSourceBase64(asset.base64 ?? null);
     setPendingPhotoBase64(asset.base64 ?? null);
     setCropModalOpen(true);
   }
@@ -593,6 +596,7 @@ export default function EditJournalSightingScreen() {
       <SightingPhotoCropModal
         visible={cropModalOpen}
         uri={cropSourceUri}
+        base64={cropSourceBase64}
         onCancel={() => setCropModalOpen(false)}
         onConfirm={applyCroppedPhoto}
       />

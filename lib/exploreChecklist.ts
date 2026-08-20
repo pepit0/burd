@@ -159,6 +159,64 @@ export function exploreChecklistPrior(
   return 0;
 }
 
+/**
+ * Rarity display — month/all `_freq` maps without migrant off-season zero-out.
+ * Photo/sound ID does not use this (those use checklistPrior).
+ */
+export function rarityChecklistPrior(
+  ctx: ChecklistContext,
+  scientificName: string,
+): number {
+  const key = normalizeScientificName(scientificName);
+  if (!key) return 0;
+
+  const zone = zoneForCoords(ctx.lat, ctx.lng);
+  if (!zone) return 0;
+
+  const monthFreq = monthFreqMap(zone, ctx.month)[key];
+  if (monthFreq != null && monthFreq > 0) return monthFreq;
+
+  const allFreq = allFreqMap(zone)[key];
+  if (allFreq != null && allFreq > 0) {
+    if (isOnMonthSpecificList(zone, ctx.month, key)) return allFreq;
+    return allFreq * 0.75;
+  }
+
+  if (isOnMonthSpecificList(zone, ctx.month, key)) {
+    return CHECKLIST_MONTH_PRIOR;
+  }
+
+  if (isOnAllYearList(zone, key)) {
+    return CHECKLIST_ALL_MONTH_PRIOR;
+  }
+
+  return 0;
+}
+
+/** Candidate pool for regional rarity percentile ranking. */
+export function raritySpeciesCandidates(
+  lat: number,
+  lng: number,
+  month: number,
+): string[] {
+  const zone = zoneForCoords(lat, lng);
+  if (!zone) return [];
+
+  const candidates = new Set<string>();
+
+  for (const species of monthSpeciesList(zone, month)) {
+    const key = normalizeScientificName(species);
+    if (key) candidates.add(key);
+  }
+
+  for (const species of allSpeciesList(zone)) {
+    const key = normalizeScientificName(species);
+    if (key) candidates.add(key);
+  }
+
+  return [...candidates];
+}
+
 /** Candidate species for Explore — month checklist + residents, not off-season migrants. */
 export function exploreSpeciesCandidates(
   lat: number,

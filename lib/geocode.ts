@@ -214,9 +214,13 @@ export function exploreRegionLabelFromGeocode(
   return regionShort;
 }
 
+export function countryFromGeocode(place: LocationGeocodedAddress): string {
+  return place.country?.trim() ?? "";
+}
+
 export function applyGeocodeFields(
   place: LocationGeocodedAddress,
-): { city: string; address: string; label: string } {
+): { city: string; address: string; label: string; country: string } {
   const address = addressFromGeocode(place);
   let city = cityFromGeocode(place);
 
@@ -229,7 +233,7 @@ export function applyGeocodeFields(
   }
 
   const label = placeLabel(place, city);
-  return { city, address, label };
+  return { city, address, label, country: countryFromGeocode(place) };
 }
 
 /** Province/state from a comma-separated address (excludes country). */

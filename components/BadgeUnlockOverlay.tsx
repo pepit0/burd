@@ -4,7 +4,7 @@ import {
   CELEBRATION_INTRO_MS,
   nextCelebrationUnlockKey,
 } from "@/components/CelebrationUnlockOverlay";
-import type { ProfileBadge } from "@/lib/profileBadges";
+import { BADGE_FAMILY_LABELS, type ProfileBadge } from "@/lib/profileBadges";
 
 export interface BadgeUnlockOverlayProps {
   unlockKey: number;
@@ -32,7 +32,8 @@ export function BadgeUnlockOverlay({
       visible={Boolean(badge)}
       kicker="New badge"
       title={badge.label}
-      description={badge.desc}
+      subtitle={badge.desc}
+      pill={BADGE_FAMILY_LABELS[badge.family]}
       icon={Icon}
       iconStyle={{
         backgroundColor: familyStyle.earnedBg,

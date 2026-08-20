@@ -1,31 +1,44 @@
 import { Text, View } from "react-native";
 import type { Rarity } from "@/types";
 import { isSpeciesRarityVisible } from "@/lib/rarity";
+import {
+  RARITY_BADGE_SIZE,
+  RARITY_BADGE_STYLES,
+} from "@/lib/rarityVisual";
 
-const STYLES: Record<Rarity, { box: string; text: string }> = {
-  common: { box: "bg-green-950 border-green-800/50", text: "text-green-400" },
-  uncommon: { box: "bg-amber-950 border-amber-800/50", text: "text-amber-400" },
-  rare: { box: "bg-purple-950 border-purple-800/50", text: "text-purple-400" },
-};
-
-const FALLBACK_STYLE = STYLES.common;
-
-const SIZE_STYLES = {
-  sm: { box: "rounded border px-1.5 py-0.5", text: "text-[9px]" },
-  lg: { box: "rounded-md border-2 px-3 py-1.5", text: "text-xs" },
-} as const;
+const FALLBACK_STYLE = RARITY_BADGE_STYLES.common;
 
 export function RarityBadge({
   rarity,
   size = "sm",
+  alwaysShow = false,
+  variant = "boxed",
 }: {
   rarity: Rarity;
-  size?: keyof typeof SIZE_STYLES;
+  size?: keyof typeof RARITY_BADGE_SIZE;
+  alwaysShow?: boolean;
+  variant?: "boxed" | "plain";
 }) {
-  if (!isSpeciesRarityVisible()) return null;
+  if (!alwaysShow && !isSpeciesRarityVisible()) return null;
 
-  const s = STYLES[rarity] ?? FALLBACK_STYLE;
-  const sizing = SIZE_STYLES[size];
+  const s = RARITY_BADGE_STYLES[rarity] ?? FALLBACK_STYLE;
+  const sizing = RARITY_BADGE_SIZE[size];
+
+  if (variant === "plain") {
+    return (
+      <Text
+        className={`font-mono uppercase tracking-widest ${sizing.text} ${s.text}`}
+        style={{
+          textShadowColor: "rgba(0, 0, 0, 0.85)",
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 4,
+        }}
+      >
+        {rarity}
+      </Text>
+    );
+  }
+
   return (
     <View className={`self-start ${sizing.box} ${s.box}`}>
       <Text className={`font-mono uppercase tracking-widest ${sizing.text} ${s.text}`}>

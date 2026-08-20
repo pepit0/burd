@@ -24,6 +24,7 @@ import {
 } from "@/components/AttachSoundSheet";
 import { CompanionPicker } from "@/components/CompanionPicker";
 import { useNewSpeciesUnlock } from "@/components/NewSpeciesUnlockProvider";
+import { useCardUnlock } from "@/components/CardUnlockProvider";
 import { useBadgeUnlock } from "@/components/BadgeUnlockProvider";
 import { useGlobalPostSendOff } from "@/components/PostSendOffProvider";
 import { SightingPhotoCropModal } from "@/components/SightingPhotoCropModal";
@@ -32,6 +33,11 @@ import { RarityBadge } from "@/components/RarityBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { identifyImage, isPhotoValidationError, PhotoValidationError } from "@/lib/identify";
+import {
+  IDENTIFY_FINISH_SLOW_HINT,
+  IDENTIFY_FINISH_SLOW_HINT_MS,
+  useSlowRequestHint,
+} from "@/hooks/useSlowRequestHint";
 import {
   checkPhotoAuthenticity,
   PHOTO_AUTHENTICITY_ENABLED,
@@ -54,12 +60,14 @@ import {
 import { maybeGenerateSpeciesProfileAfterSighting } from "@/lib/speciesProfileLoad";
 import { isSpeciesRarityVisible, lookupRegionalRarity } from "@/lib/rarity";
 import { applyGeocodeFields } from "@/lib/geocode";
+import { resolveCatalogSpecies } from "@/lib/speciesCatalog";
 import { photoTakenAt } from "@/lib/photoMetadata";
 import { getUserFacingMessage } from "@/lib/errors";
 import { detectionSourceLabel } from "@/lib/fusePredictions";
 import { soundReportSpecies } from "@/lib/heardSpecies";
 import { claimPendingCaptureForSighting, clearPendingCapture, type PendingCapture, type SessionPhoto } from "@/lib/pendingCapture";
 import {
+  IDENTIFY_DONE_BUDGET_MS,
   deleteCaptureDraft,
   getCaptureDraft,
   readPhotoBase64,
@@ -76,6 +84,7 @@ import {
 import { SIGHTING_PHOTO_ASPECT, type CroppedSightingPhoto } from "@/lib/sightingPhotoFrame";
 import { VISIBILITY_OPTIONS } from "@/lib/privacySettings";
 import { isSensitiveSpecies, getSensitiveSpeciesEntry } from "@/lib/sensitiveSpecies";
+import { soundConfirmsPhoto } from "@/lib/speciesMatch";
 import type { PostAudioTrim } from "@/lib/sightingAudio";
 import type { DetectedBy, Prediction, Rarity, SightingCompanion, SightingPhotoInput, SightingVisibility, SoundLibraryEntry } from "@/types";
 import type { FriendSoundPost } from "@/lib/friendSounds";
@@ -85,6 +94,9 @@ function parseCount(value: string | undefined): number {
   if (!Number.isFinite(n) || n < 1) return 1;
   return Math.min(Math.round(n), 99);
 }
+
+const PHOTO_IDENTIFY_FAILED =
+  "Couldn't identify this photo. Enter the species yourself.";
 
 function normalizeSightingPhotoUri(
   uri: string | null | undefined,
@@ -236,6 +248,7 @@ export default function NewSightingScreen() {
   const privacyDefaults = profilePrivacyDefaults(profile);
   const { playSendOff } = useGlobalPostSendOff();
   const { celebrateNewSpecies } = useNewSpeciesUnlock();
+  const { celebrateCardUnlock } = useCardUnlock();
   const { refreshAndCelebrateBadges } = useBadgeUnlock();
 
   const params = useLocalSearchParams<SightingParams>();
@@ -249,11 +262,26 @@ export default function NewSightingScreen() {
   const [rarityLoading, setRarityLoading] = useState(false);
   const [count, setCount] = useState(bootstrap.count);
   const [countFromPhoto, setCountFromPhoto] = useState(bootstrap.countFromPhoto);
-  const [countLoading, setCountLoading] = useState(false);
+  const [countLoading, setCountLoading] = useState(
+    Boolean(bootstrap.capture?.needsIdentification) ||
+      (!bootstrap.species.trim() && Boolean(bootstrap.photoUri)),
+  );
+  const [identifyError, setIdentifyError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [locationName, setLocationName] = useState("");
   const [locationCity, setLocationCity] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
+  const [locationCountry, setLocationCountry] = useState("");
+  const [fromCamera, setFromCamera] = useState(() =>
+    Boolean(bootstrap.capture?.fromCamera),
+  );
+  const [photoIdCatalogId, setPhotoIdCatalogId] = useState<string | null>(() => {
+    if (!bootstrap.capture?.fromCamera) return null;
+    return (
+      resolveCatalogSpecies(bootstrap.species, bootstrap.scientific || null)?.id ??
+      null
+    );
+  });
   const [observedAt, setObservedAt] = useState<Date>(bootstrap.observedAt);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [photoEntries, setPhotoEntries] = useState<PhotoEntryDraft[]>(() =>
@@ -297,6 +325,7 @@ export default function NewSightingScreen() {
   const [photoAuthMessage, setPhotoAuthMessage] = useState<string | null>(null);
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropSourceUri, setCropSourceUri] = useState<string | null>(null);
+  const [cropSourceBase64, setCropSourceBase64] = useState<string | null>(null);
   const [audioTrimModalOpen, setAudioTrimModalOpen] = useState(false);
 
   const attachedAudioForTrim = useMemo(() => {
@@ -322,7 +351,12 @@ export default function NewSightingScreen() {
 
   const [detectedBy, setDetectedBy] = useState<DetectedBy>(bootstrap.detectedBy);
   const [confidence, setConfidence] = useState<number | null>(bootstrap.confidence);
-  const photoSoundAgreed = bootstrap.photoSoundAgreed;
+  const [photoSoundAgreed, setPhotoSoundAgreed] = useState(bootstrap.photoSoundAgreed);
+  const identifyingFromPhoto = countLoading && !species.trim();
+  const showIdentifySlowHint = useSlowRequestHint(
+    identifyingFromPhoto,
+    IDENTIFY_FINISH_SLOW_HINT_MS,
+  );
 
   useEffect(() => {
     if (!activePhotoId) return;
@@ -381,6 +415,7 @@ export default function NewSightingScreen() {
 
       // Retry identify when resuming a draft without species params
       if (!params.species?.trim() && primary?.uri) {
+        setCountLoading(true);
         try {
           const identified = await identifyImage(primary.uri, {
             skipAuthenticity: true,
@@ -402,13 +437,21 @@ export default function NewSightingScreen() {
             setScientific(top.scientific_name ?? "");
             setDetectedBy("image");
             setConfidence(top.confidence);
+            setIdentifyError(null);
+            setPhotoIdCatalogId(
+              resolveCatalogSpecies(top.species, top.scientific_name)?.id ?? null,
+            );
+          } else {
+            setIdentifyError(PHOTO_IDENTIFY_FAILED);
           }
           if (identified.count) {
             setCount(identified.count);
             setCountFromPhoto(true);
           }
         } catch {
-          // User can enter species manually
+          if (!cancelled) setIdentifyError(PHOTO_IDENTIFY_FAILED);
+        } finally {
+          if (!cancelled) setCountLoading(false);
         }
       }
     })();
@@ -417,6 +460,71 @@ export default function NewSightingScreen() {
       cancelled = true;
     };
   }, [bootstrap.capture, draftId, params.species]);
+
+  useEffect(() => {
+    const shouldIdentify =
+      Boolean(bootstrap.capture?.needsIdentification) ||
+      (!bootstrap.species.trim() && Boolean(bootstrap.photoUri));
+    if (!shouldIdentify || !bootstrap.photoUri) return;
+
+    let cancelled = false;
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error("identify-timeout")),
+        IDENTIFY_DONE_BUDGET_MS,
+      );
+    });
+
+    void (async () => {
+      try {
+        const identified = await Promise.race([
+          identifyImage(bootstrap.photoUri!, {
+            skipAuthenticity: true,
+            base64: bootstrap.photoBase64,
+          }),
+          timeout,
+        ]);
+        if (cancelled) return;
+        const top = identified.predictions[0]
+          ? enrichPrediction(identified.predictions[0])
+          : null;
+        if (top) {
+          setSpecies(top.species);
+          setScientific(top.scientific_name ?? "");
+          setDetectedBy("image");
+          setConfidence(top.confidence);
+          setIdentifyError(null);
+          setPhotoIdCatalogId(
+            resolveCatalogSpecies(top.species, top.scientific_name)?.id ?? null,
+          );
+          const soundTop = bootstrap.heardSpecies[0]
+            ? enrichPrediction(bootstrap.heardSpecies[0])
+            : null;
+          setPhotoSoundAgreed(soundConfirmsPhoto(top, soundTop));
+        } else {
+          setIdentifyError(PHOTO_IDENTIFY_FAILED);
+        }
+        if (identified.count) {
+          setCount(identified.count);
+          setCountFromPhoto(true);
+        }
+      } catch {
+        if (!cancelled) setIdentifyError(PHOTO_IDENTIFY_FAILED);
+      } finally {
+        if (!cancelled) setCountLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bootstrap.capture?.needsIdentification,
+    bootstrap.heardSpecies,
+    bootstrap.photoBase64,
+    bootstrap.photoUri,
+    bootstrap.species,
+  ]);
 
   useEffect(() => {
     const id = soundLibraryId ?? params.sound_library_id?.trim();
@@ -503,6 +611,7 @@ export default function NewSightingScreen() {
     const entry = activePhoto;
     if (!entry) return;
     setCropSourceUri(entry.sourceUri);
+    setCropSourceBase64(entry.sourceBase64);
     setCropModalOpen(true);
   }
 
@@ -550,9 +659,10 @@ export default function NewSightingScreen() {
       const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
       const place = geo[0];
       if (place) {
-        const { city, address, label } = applyGeocodeFields(place);
+        const { city, address, label, country } = applyGeocodeFields(place);
         setLocationCity(city);
         setLocationAddress(address);
+        setLocationCountry(country);
         setLocationName((prev) => prev || label || city);
       }
     } catch {
@@ -592,6 +702,7 @@ export default function NewSightingScreen() {
 
   async function analyzePhoto(uri: string, base64?: string | null) {
     setCountLoading(true);
+    setIdentifyError(null);
     try {
       const identified = await identifyImage(uri, {
         base64,
@@ -611,6 +722,16 @@ export default function NewSightingScreen() {
         setScientific(top.scientific_name ?? "");
         setDetectedBy("image");
         setConfidence(top.confidence);
+        setIdentifyError(null);
+        setPhotoIdCatalogId(
+          resolveCatalogSpecies(top.species, top.scientific_name)?.id ?? null,
+        );
+        const soundTop = heardSpecies[0]
+          ? enrichPrediction(heardSpecies[0])
+          : null;
+        setPhotoSoundAgreed(soundConfirmsPhoto(top, soundTop));
+      } else {
+        setIdentifyError(PHOTO_IDENTIFY_FAILED);
       }
       if (identified.count) {
         setCount(identified.count);
@@ -629,8 +750,10 @@ export default function NewSightingScreen() {
         setCountFromPhoto(false);
         setDetectedBy("manual");
         setConfidence(null);
+        setIdentifyError(null);
+      } else {
+        setIdentifyError(PHOTO_IDENTIFY_FAILED);
       }
-      // keep the current count if analysis fails for other reasons
     } finally {
       setCountLoading(false);
     }
@@ -672,6 +795,8 @@ export default function NewSightingScreen() {
       setDetectedBy("manual");
       setConfidence(null);
       setCountFromPhoto(false);
+      setFromCamera(false);
+      setPhotoIdCatalogId(null);
       if (takenAt) setObservedAt(takenAt);
       await analyzePhoto(asset.uri, asset.base64 ?? null);
     }
@@ -817,7 +942,7 @@ export default function NewSightingScreen() {
         audioUrl = await uploadSoundClip(userId, sessionAudio.uri);
       }
 
-      const sightingId = await createSighting(
+      const { id: sightingId, unlockedCard } = await createSighting(
         userId,
         {
           species: trimmedSpecies,
@@ -842,6 +967,11 @@ export default function NewSightingScreen() {
           publish: publishToProfile,
           visibility: postVisibility,
           audio_trim: publishToProfile && attachedAudioForTrim ? audioTrim : null,
+          species_card: {
+            fromCamera,
+            photoIdCatalogId,
+            locationCountry: locationCountry.trim() || null,
+          },
         },
         profile,
       );
@@ -869,6 +999,9 @@ export default function NewSightingScreen() {
 
       InteractionManager.runAfterInteractions(() => {
         void (async () => {
+          if (unlockedCard) {
+            await celebrateCardUnlock(unlockedCard);
+          }
           if (celebration) {
             await celebrateNewSpecies(celebration);
           }
@@ -915,6 +1048,21 @@ export default function NewSightingScreen() {
         </Text>
         <View className="w-10" />
       </View>
+
+      <View className="relative flex-1">
+      {identifyingFromPhoto ? (
+        <View className="absolute inset-0 z-20 items-center justify-center bg-background/90 px-8">
+          <ActivityIndicator size="large" color="#5f9470" />
+          <Text className="mt-3 text-center font-sans text-sm text-foreground/80">
+            Identifying from photo...
+          </Text>
+          {showIdentifySlowHint ? (
+            <Text className="mt-2 text-center font-sans text-xs leading-relaxed text-muted-foreground">
+              {IDENTIFY_FINISH_SLOW_HINT}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <KeyboardScreen
         className="flex-1"
@@ -1040,6 +1188,11 @@ export default function NewSightingScreen() {
 
           <View className={fieldClassName} style={fieldStyle}>
             <Text className={fieldLabelClassName}>Species</Text>
+            {identifyError && !countLoading ? (
+              <Text className="font-sans text-xs leading-5 text-red-400">
+                {identifyError}
+              </Text>
+            ) : null}
             {countLoading && !species.trim() ? (
               <View className="min-h-[48px] flex-row items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
                 <ActivityIndicator size="small" color="#5f9470" />
@@ -1379,6 +1532,7 @@ export default function NewSightingScreen() {
           ) : null}
         </View>
       </KeyboardScreen>
+      </View>
 
       <AttachSoundSheet
         visible={soundPickerOpen}
@@ -1398,6 +1552,7 @@ export default function NewSightingScreen() {
       <SightingPhotoCropModal
         visible={cropModalOpen}
         uri={cropSourceUri}
+        base64={cropSourceBase64}
         onCancel={() => setCropModalOpen(false)}
         onConfirm={applyCroppedPhoto}
       />

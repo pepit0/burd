@@ -2,6 +2,7 @@ import { Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { Mic, Users } from "lucide-react-native";
 import { triggerHaptic, useAccessibility } from "@/components/AccessibilityProvider";
+import { TourSpotlight } from "@/components/TourSpotlight";
 import { triggerLiveSoundOpenHaptic } from "@/lib/haptics";
 
 export function HeaderActions() {
@@ -10,6 +11,7 @@ export function HeaderActions() {
 
   return (
     <>
+      <TourSpotlight target="header-mic" style={{ borderRadius: 999 }}>
       <Pressable
         onPress={() => {
           void triggerHaptic(triggerLiveSoundOpenHaptic, hapticsEnabled);
@@ -20,6 +22,7 @@ export function HeaderActions() {
       >
         <Mic size={18} color="#f0ead6" />
       </Pressable>
+      </TourSpotlight>
       <Pressable
         onPress={() => router.push("/users")}
         className="rounded-full p-2 active:bg-card"

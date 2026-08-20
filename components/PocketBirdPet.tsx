@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppState, Pressable, View } from "react-native";
+import { useIsFocused } from "@react-navigation/native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 import type { PocketBirdAnimationId } from "@/lib/pocketBird/animations";
@@ -36,15 +37,27 @@ export function PocketBirdPet({
     () => resolvePocketBirdDisplaySize(size),
     [size],
   );
+  const isFocused = useIsFocused();
+  const [appActive, setAppActive] = useState(
+    () => AppState.currentState === "active",
+  );
   const [petting, setPetting] = useState(false);
   const [arenaWidth, setArenaWidth] = useState(0);
   const playAreaHeight = arenaHeight ?? displaySize;
 
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      setAppActive(next === "active");
+    });
+    return () => sub.remove();
+  }, []);
+
+  const effectivelyPaused = paused || !isFocused || !appActive;
   const arenaReady = arenaWidth > 0;
 
   const { posX, posY, facingScale, moveAnimation, touch } = usePocketBirdMovement(
     { width: arenaWidth, height: playAreaHeight, birdSize: displaySize, grounded },
-    paused,
+    effectivelyPaused,
   );
 
   const animation: PocketBirdAnimationId = petting ? "HEART" : moveAnimation;
@@ -58,19 +71,23 @@ export function PocketBirdPet({
     animation,
     petting ? returnToIdle : undefined,
     hatId,
+    effectivelyPaused && !petting,
   );
 
+  const half = displaySize / 2;
   const animatedStyle = useAnimatedStyle(() => ({
-    position: "absolute",
-    left: posX.value - displaySize / 2,
-    top: posY.value - displaySize / 2,
+    position: "absolute" as const,
     width: displaySize,
     height: displaySize,
-    transform: [{ scaleX: facingScale.value }],
+    transform: [
+      { translateX: posX.value - half },
+      { translateY: posY.value - half },
+      { scaleX: facingScale.value },
+    ],
   }));
 
   function onPet() {
-    if (!interactive || petting || paused) return;
+    if (!interactive || petting || effectivelyPaused) return;
     touch();
 
     if (soundEnabled) {
@@ -84,50 +101,45 @@ export function PocketBirdPet({
     setPetting(true);
   }
 
-  const layoutProps = {
-    className: "w-full" as const,
-    onLayout: (event: { nativeEvent: { layout: { width: number } } }) => {
-      const nextWidth = event.nativeEvent.layout.width;
-      if (nextWidth !== arenaWidth) {
-        setArenaWidth(nextWidth);
-      }
-    },
-  };
-
   const birdVisual = (
     <PocketBirdRenderer pixels={pixels} size={displaySize} />
   );
 
-  const bird = (
-    <View
-      style={{
-        width: "100%",
-        height: playAreaHeight,
-        overflow: "hidden",
-        opacity: arenaReady ? 1 : 0,
-      }}
-      pointerEvents="box-none"
-    >
-      <Animated.View style={animatedStyle} pointerEvents="box-none">
-        {interactive ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Pet your bird"
-            onPress={onPet}
-            style={{ width: displaySize, height: displaySize }}
-          >
-            {birdVisual}
-          </Pressable>
-        ) : (
-          birdVisual
-        )}
-      </Animated.View>
-    </View>
-  );
-
   return (
-    <View {...layoutProps} pointerEvents="box-none">
-      {bird}
+    <View
+      className="w-full"
+      pointerEvents="box-none"
+      onLayout={(event) => {
+        const nextWidth = event.nativeEvent.layout.width;
+        if (nextWidth !== arenaWidth) {
+          setArenaWidth(nextWidth);
+        }
+      }}
+    >
+      <View
+        style={{
+          width: "100%",
+          height: playAreaHeight,
+          overflow: "hidden",
+          opacity: arenaReady ? 1 : 0,
+        }}
+        pointerEvents="box-none"
+      >
+        <Animated.View style={animatedStyle} pointerEvents="box-none">
+          {interactive ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Pet your bird"
+              onPress={onPet}
+              style={{ width: displaySize, height: displaySize }}
+            >
+              {birdVisual}
+            </Pressable>
+          ) : (
+            birdVisual
+          )}
+        </Animated.View>
+      </View>
     </View>
   );
 }

@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Image,
@@ -34,8 +33,7 @@ import {
   Zap,
   ZapOff,
 } from "lucide-react-native";
-import { identifySession, identificationFromLivePhoto } from "@/lib/identifySession";
-import { isInferenceConnectionIssue } from "@/lib/identify";
+import { identificationFromLivePhoto } from "@/lib/identifySession";
 import {
   PHOTO_AUTHENTICITY_ENABLED,
   validatePhotoAuthenticity,
@@ -46,11 +44,11 @@ import {
 } from "@/lib/photoValidation";
 import {
   setPendingCapture,
+  toPersistedSessionPhoto,
   type SessionPhoto,
   type PendingCapture,
 } from "@/lib/pendingCapture";
 import {
-  IDENTIFY_DONE_BUDGET_MS,
   createCaptureDraftId,
   deleteCaptureDraft,
   persistSessionPhoto,
@@ -58,9 +56,12 @@ import {
 } from "@/lib/captureDrafts";
 import { enrichPrediction } from "@/lib/predictionLabels";
 import { soundConfirmsPhoto } from "@/lib/speciesMatch";
-import { getErrorMessage, getUserFacingMessage } from "@/lib/errors";
+import { getUserFacingMessage } from "@/lib/errors";
 import { triggerCameraShutterHaptic } from "@/lib/haptics";
-import { canReuseLivePhotoDetection } from "@/lib/livePhotoSession";
+import {
+  canReuseLivePhotoDetection,
+  snapshotLivePhotoIdentification,
+} from "@/lib/livePhotoSession";
 import { LocationAccuracyBanner } from "@/components/LocationAccuracyBanner";
 import { IdDisclaimerBanner, IdDisclaimerInfoButton } from "@/components/IdDisclaimerBanner";
 import { triggerHaptic, useAccessibility } from "@/components/AccessibilityProvider";
@@ -73,37 +74,9 @@ import { useLiveSoundConfirmation } from "@/hooks/useLiveSoundConfirmation";
 import { CameraOriented } from "@/components/CameraOriented";
 import { useCameraDeviceOrientation } from "@/hooks/useCameraDeviceOrientation";
 import { useCameraZoom } from "@/hooks/useCameraZoom";
-import {
-  IDENTIFY_FINISH_SLOW_HINT,
-  IDENTIFY_FINISH_SLOW_HINT_MS,
-  useSlowRequestHint,
-} from "@/hooks/useSlowRequestHint";
 
 function newPhotoId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-class IdentifyBudgetTimeoutError extends Error {
-  constructor() {
-    super("Identification timed out. Check your connection and try again.");
-    this.name = "IdentifyBudgetTimeoutError";
-  }
-}
-
-function raceWithBudget<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new IdentifyBudgetTimeoutError()), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
 }
 
 export default function CameraScreen() {
@@ -126,6 +99,7 @@ export default function CameraScreen() {
 
   const {
     permission: locationPermission,
+    coords: locationCoords,
     refresh: refreshLocation,
     openSettings: openLocationSettings,
   } = useIdentificationLocation({
@@ -141,11 +115,6 @@ export default function CameraScreen() {
 
   const cameraZoom = useCameraZoom(cameraRef, { facing });
   const uiRotation = useCameraDeviceOrientation();
-
-  const showFinishSlowHint = useSlowRequestHint(
-    finishing,
-    IDENTIFY_FINISH_SLOW_HINT_MS,
-  );
 
   const flashAnim = useRef(new Animated.Value(0)).current;
 
@@ -231,7 +200,7 @@ export default function CameraScreen() {
       id: draftIdRef.current,
       createdAt: photos[0]?.capturedAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      photos,
+      photos: photos.map(toPersistedSessionPhoto),
       primaryIndex: primaryIndex >= 0 ? primaryIndex : 0,
       inProgress: true,
     });
@@ -239,6 +208,13 @@ export default function CameraScreen() {
 
   async function capture() {
     if (busy || finishing) return;
+    const lockedLive =
+      canReuseLivePhotoDetection(livePhoto.primaryDetection)
+        ? snapshotLivePhotoIdentification(
+            livePhoto.primaryDetection,
+            livePhoto.displayRows,
+          )
+        : undefined;
     void triggerHaptic(triggerCameraShutterHaptic, hapticsEnabled);
     setBusy(true);
     try {
@@ -258,12 +234,14 @@ export default function CameraScreen() {
         uri: photo.uri,
         base64: photo.base64 ?? null,
         capturedAt: new Date().toISOString(),
+        liveIdentification: lockedLive,
       };
       const durable = await persistSessionPhoto(draftId, temp);
       // Keep base64 for authenticity / upload until new-sighting; URI is durable.
       const entry: SessionPhoto = {
         ...durable,
         base64: temp.base64,
+        liveIdentification: lockedLive,
       };
 
       setSession((prev) => {
@@ -338,44 +316,6 @@ export default function CameraScreen() {
     );
   }
 
-  async function saveDraftForLater(options?: {
-    geo?: { lat: number; lng: number; observedAt: string };
-    reason?: string;
-  }) {
-    if (!draftIdRef.current) {
-      draftIdRef.current = await createCaptureDraftId();
-    }
-    const idx = primaryIndex();
-    await upsertCaptureDraft({
-      id: draftIdRef.current,
-      createdAt: session[0]?.capturedAt ?? new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      photos: session.map((p) => ({ ...p, base64: null })),
-      primaryIndex: idx,
-      geo: options?.geo ?? null,
-      inProgress: false,
-    });
-    const draftId = draftIdRef.current;
-    draftIdRef.current = null;
-    void liveSound.stop();
-    Alert.alert(
-      "Saved for later",
-      options?.reason ??
-        "Identification is taking too long or you’re offline. Open Drafts in My Journal when you’re ready.",
-      [
-        {
-          text: "View drafts",
-          onPress: () =>
-            router.replace({
-              pathname: "/(tabs)/journal",
-              params: { tab: "drafts" },
-            }),
-        },
-      ],
-    );
-    return draftId;
-  }
-
   async function finishSession() {
     if (finishing) return;
 
@@ -386,12 +326,30 @@ export default function CameraScreen() {
 
     setFinishing(true);
     try {
-      const soundSnapshot = liveSound.enabled
-        ? await liveSound.settle()
-        : { primary: null, predictions: [] };
-
       const idx = primaryIndex();
       const primary = session[idx];
+      const lockedLive = primary.liveIdentification;
+      const livePrimary = lockedLive?.primary ?? livePhoto.primaryDetection;
+      const liveRows = lockedLive?.displayRows ?? livePhoto.displayRows;
+      const reuseLive = canReuseLivePhotoDetection(livePrimary);
+
+      const soundPredictions = liveSound.enabled
+        ? liveSound.displayRows
+            .filter((row) => !row.isExpiring)
+            .map((row) =>
+              enrichPrediction({
+                ...row.detection.prediction,
+                confidence: row.detection.peakConfidence,
+              }),
+            )
+        : [];
+      const soundTop = liveSound.enabled && liveSound.primaryDetection
+        ? enrichPrediction({
+            ...liveSound.primaryDetection.prediction,
+            confidence: liveSound.primaryDetection.peakConfidence,
+          })
+        : null;
+      void liveSound.stop();
 
       if (PHOTO_AUTHENTICITY_ENABLED) {
         try {
@@ -408,91 +366,41 @@ export default function CameraScreen() {
       }
 
       const observedAt = new Date().toISOString();
-      const coords = await refreshLocation();
-      const geo = coords
+      const geo = locationCoords
         ? {
-            lat: coords.latitude,
-            lng: coords.longitude,
+            lat: locationCoords.latitude,
+            lng: locationCoords.longitude,
             observedAt,
           }
         : undefined;
 
-      let result: Awaited<ReturnType<typeof identifySession>> | null = null;
-      const livePrimary = livePhoto.primaryDetection;
-      if (canReuseLivePhotoDetection(livePrimary)) {
-        result = identificationFromLivePhoto(
-          livePrimary,
-          livePhoto.displayRows,
-        );
-      } else {
-        try {
-          result = await raceWithBudget(
-            identifySession({
-              photoUri: primary.uri,
-              skipPhotoAuthenticity: true,
-              photoBase64: primary.base64,
-              geo,
-            }),
-            IDENTIFY_DONE_BUDGET_MS,
-          );
-        } catch (e) {
-          if (isPhotoValidationError(e)) {
-            Alert.alert(
-              "Photo not accepted",
-              validationFailureMessage(e.validation) || e.message,
-            );
-            return;
-          }
-          const message = getErrorMessage(e);
-          if (
-            e instanceof IdentifyBudgetTimeoutError ||
-            isInferenceConnectionIssue(message)
-          ) {
-            await saveDraftForLater({ geo });
-            return;
-          }
-          // Other identify failures: still save draft so photos are not lost
-          await saveDraftForLater({
-            geo,
-            reason:
-              "We couldn’t identify this right now. Your photos were saved in Drafts.",
-          });
-          return;
-        }
-      }
-
-      if (!result) {
-        await saveDraftForLater({ geo });
-        return;
-      }
-
-      const soundTop = soundSnapshot.primary
-        ? enrichPrediction({
-            ...soundSnapshot.primary.prediction,
-            confidence: soundSnapshot.primary.peakConfidence,
-          })
+      const liveResult = reuseLive
+        ? identificationFromLivePhoto(livePrimary, liveRows)
         : null;
-      const agreed = soundConfirmsPhoto(result.top ?? null, soundTop);
-
-      let top = result.top;
-      if (!top && livePhoto.primaryDetection) {
+      let top = liveResult?.top ?? null;
+      if (!top && reuseLive) {
         top = enrichPrediction({
-          ...livePhoto.primaryDetection.prediction,
-          confidence: livePhoto.primaryDetection.peakConfidence,
+          ...livePrimary.prediction,
+          confidence: livePrimary.peakConfidence,
         });
       }
+      const agreed = soundConfirmsPhoto(top, soundTop);
+      const needsIdentification = !reuseLive;
+
       const pending: PendingCapture = {
         photos: session,
         primaryIndex: idx,
-        count: result.count ?? 1,
+        count: liveResult?.count ?? 1,
+        needsIdentification,
+        fromCamera: true,
         analysis: {
           detectedBy: "image",
           top,
           agreed,
-          imagePredictions: result.imagePredictions,
-          audioPredictions: soundSnapshot.predictions,
-          heardSpecies: soundSnapshot.predictions,
-          count: result.count,
+          imagePredictions: liveResult?.imagePredictions ?? [],
+          audioPredictions: soundPredictions,
+          heardSpecies: soundPredictions,
+          count: liveResult?.count ?? 1,
         },
       };
       setPendingCapture(pending);
@@ -503,7 +411,7 @@ export default function CameraScreen() {
           id: activeDraftId,
           createdAt: session[0]?.capturedAt ?? new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          photos: session.map((p) => ({ ...p, base64: null })),
+          photos: session.map(toPersistedSessionPhoto),
           primaryIndex: idx,
           geo: geo ?? null,
           inProgress: false,
@@ -518,7 +426,7 @@ export default function CameraScreen() {
           species: top?.species ?? "",
           scientific_name: top?.scientific_name ?? "",
           confidence: top ? String(top.confidence) : "",
-          count: String(result.count ?? 1),
+          count: String(liveResult?.count ?? 1),
           audio_agreed: agreed ? "1" : "0",
           draftId: activeDraftId ?? "",
         },
@@ -590,24 +498,6 @@ export default function CameraScreen() {
         style={[StyleSheet.absoluteFill, { opacity: flashAnim }]}
         className="bg-white"
       />
-
-      {finishing && (
-        <View className="absolute inset-0 z-20 items-center justify-center bg-black/60 px-8">
-          <CameraOriented rotation={uiRotation} align="center">
-            <View className="items-center">
-              <ActivityIndicator size="large" color="#5f9470" />
-              <Text className="mt-3 text-center font-sans text-sm text-foreground/80">
-                Identifying from photo...
-              </Text>
-              {showFinishSlowHint ? (
-                <Text className="mt-2 text-center font-sans text-xs leading-relaxed text-amber-100/90">
-                  {IDENTIFY_FINISH_SLOW_HINT}
-                </Text>
-              ) : null}
-            </View>
-          </CameraOriented>
-        </View>
-      )}
 
       <LivePhotoOverlay
         enabled={livePhoto.isScanning}

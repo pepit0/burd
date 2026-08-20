@@ -27,8 +27,12 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { SuspensionScreen } from "@/components/SuspensionScreen";
 import { DismissKeyboard } from "@/components/DismissKeyboard";
 import { NotificationBadgeProvider } from "@/components/NotificationBadgeProvider";
+import { AppTourProvider } from "@/components/AppTourProvider";
+import { SubscriptionProvider } from "@/components/SubscriptionProvider";
+import { BURD_PRO_ENABLED } from "@/lib/burdProEnabled";
 import { BadgeUnlockProvider } from "@/components/BadgeUnlockProvider";
 import { NewSpeciesUnlockProvider } from "@/components/NewSpeciesUnlockProvider";
+import { CardUnlockProvider } from "@/components/CardUnlockProvider";
 import { PostSendOffProvider } from "@/components/PostSendOffProvider";
 import { LikeIconStyleProvider } from "@/components/LikeIconStyleProvider";
 import { SafeKeyboardProvider } from "@/components/SafeKeyboardProvider";
@@ -44,19 +48,25 @@ import { initRegionalCommunity } from "@/lib/regionalCommunity";
 import { urlHasAuthCompletionParams } from "@/lib/authCallback";
 import { hasAgeAssurance } from "@/lib/ageAssurance";
 import { resolveUsernameSetup, hasCompletedUsernameSetup } from "@/lib/signup";
+import { installNavigationDedupe } from "@/lib/installNavigationDedupe";
 import type { AccountStatus } from "@/types";
+
+installNavigationDedupe();
 
 function AppShell() {
   const { user } = useAuth();
   const { palette } = useColorTheme();
   usePushNotifications(user?.id ?? null);
 
-  return (
+  const shell = (
+    <SubscriptionProvider userId={user?.id ?? null}>
     <NotificationBadgeProvider userId={user?.id ?? null}>
       <BadgeUnlockProvider userId={user?.id ?? null}>
+        <CardUnlockProvider>
         <NewSpeciesUnlockProvider>
           <PostSendOffProvider>
           <LikeIconStyleProvider userId={user?.id ?? null}>
+          <AppTourProvider>
           <DismissKeyboard>
             <View className="flex-1 bg-background" style={vars(nativewindColorVars(palette))}>
               <StatusBar style="light" />
@@ -69,44 +79,59 @@ function AppShell() {
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
-            <Stack.Screen name="new-sighting" options={{ presentation: "modal" }} />
-            <Stack.Screen name="sound-review" options={{ presentation: "modal" }} />
-            <Stack.Screen name="sounds" />
-            <Stack.Screen name="post/[id]" options={{ presentation: "modal" }} />
-            <Stack.Screen name="sighting/[id]" options={{ presentation: "modal" }} />
+            <Stack.Screen name="notifications" options={{ presentation: "modal" }} dangerouslySingular />
+            <Stack.Screen name="new-sighting" options={{ presentation: "modal" }} dangerouslySingular />
+            <Stack.Screen name="sound-review" options={{ presentation: "modal" }} dangerouslySingular />
+            <Stack.Screen name="sounds" dangerouslySingular />
+            <Stack.Screen name="post/[id]" options={{ presentation: "modal" }} dangerouslySingular />
+            <Stack.Screen name="sighting/[id]" options={{ presentation: "modal" }} dangerouslySingular />
             <Stack.Screen
               name="edit-journal-sighting/[id]"
               options={{ presentation: "modal" }}
+              dangerouslySingular
             />
-            <Stack.Screen name="edit-post/[id]" options={{ presentation: "modal" }} />
-            <Stack.Screen name="species/[id]" />
-            <Stack.Screen name="users" />
-            <Stack.Screen name="follows" />
-            <Stack.Screen name="user/[id]" />
-            <Stack.Screen name="admin" />
-            <Stack.Screen name="badges" options={{ presentation: "modal" }} />
-            <Stack.Screen name="preferences" />
-            <Stack.Screen name="profile-settings" />
+            <Stack.Screen name="edit-post/[id]" options={{ presentation: "modal" }} dangerouslySingular />
+            <Stack.Screen name="species/[id]" dangerouslySingular />
+            <Stack.Screen name="users" dangerouslySingular />
+            <Stack.Screen name="follows" dangerouslySingular />
+            <Stack.Screen name="user/[id]" dangerouslySingular />
+            <Stack.Screen name="admin" dangerouslySingular />
+            <Stack.Screen name="badges" options={{ presentation: "modal" }} dangerouslySingular />
+            <Stack.Screen name="preferences" dangerouslySingular />
+            {BURD_PRO_ENABLED ? (
+              <Stack.Screen
+                name="customer-center"
+                options={{ presentation: "modal" }}
+                dangerouslySingular
+              />
+            ) : null}
+            <Stack.Screen name="profile-settings" dangerouslySingular />
             <Stack.Screen
               name="camera"
               options={{ presentation: "fullScreenModal", animation: "fade" }}
+              dangerouslySingular
             />
             <Stack.Screen
               name="audio-id"
               options={{ presentation: "fullScreenModal", animation: "fade" }}
+              dangerouslySingular
             />
-            <Stack.Screen name="data-sources" />
-            <Stack.Screen name="age-rating" />
+            <Stack.Screen name="data-sources" dangerouslySingular />
+            <Stack.Screen name="age-rating" dangerouslySingular />
             </Stack>
           </View>
         </DismissKeyboard>
+          </AppTourProvider>
         </LikeIconStyleProvider>
           </PostSendOffProvider>
         </NewSpeciesUnlockProvider>
+        </CardUnlockProvider>
       </BadgeUnlockProvider>
     </NotificationBadgeProvider>
+    </SubscriptionProvider>
   );
+
+  return shell;
 }
 
 export default function RootLayout() {

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Burd",
     "slug": "burd",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "burd",
     "userInterfaceStyle": "automatic",
@@ -60,6 +60,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       "expo-asset",
       "expo-font",
       "expo-apple-authentication",
@@ -116,7 +117,8 @@
       },
       "eas": {
         "projectId": "eb44b19f-d200-4f0e-a2ed-cc484af04d3e"
-      }
+      },
+      "revenueCatApiKey": "test_CbHRfMBnkTZdBHTxDHixHaAFQZk"
     },
     "owner": "tempt-technologies"
   }

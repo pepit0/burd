@@ -4,6 +4,11 @@ import type { ActivityItem } from "@/types";
 const ACTIVITY_SELECT =
   "*, actor:profiles!actor_id(username, avatar_color, avatar_url), sighting:sightings(species, photo_url, audio_url)";
 
+function firstRelation<T extends object>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
 export async function getActivity(userId: string): Promise<ActivityItem[]> {
   const { data, error } = await supabase
     .from("activity")
@@ -12,7 +17,18 @@ export async function getActivity(userId: string): Promise<ActivityItem[]> {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
-  return (data ?? []) as unknown as ActivityItem[];
+
+  return (data ?? []).map((row) => {
+    const item = row as unknown as ActivityItem & {
+      actor: ActivityItem["actor"] | ActivityItem["actor"][] | null;
+      sighting: ActivityItem["sighting"] | ActivityItem["sighting"][] | null;
+    };
+    return {
+      ...item,
+      actor: firstRelation(item.actor),
+      sighting: firstRelation(item.sighting),
+    };
+  });
 }
 
 export async function getUnreadActivityCount(): Promise<number> {

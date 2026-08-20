@@ -14,7 +14,6 @@ import {
   Database,
   FileText,
   Mail,
-  Pencil,
   Settings,
   ShieldAlert,
   Shield,
@@ -28,6 +27,7 @@ import {
 import { ProfileBadgeShowcasePickerSheet } from "@/components/ProfileBadgeShowcasePickerSheet";
 import { ProfileAvatarPeek } from "@/components/ProfileAvatarPeek";
 import { ProfileBadgesPreview } from "@/components/ProfileBadges";
+import { TourSpotlight } from "@/components/TourSpotlight";
 import { ProfileCoverWithPet } from "@/components/ProfileCoverWithPet";
 import { ProfileDetailsEditSheet } from "@/components/ProfileDetailsEditSheet";
 import {
@@ -262,6 +262,7 @@ export default function ProfileScreen() {
   const displayNamePlain = stripDisplayNameColorCodes(displayName);
   const selectedCoverId = profileCoverPresetId(profile?.cover_url);
 
+
   const stats: {
     label: string;
     value: number;
@@ -393,6 +394,7 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor="#5f9470" />
         }
       >
+        <TourSpotlight target="profile-avatar" style={{ borderRadius: 20 }}>
         <ProfileCoverWithPet
           coverUrl={profile?.cover_url}
           profile={profile}
@@ -416,37 +418,31 @@ export default function ProfileScreen() {
             />
           </View>
 
-          <View className="flex-row items-center justify-between gap-3">
+          <View className="flex-row items-start justify-between gap-3">
             <View className="min-w-0 flex-1">
-              <View className="flex-row items-center gap-1.5">
-                <View className="min-w-0 flex-1 shrink">
-                  <DisplayNameWithBadges
-                    text={displayName}
-                    isVerified={profile?.is_verified}
-                    isBeta={profile?.is_beta}
-                    interactiveBadges
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    className="font-serif-semibold text-xl text-foreground"
-                  />
-                </View>
-                <Pressable
-                  onPress={() => setDetailsEditOpen(true)}
-                  className="shrink-0 rounded-full p-1 active:bg-muted"
-                  accessibilityLabel="Edit display name and bio"
-                >
-                  <Pencil size={14} color="#8a9e82" />
-                </Pressable>
-              </View>
+              <DisplayNameWithBadges
+                text={displayName}
+                isVerified={profile?.is_verified}
+                isBeta={profile?.is_beta}
+                interactiveBadges
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                className="font-serif-semibold text-xl text-foreground"
+                onPressName={() => setDetailsEditOpen(true)}
+              />
               <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
                 @{profile?.username ?? "birder"}
                 {profile?.location_name ? ` · ${profile.location_name}` : ""}
               </Text>
             </View>
-            <View className="mr-2">
+            <View className="mr-2 -mt-0.5">
               <ProfileStatsRow stats={stats} variant="inline" />
             </View>
           </View>
+        </View>
+        </TourSpotlight>
+
+        <View className="px-4">
           {profile?.bio ? (
             <LinkableText className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
               {profile.bio}
@@ -483,6 +479,7 @@ export default function ProfileScreen() {
                 />
               </View>
               <View className="px-4 pt-6">
+                <TourSpotlight target="profile-badges" style={{ borderRadius: 16 }}>
                 <ProfileBadgesPreview
                   badges={badges}
                   earnedCount={earnedCount}
@@ -492,6 +489,7 @@ export default function ProfileScreen() {
                   isSelf
                   onEditShowcase={() => setBadgeShowcasePickerOpen(true)}
                 />
+                </TourSpotlight>
               </View>
             </View>
           ) : (
@@ -512,6 +510,7 @@ export default function ProfileScreen() {
                 />
               </View>
               <View className="mt-8 px-4">
+                <TourSpotlight target="profile-badges" style={{ borderRadius: 16 }}>
                 <ProfileBadgesPreview
                   badges={badges}
                   earnedCount={earnedCount}
@@ -521,6 +520,7 @@ export default function ProfileScreen() {
                   isSelf
                   onEditShowcase={() => setBadgeShowcasePickerOpen(true)}
                 />
+                </TourSpotlight>
               </View>
             </>
           )}

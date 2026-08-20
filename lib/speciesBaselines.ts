@@ -118,6 +118,10 @@ export function maxRarity(a: Rarity, b: Rarity): Rarity {
   return RARITY_RANK[a] >= RARITY_RANK[b] ? a : b;
 }
 
+export function minRarity(a: Rarity, b: Rarity): Rarity {
+  return RARITY_RANK[a] <= RARITY_RANK[b] ? a : b;
+}
+
 export function computeCommunityRarity(
   recent: { species: string; scientific_name: string | null }[],
   species: string,

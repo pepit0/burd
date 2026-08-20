@@ -68,7 +68,6 @@ export function useLivePhotoId(
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const pausedRef = useRef(paused);
-  pausedRef.current = paused;
 
   const { refresh: refreshLocation } = useIdentificationLocation({
     enabled: enabled && cameraActive,
@@ -224,6 +223,24 @@ export function useLivePhotoId(
       stopScanning();
     };
   }, [cameraActive, enabled, startScanning, stopScanning]);
+
+  useEffect(() => {
+    const wasPaused = pausedRef.current;
+    pausedRef.current = paused;
+    if (
+      !wasPaused ||
+      paused ||
+      !enabledRef.current ||
+      !cameraActive
+    ) {
+      return;
+    }
+
+    clearScanTimer();
+    scanTimerRef.current = setTimeout(() => {
+      void captureAndIdentify();
+    }, 250);
+  }, [paused, cameraActive, captureAndIdentify, clearScanTimer]);
 
   const primaryDetection =
     displayRows.find((row) => row.isInFrame && !row.isExpiring)?.detection ??

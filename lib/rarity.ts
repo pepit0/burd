@@ -1,13 +1,12 @@
 import { lookupBaselineRarity } from "@/lib/speciesBaselines";
 import {
   getRegionalContext,
-  lookupSpeciesScoreStrict,
 } from "@/lib/regionalFrequency";
+import { scoreRegionalRarity, hasRegionalRarityConfidence } from "@/lib/rarityScoring";
 import { normalizeScientificName } from "@/lib/taxonomy";
 import type { Rarity, Sighting } from "@/types";
 
-/** Flip to true when regional rarity is trustworthy again. */
-export const SHOW_SPECIES_RARITY = false;
+export const SHOW_SPECIES_RARITY = true;
 
 export function isSpeciesRarityVisible(): boolean {
   return SHOW_SPECIES_RARITY;
@@ -31,8 +30,8 @@ function resolveObservedDate(observedAt?: string | Date | null): Date {
 }
 
 /**
- * Regional rarity from strict month-matched GBIF + checklist priors —
- * same model as Field Guide Explore abundance.
+ * Regional rarity from percentile-ranked strict abundance at lat/lng/month.
+ * Uses rarity-only priors — does not affect photo/sound ID ranking.
  */
 export function lookupRegionalRarity(input: RegionalRarityInput): Rarity {
   const species = input.species.trim();
@@ -53,7 +52,17 @@ export function lookupRegionalRarity(input: RegionalRarityInput): Rarity {
     input.lng,
     resolveObservedDate(input.observedAt),
   );
-  return lookupSpeciesScoreStrict(ctx, key).rarity;
+  return scoreRegionalRarity(ctx, species, scientific);
+}
+
+export function isRegionalRarityReliable(input: RegionalRarityInput): boolean {
+  if (input.lat == null || input.lng == null) return false;
+  const ctx = getRegionalContext(
+    input.lat,
+    input.lng,
+    resolveObservedDate(input.observedAt),
+  );
+  return hasRegionalRarityConfidence(ctx);
 }
 
 export function rarityForSighting(

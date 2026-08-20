@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import { SearchBar } from "@/components/SearchBar";
+import { TourSpotlight } from "@/components/TourSpotlight";
 import { FilterSheet } from "@/components/FilterSheet";
 import { RarityBadge } from "@/components/RarityBadge";
 import { ScrollScreen } from "@/components/ScrollScreen";
@@ -407,32 +408,34 @@ export default function JournalScreen() {
         </Pressable>
       </View>
 
-      <View className="flex-row items-center justify-start gap-2">
-        {MEDIA_TABS.map((tab) => {
-          const active = mediaTab === tab.id;
-          const count = mediaTabCounts[tab.id];
-          const label = count > 0 ? `${tab.label} (${count})` : tab.label;
-          return (
-            <Pressable
-              key={tab.id}
-              onPress={() => setMediaTab(tab.id)}
-              className={`rounded-full px-3 py-1 ${
-                active ? "bg-primary" : "border border-border bg-card"
-              }`}
-            >
-              <Text
-                className={`text-xs ${
-                  active
-                    ? "font-sans-medium text-primary-foreground"
-                    : "text-muted-foreground"
+      <TourSpotlight target="journal-tabs" style={{ borderRadius: 999 }}>
+        <View className="flex-row items-center justify-start gap-2">
+          {MEDIA_TABS.map((tab) => {
+            const active = mediaTab === tab.id;
+            const count = mediaTabCounts[tab.id];
+            const label = count > 0 ? `${tab.label} (${count})` : tab.label;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setMediaTab(tab.id)}
+                className={`rounded-full px-3 py-1 ${
+                  active ? "bg-primary" : "border border-border bg-card"
                 }`}
               >
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+                <Text
+                  className={`text-xs ${
+                    active
+                      ? "font-sans-medium text-primary-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </TourSpotlight>
     </View>
   );
 

@@ -2,7 +2,6 @@ import { memo, useState, useCallback, useEffect, useMemo, type ReactNode } from 
 import { InteractionManager, Pressable, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  IMAGE_OVERLAY_BADGE_SHADOW,
   IMAGE_OVERLAY_GRADIENT,
   ImageOverlayText,
 } from "@/components/ImageOverlayText";
@@ -19,7 +18,6 @@ import { useLikeIconStyle } from "@/components/LikeIconStyleProvider";
 import { PlaybackWaveform } from "@/components/PlaybackWaveform";
 import { Avatar } from "@/components/Avatar";
 import { PostOptionsMenu } from "@/components/PostOptionsMenu";
-import { RarityBadge } from "@/components/RarityBadge";
 import { SpeciesNameLink } from "@/components/SpeciesNameLink";
 import { PostInlineAudio } from "@/components/PostInlineAudio";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,7 +26,6 @@ import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { useLikeWithBurst } from "@/hooks/useLikeWithBurst";
 import { useSingleDoubleTap } from "@/hooks/useSingleDoubleTap";
 import { sightingPlaceLine, postedDate } from "@/lib/sightingFormat";
-import { rarityForSighting } from "@/lib/rarity";
 import { timeAgo } from "@/lib/time";
 import {
   isCombinedMediaSighting,
@@ -44,7 +41,7 @@ function CardSpeciesOverlay({ sighting: s }: { sighting: FeedSighting }) {
   const scientificName = s.scientific_name?.trim();
 
   return (
-    <View className="p-5 pr-28">
+    <View className="p-5">
       <SpeciesNameLink
         species={s.species}
         scientificName={s.scientific_name}
@@ -60,18 +57,6 @@ function CardSpeciesOverlay({ sighting: s }: { sighting: FeedSighting }) {
           {scientificName}
         </ImageOverlayText>
       ) : null}
-    </View>
-  );
-}
-
-function CardRarityCorner({ rarity }: { rarity: FeedSighting["rarity"] }) {
-  return (
-    <View
-      className="absolute bottom-5 right-5"
-      style={IMAGE_OVERLAY_BADGE_SHADOW}
-      pointerEvents="none"
-    >
-      <RarityBadge rarity={rarity} size="lg" />
     </View>
   );
 }
@@ -107,13 +92,11 @@ function CardPhotoArea({
   onPhotoPress,
   burstKey,
   likeIconStyle,
-  rarity,
 }: {
   sighting: FeedSighting;
   onPhotoPress: () => void;
   burstKey: number;
   likeIconStyle: ReturnType<typeof useLikeIconStyle>["likeIconStyle"];
-  rarity: FeedSighting["rarity"];
 }) {
   const [photos, setPhotos] = useState<SightingPhoto[]>(() =>
     sightingPhotosForDisplay(sighting),
@@ -175,7 +158,6 @@ function CardPhotoArea({
       <View className="absolute bottom-0 left-0 right-0" pointerEvents="none">
         <CardSpeciesOverlay sighting={overlaySighting} />
       </View>
-      <CardRarityCorner rarity={rarity} />
     </View>
   );
 }
@@ -207,7 +189,6 @@ export const SightingCard = memo(function SightingCard({
     audioOptions,
   );
   const placeLine = sightingPlaceLine(s);
-  const rarity = rarityForSighting(s);
   const { likeIconStyle } = useLikeIconStyle();
   const { burstKey, likeWithBurst, likeWithBurstIfNeeded } = useLikeWithBurst({
     liked,
@@ -238,7 +219,6 @@ export const SightingCard = memo(function SightingCard({
           >
             <CardSpeciesOverlay sighting={s} />
           </Pressable>
-          <CardRarityCorner rarity={rarity} />
         </View>
       ) : (
         <View className="active:opacity-98">
@@ -248,7 +228,6 @@ export const SightingCard = memo(function SightingCard({
               onPhotoPress={onPhotoPress}
               burstKey={burstKey}
               likeIconStyle={likeIconStyle}
-              rarity={rarity}
             />
           ) : (
             <View className="aspect-[4/5] bg-muted" style={{ aspectRatio: 4 / 5 }}>
