@@ -2,11 +2,12 @@ import { Text, View } from "react-native";
 import type { Rarity } from "@/types";
 import { isSpeciesRarityVisible } from "@/lib/rarity";
 import {
-  RARITY_BADGE_SIZE,
-  RARITY_BADGE_STYLES,
+  RARITY_BADGE_BOX,
+  RARITY_BADGE_COLORS,
+  RARITY_BADGE_TEXT,
 } from "@/lib/rarityVisual";
 
-const FALLBACK_STYLE = RARITY_BADGE_STYLES.common;
+const FALLBACK_COLORS = RARITY_BADGE_COLORS.common;
 
 export function RarityBadge({
   rarity,
@@ -15,24 +16,26 @@ export function RarityBadge({
   variant = "boxed",
 }: {
   rarity: Rarity;
-  size?: keyof typeof RARITY_BADGE_SIZE;
+  size?: "sm" | "lg";
   alwaysShow?: boolean;
   variant?: "boxed" | "plain";
 }) {
   if (!alwaysShow && !isSpeciesRarityVisible()) return null;
 
-  const s = RARITY_BADGE_STYLES[rarity] ?? FALLBACK_STYLE;
-  const sizing = RARITY_BADGE_SIZE[size];
+  const colors = RARITY_BADGE_COLORS[rarity] ?? FALLBACK_COLORS;
+  const textStyle = [RARITY_BADGE_TEXT[size], { color: colors.text }];
 
   if (variant === "plain") {
     return (
       <Text
-        className={`font-mono uppercase tracking-widest ${sizing.text} ${s.text}`}
-        style={{
-          textShadowColor: "rgba(0, 0, 0, 0.85)",
-          textShadowOffset: { width: 0, height: 1 },
-          textShadowRadius: 4,
-        }}
+        style={[
+          ...textStyle,
+          {
+            textShadowColor: "rgba(0, 0, 0, 0.85)",
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 4,
+          },
+        ]}
       >
         {rarity}
       </Text>
@@ -40,10 +43,13 @@ export function RarityBadge({
   }
 
   return (
-    <View className={`self-start ${sizing.box} ${s.box}`}>
-      <Text className={`font-mono uppercase tracking-widest ${sizing.text} ${s.text}`}>
-        {rarity}
-      </Text>
+    <View
+      style={[
+        RARITY_BADGE_BOX[size],
+        { backgroundColor: colors.bg, borderColor: colors.border },
+      ]}
+    >
+      <Text style={textStyle}>{rarity}</Text>
     </View>
   );
 }

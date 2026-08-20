@@ -42,6 +42,7 @@ import {
   countActiveJournalFilters,
   DEFAULT_JOURNAL_FILTERS,
   journalCardClassName,
+  journalCardStyle,
   shouldGroupJournalByDate,
   type JournalFilters,
   type JournalSort,
@@ -292,6 +293,7 @@ export default function JournalScreen() {
       <Pressable
         onPress={() => router.push(`/sighting/${e.id}`)}
         className={`flex-row items-center gap-3 p-4 active:opacity-90 ${journalCardClassName(rarity)}`}
+        style={journalCardStyle(rarity)}
       >
         <View className={JOURNAL_THUMB_BOX}>
           {isPhotoSighting(e) ? (

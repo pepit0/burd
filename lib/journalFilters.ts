@@ -1,5 +1,6 @@
 import { journalLogDate } from "@/lib/sightingFormat";
 import { isSpeciesRarityVisible, rarityForSighting } from "@/lib/rarity";
+import { JOURNAL_CARD_RARITY_STYLE } from "@/lib/rarityVisual";
 import type { Rarity, Sighting } from "@/types";
 
 export type JournalRarityFilter = Rarity | "all";
@@ -35,19 +36,13 @@ export function countActiveJournalFilters(filters: JournalFilters): number {
   return count;
 }
 
-export function journalCardClassName(rarity: Rarity): string {
-  if (!isSpeciesRarityVisible()) {
-    return "rounded-2xl bg-card";
-  }
+export function journalCardClassName(_rarity: Rarity): string {
+  return "rounded-2xl bg-card";
+}
 
-  switch (rarity) {
-    case "rare":
-      return "rounded-2xl border border-purple-800/45 bg-purple-950/55";
-    case "uncommon":
-      return "rounded-2xl border border-amber-700/45 bg-amber-950/50";
-    default:
-      return "rounded-2xl bg-card";
-  }
+export function journalCardStyle(rarity: Rarity) {
+  if (!isSpeciesRarityVisible()) return undefined;
+  return JOURNAL_CARD_RARITY_STYLE[rarity];
 }
 
 export function shouldGroupJournalByDate(sort: JournalSort): boolean {
