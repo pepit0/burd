@@ -2,7 +2,7 @@
   "expo": {
     "name": "Burd",
     "slug": "burd",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "scheme": "burd",
     "userInterfaceStyle": "automatic",
@@ -86,7 +86,7 @@
         }
       ],
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "Burd uses the microphone so you can record bird calls while photographing."
         }
