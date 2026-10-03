@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     elevation: 1000,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#0a0f08",
   },
   centerWrap: {

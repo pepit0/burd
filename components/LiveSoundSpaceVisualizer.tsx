@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   axisOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1,
   },
   axisLabelText: {
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     lineHeight: AXIS_LABEL_HEIGHT,
     color: "rgba(168, 212, 180, 0.88)",
-    fontFamily: "JetBrainsMono_400Regular",
+    fontFamily: "DMSans_400Regular",
     textAlign: "left",
     textShadowColor: "rgba(0, 0, 0, 0.85)",
     textShadowOffset: { width: 0, height: 0 },
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     lineHeight: 10,
     color: "rgba(138, 158, 130, 0.65)",
-    fontFamily: "JetBrainsMono_400Regular",
+    fontFamily: "DMSans_400Regular",
     textAlign: "right",
     width: "100%",
   },

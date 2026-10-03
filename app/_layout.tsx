@@ -19,10 +19,6 @@ import {
   DMSans_500Medium,
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
-import {
-  JetBrainsMono_400Regular,
-  JetBrainsMono_500Medium,
-} from "@expo-google-fonts/jetbrains-mono";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { SuspensionScreen } from "@/components/SuspensionScreen";
 import { DismissKeyboard } from "@/components/DismissKeyboard";
@@ -169,8 +165,6 @@ function RootLayoutInner() {
     DMSans_400Regular,
     DMSans_500Medium,
     DMSans_700Bold,
-    JetBrainsMono_400Regular,
-    JetBrainsMono_500Medium,
   });
   const fontsReady =
     Platform.OS === "web" || fontsLoaded || Boolean(fontError);

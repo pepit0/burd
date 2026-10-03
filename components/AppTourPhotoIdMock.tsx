@@ -196,15 +196,15 @@ export function AppTourPhotoIdMock({
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#0a0f08",
   },
   viewfinder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#12180f",
   },
   flash: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#ffffff",
   },
   reticle: {
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   livePct: {
-    fontFamily: "JetBrainsMono_500Medium",
+    fontFamily: "DMSans_500Medium",
     fontSize: 14,
     color: PRIMARY,
   },

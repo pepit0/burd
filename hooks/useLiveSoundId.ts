@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { Platform } from "react-native";
-import { Audio } from "expo-av";
 import {
-  AndroidAudioEncoder,
-  AndroidOutputFormat,
-  IOSAudioQuality,
+  AudioQuality,
   IOSOutputFormat,
-} from "expo-av/build/Audio/RecordingConstants";
+  RecordingPresets,
+  getRecordingPermissionsAsync,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  type RecordingOptions,
+} from "expo-audio";
 import type { IdentifyResult } from "@/lib/identify";
 import { LiveSoundChunkSender } from "@/lib/liveSoundChunkSender";
 import { useIdentificationLocation } from "@/hooks/useIdentificationLocation";
+import type { LocationPermissionState } from "@/lib/locationPermission";
 import {
   buildLiveSessionReview,
   displayDetections,
@@ -65,32 +69,32 @@ const PCM_SAMPLE_RATE = 44100;
 const PCM_BIT_RATE = PCM_SAMPLE_RATE * 16;
 
 /** Fix 5: Android uses reliable AAC; iOS uses linear PCM WAV for Perch. */
-const RECORDING_OPTIONS: Audio.RecordingOptions =
+const RECORDING_OPTIONS: RecordingOptions =
   Platform.OS === "android"
     ? {
-        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        ...RecordingPresets.HIGH_QUALITY,
         isMeteringEnabled: true,
       }
     : {
         isMeteringEnabled: true,
+        extension: ".wav",
+        sampleRate: PCM_SAMPLE_RATE,
+        numberOfChannels: 1,
+        bitRate: PCM_BIT_RATE,
         ios: {
           extension: ".wav",
           outputFormat: IOSOutputFormat.LINEARPCM,
-          audioQuality: IOSAudioQuality.MAX,
+          audioQuality: AudioQuality.MAX,
           sampleRate: PCM_SAMPLE_RATE,
-          numberOfChannels: 1,
-          bitRate: PCM_BIT_RATE,
           linearPCMBitDepth: 16,
           linearPCMIsBigEndian: false,
           linearPCMIsFloat: false,
         },
         android: {
           extension: ".m4a",
-          outputFormat: AndroidOutputFormat.MPEG_4,
-          audioEncoder: AndroidAudioEncoder.AAC,
+          outputFormat: "mpeg4",
+          audioEncoder: "aac",
           sampleRate: PCM_SAMPLE_RATE,
-          numberOfChannels: 1,
-          bitRate: PCM_BIT_RATE,
         },
         web: {
           mimeType: "audio/wav",
@@ -188,10 +192,10 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     openSettings: openLocationSettings,
   } = useIdentificationLocation();
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RECORDING_OPTIONS);
+  const recordingActiveRef = useRef(false);
   const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meteringLoopCancelRef = useRef<(() => void) | null>(null);
-  const meteringPollInFlightRef = useRef(false);
   const meteringPollBucketRef = useRef(-1);
   const pruneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionRef = useRef<PendingSession | null>(null);
@@ -212,7 +216,6 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
   const clearMeteringTimer = useCallback(() => {
     meteringLoopCancelRef.current?.();
     meteringLoopCancelRef.current = null;
-    meteringPollInFlightRef.current = false;
     meteringPollBucketRef.current = -1;
     meteringLevelRef.current = 0;
   }, []);
@@ -333,12 +336,11 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
 
   const snapshotRecordingForAnalysis =
     useCallback(async (): Promise<SessionSegment | null> => {
-      const recording = recordingRef.current;
-      if (!recording) return null;
+      if (!recordingActiveRef.current) return null;
 
       try {
-        const status = await recording.getStatusAsync();
-        const uri = recording.getURI();
+        const status = recorder.getStatus();
+        const uri = recorder.uri;
         if (!uri) return null;
 
         let durationMs = status.durationMillis ?? 0;
@@ -352,20 +354,20 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
       } catch {
         return null;
       }
-    }, []);
+    }, [recorder]);
 
   const stopCurrentRecording = useCallback(async (): Promise<SessionSegment | null> => {
-    const recording = recordingRef.current;
-    if (!recording) return null;
+    if (!recordingActiveRef.current) return null;
 
-    recordingRef.current = null;
+    recordingActiveRef.current = false;
     const startedAt = segmentStartedAtRef.current;
     segmentStartedAtRef.current = null;
 
     try {
-      const statusBefore = await recording.getStatusAsync();
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      // Duration must be read before stop(); expo-audio resets it on stop.
+      const statusBefore = recorder.getStatus();
+      await recorder.stop();
+      const uri = recorder.uri;
       if (!uri) return null;
 
       let durationMs = statusBefore.durationMillis ?? 0;
@@ -380,29 +382,29 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     } catch {
       return null;
     }
-  }, []);
+  }, [recorder]);
 
   const startRecordingSegment = useCallback(async (): Promise<boolean> => {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: "duckOthers",
+        shouldRouteThroughEarpiece: false,
       });
 
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(RECORDING_OPTIONS);
-      await recording.startAsync();
-      recordingRef.current = recording;
+      // Passing options on every prepare gives each segment a fresh output file.
+      await recorder.prepareToRecordAsync(RECORDING_OPTIONS);
+      recorder.record();
+      recordingActiveRef.current = true;
       segmentStartedAtRef.current = Date.now();
       return true;
     } catch {
-      recordingRef.current = null;
+      recordingActiveRef.current = false;
       return false;
     }
-  }, []);
+  }, [recorder]);
 
   const rotateAnalysis = useCallback(async () => {
     if (!activeRef.current) return;
@@ -437,13 +439,13 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
   }, [refreshLocation]);
 
   const requestMicPermission = useCallback(async (): Promise<boolean> => {
-    const permission = await Audio.getPermissionsAsync();
+    const permission = await getRecordingPermissionsAsync();
     if (permission.granted) {
       setMicPermission("granted");
       return true;
     }
 
-    const requested = await Audio.requestPermissionsAsync();
+    const requested = await requestRecordingPermissionsAsync();
     const granted = requested.granted;
     setMicPermission(granted ? "granted" : "denied");
     return granted;
@@ -514,31 +516,22 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
 
     clearMeteringTimer();
     meteringLoopCancelRef.current = runAnimationFrameLoop((deltaMs, timestamp) => {
-      const recording = recordingRef.current;
-      if (!recording) {
+      if (!recordingActiveRef.current) {
         meteringLevelRef.current = 0;
         return;
       }
 
-      // Poll mic metering ~30 Hz — async status reads don't need to run every frame.
+      // Poll mic metering ~30 Hz.
       const pollEveryMs = 33;
       const bucket = Math.floor(timestamp / pollEveryMs);
       if (bucket === meteringPollBucketRef.current) return;
       meteringPollBucketRef.current = bucket;
-      if (meteringPollInFlightRef.current) return;
 
-      meteringPollInFlightRef.current = true;
-      void recording
-        .getStatusAsync()
-        .then((recordingStatus) => {
-          meteringLevelRef.current = normalizeMetering(recordingStatus.metering);
-        })
-        .catch(() => {
-          meteringLevelRef.current = 0;
-        })
-        .finally(() => {
-          meteringPollInFlightRef.current = false;
-        });
+      try {
+        meteringLevelRef.current = normalizeMetering(recorder.getStatus().metering);
+      } catch {
+        meteringLevelRef.current = 0;
+      }
     });
 
     clearSegmentTimer();
@@ -552,6 +545,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
     clearPruneTimer,
     clearSegmentTimer,
     refreshDetections,
+    recorder,
     requestMicPermission,
     rotateAnalysis,
     startRecordingSegment,
@@ -775,7 +769,7 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
   }, [persistSession]);
 
   useEffect(() => {
-    void Audio.getPermissionsAsync().then((permission) => {
+    void getRecordingPermissionsAsync().then((permission) => {
       setMicPermission(
         permission.granted
           ? "granted"
@@ -790,10 +784,12 @@ export function useLiveSoundId(userId: string | null): UseLiveSoundIdResult {
       clearSegmentTimer();
       clearMeteringTimer();
       clearPruneTimer();
-      void recordingRef.current?.stopAndUnloadAsync().catch(() => undefined);
-      recordingRef.current = null;
+      if (recordingActiveRef.current) {
+        recordingActiveRef.current = false;
+        void recorder.stop().catch(() => undefined);
+      }
     };
-  }, [clearMeteringTimer, clearPruneTimer, clearSegmentTimer]);
+  }, [clearMeteringTimer, clearPruneTimer, clearSegmentTimer, recorder]);
 
   const statusLabel =
     status === "listening"

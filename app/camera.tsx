@@ -13,7 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
-import { Audio } from "expo-av";
+import { requestRecordingPermissionsAsync } from "expo-audio";
 import {
   CameraView,
   useCameraPermissions,
@@ -165,7 +165,7 @@ export default function CameraScreen() {
     if (finishing) return;
 
     if (!liveSound.enabled) {
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
         Alert.alert(
           "Microphone access needed",
@@ -554,94 +554,100 @@ export default function CameraScreen() {
         <View collapsable={false} style={[StyleSheet.absoluteFill, { zIndex: 5 }]} />
       </GestureDetector>
 
-      {/* Top controls — one CameraOriented per button so each spins in place */}
+      {/* Top controls — one CameraOriented per button so each spins in place.
+          Equal-width side columns keep the Live photo ID pill centered. */}
       <View
-        className="absolute inset-x-0 z-20 flex-row items-center justify-between px-4"
+        className="absolute inset-x-0 z-20 flex-row items-center px-4"
         style={{ top: topPad }}
       >
-        <CameraOriented rotation={uiRotation}>
-          <View className="flex-row items-center gap-2">
-            <Pressable
-              onPress={confirmClose}
-              className="h-11 w-11 items-center justify-center rounded-full bg-background/60"
-            >
-              <X size={20} color="#eee8d4" />
-            </Pressable>
-            <IdDisclaimerInfoButton
-              active={idDisclaimerOpen}
-              onPress={() => setIdDisclaimerOpen((open) => !open)}
-              variant="dark"
-            />
-          </View>
+        <View className="flex-1 items-start">
+          <CameraOriented rotation={uiRotation}>
+            <View className="flex-row items-center gap-2">
+              <Pressable
+                onPress={confirmClose}
+                className="h-11 w-11 items-center justify-center rounded-full bg-background/60"
+              >
+                <X size={20} color="#eee8d4" />
+              </Pressable>
+              <IdDisclaimerInfoButton
+                active={idDisclaimerOpen}
+                onPress={() => setIdDisclaimerOpen((open) => !open)}
+                variant="dark"
+              />
+            </View>
+          </CameraOriented>
+        </View>
+
+        <CameraOriented rotation={uiRotation} align="center">
+          <Pressable
+            onPress={() => livePhoto.setEnabled(!livePhoto.enabled)}
+            disabled={finishing}
+            className={`h-11 items-center justify-center rounded-full px-3 ${
+              livePhoto.enabled ? "bg-accent" : "bg-background/60"
+            }`}
+          >
+            <View className="flex-row items-center gap-1.5">
+              <Scan size={16} color={livePhoto.enabled ? "#181e16" : "#eee8d4"} />
+              <Text
+                className={`font-sans-medium text-xs ${
+                  livePhoto.enabled ? "text-[#181e16]" : "text-foreground"
+                }`}
+              >
+                Live Photo: Tap to start scanning
+              </Text>
+            </View>
+          </Pressable>
         </CameraOriented>
 
-        <View className="flex-row items-center gap-2">
-          {canFinish ? (
+        <View className="flex-1 items-end">
+          <View className="flex-row items-center gap-2">
+            {canFinish ? (
+              <CameraOriented rotation={uiRotation}>
+                <Pressable
+                  onPress={finishSession}
+                  disabled={finishing}
+                  className="flex-row items-center gap-1.5 rounded-full bg-primary px-4 py-2.5 active:opacity-90"
+                >
+                  <Check size={16} color="#f0ead6" />
+                  <Text className="font-sans-medium text-sm text-primary-foreground">
+                    Done
+                  </Text>
+                </Pressable>
+              </CameraOriented>
+            ) : null}
+
             <CameraOriented rotation={uiRotation}>
               <Pressable
-                onPress={finishSession}
-                disabled={finishing}
-                className="flex-row items-center gap-1.5 rounded-full bg-primary px-4 py-2.5 active:opacity-90"
+                onPress={cycleFlash}
+                className={`h-11 w-11 items-center justify-center rounded-full ${
+                  flash === "off" ? "bg-background/60" : "bg-accent"
+                }`}
               >
-                <Check size={16} color="#f0ead6" />
-                <Text className="font-sans-medium text-sm text-primary-foreground">
-                  Done
-                </Text>
+                {flash === "off" ? (
+                  <ZapOff size={18} color="#eee8d4" />
+                ) : flash === "on" ? (
+                  <Zap size={18} color="#181e16" />
+                ) : (
+                  <View className="flex-row items-center">
+                    <Zap size={15} color="#181e16" />
+                    <Text className="font-mono text-[9px] text-[#181e16]">A</Text>
+                  </View>
+                )}
               </Pressable>
             </CameraOriented>
-          ) : null}
 
-          <CameraOriented rotation={uiRotation}>
-            <Pressable
-              onPress={cycleFlash}
-              className={`h-11 w-11 items-center justify-center rounded-full ${
-                flash === "off" ? "bg-background/60" : "bg-accent"
-              }`}
-            >
-              {flash === "off" ? (
-                <ZapOff size={18} color="#eee8d4" />
-              ) : flash === "on" ? (
-                <Zap size={18} color="#181e16" />
-              ) : (
-                <View className="flex-row items-center">
-                  <Zap size={15} color="#181e16" />
-                  <Text className="font-mono text-[9px] text-[#181e16]">A</Text>
-                </View>
-              )}
-            </Pressable>
-          </CameraOriented>
+            <CameraOriented rotation={uiRotation}>
+              <Pressable
+                onPress={() => setGrid((g) => !g)}
+                className={`h-11 w-11 items-center justify-center rounded-full ${
+                  grid ? "bg-accent" : "bg-background/60"
+                }`}
+              >
+                <Grid3x3 size={18} color={grid ? "#181e16" : "#eee8d4"} />
+              </Pressable>
+            </CameraOriented>
 
-          <CameraOriented rotation={uiRotation}>
-            <Pressable
-              onPress={() => setGrid((g) => !g)}
-              className={`h-11 w-11 items-center justify-center rounded-full ${
-                grid ? "bg-accent" : "bg-background/60"
-              }`}
-            >
-              <Grid3x3 size={18} color={grid ? "#181e16" : "#eee8d4"} />
-            </Pressable>
-          </CameraOriented>
-
-          <CameraOriented rotation={uiRotation}>
-            <Pressable
-              onPress={() => livePhoto.setEnabled(!livePhoto.enabled)}
-              disabled={finishing}
-              className={`h-11 items-center justify-center rounded-full px-3 ${
-                livePhoto.enabled ? "bg-accent" : "bg-background/60"
-              }`}
-            >
-              <View className="flex-row items-center gap-1.5">
-                <Scan size={16} color={livePhoto.enabled ? "#181e16" : "#eee8d4"} />
-                <Text
-                  className={`font-sans-medium text-xs ${
-                    livePhoto.enabled ? "text-[#181e16]" : "text-foreground"
-                  }`}
-                >
-                  Live ID
-                </Text>
-              </View>
-            </Pressable>
-          </CameraOriented>
+          </View>
         </View>
       </View>
 

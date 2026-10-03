@@ -46,11 +46,11 @@ function CardSpeciesOverlay({ sighting: s }: { sighting: FeedSighting }) {
         species={s.species}
         scientificName={s.scientific_name}
         overlay
-        className="font-serif-semibold text-2xl leading-tight text-foreground"
+        className="font-serif-semibold text-2xl leading-none text-foreground"
       />
       {scientificName ? (
         <ImageOverlayText
-          className="mt-1 font-serif-italic text-sm text-foreground"
+          className="mt-0.5 font-serif-italic text-sm text-foreground"
           containerClassName="w-full"
           numberOfLines={1}
         >
@@ -248,18 +248,14 @@ export const SightingCard = memo(function SightingCard({
             <Avatar user={s.username} color={s.avatar_color} avatarUrl={s.avatar_url} size={32} />
             <View className="min-w-0 flex-1" pointerEvents="none">
               <Text className="font-sans-medium text-sm text-foreground">@{s.username}</Text>
-              {placeLine ? (
-                <Text className="font-sans text-xs text-muted-foreground" numberOfLines={1}>
-                  {placeLine}
-                </Text>
-              ) : null}
-              <Text className="font-sans text-xs text-muted-foreground">
+              <Text className="font-sans text-xs text-muted-foreground" numberOfLines={1}>
+                {placeLine ? `${placeLine} - ` : ""}
                 {timeAgo(postedDate(s).toISOString())}
               </Text>
             </View>
           </Pressable>
 
-          <View className="flex-row items-center">
+          <View className="flex-row items-center gap-2">
             <ActionButton
               onPress={likeWithBurst}
               count={s.like_count}
@@ -327,8 +323,13 @@ export const SightingCard = memo(function SightingCard({
     </View>
   );
 }, (prev, next) =>
-  prev.sighting.id === next.sighting.id &&
-  prev.liked === next.liked &&
-  prev.sighting.like_count === next.sighting.like_count &&
-  prev.sighting.comment_count === next.sighting.comment_count,
+  // Compare the sighting by reference rather than by an allowlist of fields:
+  // every feed fetch builds fresh row objects, so any server-side edit
+  // (caption, species, photos, location, …) arrives as a new reference and
+  // forces a re-render. A previous field-by-field comparison missed edits
+  // that didn't touch the compared fields (e.g. caption changes) and kept
+  // showing stale posts until the card remounted. Callback props are
+  // ignored: they are re-created on every parent render but read fresh
+  // state through refs at call time.
+  prev.sighting === next.sighting && prev.liked === next.liked,
 );

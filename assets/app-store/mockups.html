@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Burd App Store Mockup Assets</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Lora:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: transparent; }
+
+    :root {
+      --bg: #181e16;
+      --fg: #eee8d4;
+      --card: #1f2a1c;
+      --primary: #5f9470;
+      --primary-fg: #f0ead6;
+      --muted: #243020;
+      --muted-fg: #8a9e82;
+      --accent: #c8893a;
+      --border: #2f3a2b;
+      --spec-bg: #0e130e;
+      --sound-teal: #6ba3ad;
+    }
+
+    #sheet {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 80px;
+      padding: 80px;
+      background: transparent;
+    }
+
+    .mockup-cell {
+      width: 520px;
+      height: 1080px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .phone {
+      width: 392px;
+      height: 820px;
+      border-radius: 48px;
+      background: #0d100c;
+      border: 3px solid #3a4536;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(255,255,255,0.04);
+      overflow: hidden;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .notch {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 28px;
+      background: #0d100c;
+      border-radius: 20px;
+      z-index: 20;
+    }
+    .screen {
+      position: absolute;
+      inset: 14px;
+      border-radius: 38px;
+      background: var(--bg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      font-family: "DM Sans", sans-serif;
+      color: var(--fg);
+    }
+
+    /* Full-bleed screenshots (no phone bezel) */
+    body.frameless #sheet { gap: 40px; padding: 40px; }
+    body.frameless .mockup-cell {
+      width: 390px;
+      height: 844px;
+    }
+    body.frameless .phone {
+      width: 390px;
+      height: 844px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: var(--bg);
+    }
+    body.frameless .notch { display: none; }
+    body.frameless .screen {
+      inset: 0;
+      border-radius: 0;
+    }
+
+    /* Shared */
+    .hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 48px 16px 12px;
+      flex-shrink: 0;
+    }
+    .hdr-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .hdr-actions { display: flex; align-items: center; gap: 6px; }
+    .logo {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--primary);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .logo svg { width: 14px; height: 14px; stroke: var(--primary-fg); fill: none; stroke-width: 2.2; }
+    .hdr-title {
+      font-family: Lora, serif;
+      font-weight: 600;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+    .icon-btn {
+      width: 32px; height: 32px; border-radius: 999px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .icon-btn.mic { background: var(--primary); }
+    .icon-btn.ghost { background: transparent; }
+
+    .chips { display: flex; gap: 8px; padding: 0 16px 12px; flex-shrink: 0; }
+    .chip {
+      padding: 6px 12px; border-radius: 999px; font-size: 11px; white-space: nowrap;
+    }
+    .chip.on { background: var(--primary); color: var(--primary-fg); font-weight: 500; }
+    .chip.off { border: 1px solid var(--border); color: var(--muted-fg); background: var(--card); }
+
+    .search-row { display: flex; gap: 8px; padding: 0 16px 12px; align-items: center; flex-shrink: 0; }
+    .search {
+      flex: 1; height: 36px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--card); color: var(--muted-fg); font-size: 11px;
+      display: flex; align-items: center; padding: 0 12px; gap: 8px; overflow: hidden;
+    }
+    .search span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .filter-btn {
+      width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--card); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+
+    .card {
+      border-radius: 22px; background: var(--card); overflow: hidden; margin-bottom: 14px;
+    }
+    .card-photo {
+      aspect-ratio: 4/5; background: var(--muted); position: relative; overflow: hidden;
+    }
+    .card-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .card-gradient {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, transparent 35%, rgba(24,30,22,0.92) 100%);
+    }
+    .card-species { position: absolute; left: 16px; bottom: 16px; right: 70px; }
+    .card-species h3 { font-family: Lora, serif; font-weight: 600; font-size: 19px; line-height: 1.15; }
+    .card-species em { font-family: Lora, serif; font-style: italic; font-size: 12px; opacity: 0.9; }
+    .rarity {
+      position: absolute; right: 14px; bottom: 16px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+      padding: 4px 8px; border-radius: 6px; background: rgba(95,148,112,0.25); color: #a8d4b8;
+    }
+    .card-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px 14px;
+    }
+    .user { display: flex; align-items: center; gap: 8px; }
+    .avatar {
+      width: 28px; height: 28px; border-radius: 999px; background: var(--primary);
+      color: var(--primary-fg); font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .uname { font-size: 12px; font-weight: 500; }
+    .place { font-size: 10px; color: var(--muted-fg); }
+    .actions { display: flex; align-items: center; color: var(--muted-fg); }
+    .action {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px;
+    }
+    .action svg {
+      width: 22px; height: 22px; stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .action.comment svg { width: 20px; height: 20px; }
+    .action span { font-size: 13px; font-weight: 500; line-height: 1; }
+
+    .tabbar-wrap {
+      position: absolute; left: 16px; right: 16px; bottom: 12px; padding-top: 28px; z-index: 10;
+    }
+    .tabbar {
+      display: flex; align-items: center;
+      border-radius: 28px; border: 1px solid rgba(47,58,43,0.5);
+      background: rgba(31,42,28,0.95);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.35);
+    }
+    .tab {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 12px 0; color: var(--muted-fg);
+    }
+    .tab.active { color: var(--primary); }
+    .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .tab.active svg { stroke-width: 2.25; }
+    .tab-avatar {
+      width: 32px; height: 32px; border-radius: 999px;
+      border: 1px solid var(--muted-fg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tab.active .tab-avatar { border-color: var(--accent); }
+    .tab-avatar .avatar { width: 26px; height: 26px; font-size: 11px; }
+    .cam {
+      width: 72px; height: 72px; border-radius: 999px; background: var(--primary);
+      border: 5px solid var(--card); margin-top: -32px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.35);
+    }
+    .cam svg { width: 28px; height: 28px; stroke: var(--primary-fg); fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Photo ID / Camera */
+    .camera-screen { background: #000; }
+    .camera-bg {
+      position: absolute; inset: 0; z-index: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center 38%;
+      display: block;
+    }
+    .camera-top {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 48px 14px 10px;
+    }
+    .cam-pill {
+      display: flex; align-items: center; gap: 5px;
+      padding: 6px 10px; border-radius: 999px; font-size: 10px; font-weight: 500;
+      background: rgba(24,30,22,0.65); color: var(--fg);
+    }
+    .cam-pill.on { background: var(--accent); color: var(--bg); }
+    .cam-pill svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .cam-right { display: flex; gap: 6px; align-items: center; }
+    .cam-circle {
+      width: 34px; height: 34px; border-radius: 999px;
+      background: rgba(24,30,22,0.65);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cam-circle.on { background: var(--accent); }
+    .cam-circle svg { width: 16px; height: 16px; stroke: var(--fg); fill: none; stroke-width: 2; }
+    .cam-circle.on svg { stroke: var(--bg); }
+
+    .reticle {
+      position: absolute; top: 28%; bottom: 38%; left: 8%; right: 8%; z-index: 3;
+    }
+    .reticle .c {
+      position: absolute; width: 32px; height: 32px;
+      border-color: var(--accent); border-style: solid; border-width: 0;
+    }
+    .reticle .tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; }
+    .reticle .tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; }
+    .reticle .bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; }
+    .reticle .br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; }
+
+    .live-id-card {
+      position: absolute; left: 14px; right: 14px; top: 102px;
+      padding: 10px 12px; border-radius: 14px;
+      background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.2);
+      display: flex; gap: 10px; align-items: center; z-index: 6;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .live-id-card img { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; object-position: center 45%; }
+    .live-id-kicker {
+      font-family: "DM Sans", sans-serif; font-size: 8px; letter-spacing: 0.1em;
+      color: var(--accent); text-transform: uppercase; display: flex; align-items: center; gap: 4px;
+    }
+    .live-id-name { font-family: Lora, serif; font-weight: 600; font-size: 14px; line-height: 1.2; }
+    .live-id-sci { font-family: Lora, serif; font-style: italic; font-size: 10px; color: var(--muted-fg); }
+    .live-id-conf { margin-left: auto; text-align: right; }
+    .live-id-conf strong { font-size: 16px; color: var(--primary); font-weight: 600; }
+    .live-id-conf span { display: block; font-size: 8px; color: var(--muted-fg); text-transform: uppercase; }
+
+    .camera-bottom {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      padding: 0 20px 28px;
+    }
+    .shutter-wrap { display: flex; flex-direction: column; align-items: center; }
+    .shutter {
+      width: 72px; height: 72px; border-radius: 999px;
+      border: 4px solid var(--primary); display: flex; align-items: center; justify-content: center;
+    }
+    .shutter-inner { width: 54px; height: 54px; border-radius: 999px; background: #fff; }
+    .cam-side {
+      width: 44px; height: 44px; border-radius: 999px;
+      background: rgba(24,30,22,0.65);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cam-side svg { width: 20px; height: 20px; stroke: var(--fg); fill: none; stroke-width: 2; }
+    .lib-thumb {
+      width: 44px; height: 44px; border-radius: 10px; overflow: hidden; position: relative;
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+    .lib-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: center 45%; }
+    .lib-badge {
+      position: absolute; top: -4px; right: -4px;
+      width: 16px; height: 16px; border-radius: 999px;
+      background: var(--primary); color: var(--primary-fg);
+      font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Sound ID — matches LiveSoundSpaceVisualizer */
+    .sound-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding-bottom: 130px; }
+    .viz-wrap { margin: 0 14px 12px; flex-shrink: 0; }
+    .viz-readout {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 0 10px 8px;
+    }
+    .viz-hz {
+      font-family: "DM Sans", sans-serif; font-size: 13px; color: var(--primary);
+    }
+    .viz-time {
+      font-family: "DM Sans", sans-serif; font-size: 11px; color: var(--muted-fg);
+    }
+    .viz-panel {
+      border-radius: 14px; border: 1px solid rgba(95,148,112,0.28);
+      background: #121712; padding: 10px; overflow: hidden;
+    }
+    .viz-strip {
+      position: relative; height: 52px; border-radius: 4px; overflow: hidden;
+    }
+    .viz-strip svg { display: block; width: 100%; height: 52px; }
+    .viz-axis {
+      position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    }
+    .viz-axis span {
+      position: absolute; left: 4px;
+      font-family: "DM Sans", sans-serif; font-size: 8px; line-height: 10px;
+      color: rgba(168, 212, 180, 0.88);
+      text-shadow: 0 0 3px rgba(0,0,0,0.85);
+    }
+    .viz-divider {
+      height: 1px; background: rgba(138,158,130,0.22); margin: 8px 0;
+    }
+    .viz-time-caption {
+      margin-top: 6px; font-family: "DM Sans", sans-serif;
+      font-size: 8px; line-height: 10px; color: rgba(138,158,130,0.65);
+      text-align: right; width: 100%;
+    }
+
+    .section-label {
+      padding: 0 16px 8px;
+      font-family: "DM Sans", sans-serif; font-size: 9px; letter-spacing: 0.12em;
+      color: var(--muted-fg); text-transform: uppercase;
+    }
+    .live-row {
+      margin: 0 14px 8px; padding: 10px; border-radius: 12px;
+      border: 1px solid rgba(200,137,58,0.5); background: rgba(200,137,58,0.12);
+      display: flex; gap: 10px; align-items: center;
+    }
+    .live-row.dim { border-color: var(--border); background: var(--card); opacity: 0.85; }
+    .live-row img { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+    .live-row-body { flex: 1; min-width: 0; }
+    .live-row-body h4 { font-family: Lora, serif; font-size: 13px; font-weight: 600; }
+    .live-row-body em { font-size: 10px; font-style: italic; color: var(--muted-fg); }
+    .live-row-meta { text-align: right; }
+    .live-row-meta strong { font-size: 13px; color: var(--primary); }
+    .live-row-meta span { display: block; font-size: 8px; color: var(--accent); font-weight: 600; letter-spacing: 0.04em; }
+
+    .sound-bar {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;
+      padding: 16px 14px 24px; background: linear-gradient(180deg, transparent, var(--bg) 30%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .record-btn {
+      width: 96px; height: 96px; border-radius: 999px;
+      border: 4px solid rgba(95,148,112,0.45);
+      background: rgba(95,148,112,0.12);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 10px rgba(95,148,112,0.08);
+    }
+    .record-btn svg { width: 36px; height: 36px; stroke: var(--primary); fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+    .sound-status { font-size: 13px; font-weight: 500; color: var(--primary); }
+    .sound-hint { font-size: 10px; color: var(--muted-fg); }
+
+    /* Profile */
+    .profile-scroll { flex: 1; overflow: hidden; position: relative; padding-bottom: 92px; }
+    .cover {
+      height: 112px; position: relative; overflow: hidden;
+      background: var(--muted);
+    }
+    .cover img.cover-photo { width: 100%; height: 100%; object-fit: cover; }
+    .cover-fade {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, transparent 20%, rgba(24,30,22,0.8) 100%);
+    }
+    .cover-edit {
+      position: absolute; bottom: 8px; right: 8px; z-index: 4;
+      width: 28px; height: 28px; border-radius: 999px;
+      border: 2px solid var(--bg); background: var(--card);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pet {
+      position: absolute; right: 52px; bottom: 0; width: 64px; height: 64px;
+      image-rendering: pixelated;
+      z-index: 3;
+    }
+    .profile-body { padding: 0 16px; margin-top: -36px; position: relative; z-index: 2; }
+    .profile-avatar-wrap { position: relative; width: 72px; height: 72px; margin-bottom: 12px; }
+    .profile-avatar {
+      width: 72px; height: 72px; border-radius: 999px;
+      border: 3px solid var(--bg); background: var(--primary);
+      color: var(--primary-fg); font-family: Lora, serif; font-size: 28px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .avatar-edit {
+      position: absolute; bottom: -1px; right: -1px; z-index: 4;
+      width: 28px; height: 28px; border-radius: 999px;
+      border: 2px solid var(--bg); background: var(--card);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .identity-row {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .identity { min-width: 0; flex: 1; }
+    .profile-name-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .profile-name { font-family: Lora, serif; font-weight: 600; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .verified-badge {
+      width: 16px; height: 16px; flex-shrink: 0; position: relative;
+    }
+    .pencil {
+      width: 22px; height: 22px; border-radius: 999px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .profile-handle {
+      font-family: "DM Sans", sans-serif; font-size: 11px; color: var(--muted-fg); margin-top: 2px;
+    }
+    .profile-stats {
+      display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-shrink: 0;
+    }
+    .pstat {
+      width: 56px; height: 56px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .pstat-n { font-family: Lora, serif; font-weight: 600; font-size: 16px; line-height: 1.1; }
+    .pstat-l { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-fg); margin-top: 2px; }
+    .profile-bio { font-size: 13px; color: rgba(238,232,212,0.7); margin-top: 10px; line-height: 1.45; }
+
+    .posts-section { margin-top: 16px; border-top: 1px solid var(--border); }
+    .posts-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px 8px; gap: 8px;
+    }
+    .posts-hdr-left { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .posts-hdr-left span {
+      font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg);
+    }
+    .posts-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .posts-chips .chip { padding: 4px 10px; font-size: 11px; }
+    .post-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+      padding: 8px 16px 0;
+    }
+    .post-cell { aspect-ratio: 1; background: var(--muted); overflow: hidden; }
+    .post-cell img { width: 100%; height: 100%; object-fit: cover; }
+    .post-cell img.nuthatch { object-position: center 42%; }
+    .profile-badges-wrap { padding: 10px 16px 0; }
+
+    /* Badges */
+    .badges-card {
+      margin-top: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); overflow: hidden;
+    }
+    .badges-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+    }
+    .badges-hdr h3 { font-family: Lora, serif; font-weight: 600; font-size: 14px; }
+    .badges-hdr p { font-family: "DM Sans", sans-serif; font-size: 9px; color: var(--muted-fg); margin-top: 2px; }
+    .view-all { font-size: 11px; font-weight: 500; color: var(--primary); display: flex; align-items: center; gap: 2px; }
+    .showcase {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 12px;
+    }
+    .showcase.compact { padding: 10px 12px 12px; }
+    .showcase.compact .badge-circle { width: 44px; height: 44px; }
+    .showcase.compact .badge-circle svg { width: 18px; height: 18px; }
+    .showcase.compact .showcase-slot span { font-size: 9px; }
+    .showcase-slot { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .badge-circle {
+      width: 52px; height: 52px; border-radius: 999px;
+      display: flex; align-items: center; justify-content: center;
+      border: 1px solid rgba(95,148,112,0.35);
+    }
+    .badge-circle.green { background: rgba(95,148,112,0.2); }
+    .badge-circle.teal { background: rgba(72,130,140,0.2); border-color: rgba(107,163,173,0.35); }
+    .badge-circle.gold { background: rgba(200,137,58,0.2); border-color: rgba(200,137,58,0.35); }
+    .badge-circle svg { width: 22px; height: 22px; stroke-width: 2; fill: none; }
+    .badge-circle.green svg { stroke: var(--primary); }
+    .badge-circle.teal svg { stroke: var(--sound-teal); }
+    .badge-circle.gold svg { stroke: var(--accent); fill: rgba(200,137,58,0.3); }
+    .showcase-slot span { font-family: Lora, serif; font-size: 10px; text-align: center; line-height: 1.2; }
+
+    .badge-row {
+      margin: 0 12px 8px; padding: 10px; border-radius: 12px;
+      border: 1px solid rgba(95,148,112,0.3); background: var(--card);
+      display: flex; gap: 10px; align-items: center;
+    }
+    .badge-row.teal { border-color: rgba(107,163,173,0.3); }
+    .badge-row.gold { border-color: rgba(200,137,58,0.35); }
+    .badge-row-icon {
+      width: 34px; height: 34px; border-radius: 999px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .badge-row-icon.green { background: rgba(95,148,112,0.2); }
+    .badge-row-icon.teal { background: rgba(72,130,140,0.2); }
+    .badge-row-icon.gold { background: rgba(200,137,58,0.2); }
+    .badge-row-icon svg { width: 15px; height: 15px; stroke-width: 2; fill: none; }
+    .badge-row-body h4 { font-family: Lora, serif; font-size: 12px; }
+    .badge-row-body p { font-size: 10px; color: var(--muted-fg); margin-top: 1px; }
+    .badge-check { margin-left: auto; color: var(--primary); font-size: 14px; }
+    .badge-check.teal { color: var(--sound-teal); }
+    .badge-check.gold { color: var(--accent); }
+
+    .family-hdr {
+      padding: 8px 12px 4px; display: flex; justify-content: space-between;
+      font-size: 11px; color: rgba(238,232,212,0.8);
+    }
+    .family-hdr span:last-child { font-family: "DM Sans", sans-serif; font-size: 9px; color: var(--muted-fg); }
+
+    /* Log a sighting */
+    .log-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 48px 16px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .log-hdr .hdr-title { font-size: 16px; }
+    .log-scroll { flex: 1; overflow: hidden; padding: 14px 16px 72px; }
+    .log-photo {
+      border-radius: 16px; border: 1px solid var(--border); overflow: hidden;
+      background: #000; height: 168px;
+    }
+    .log-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 42% 8%; }
+    .log-hint { text-align: center; font-size: 10px; color: var(--muted-fg); margin-top: 8px; margin-bottom: 12px; }
+    .log-card {
+      border-radius: 16px; border: 1px solid var(--border); background: var(--card);
+      padding: 12px; margin-bottom: 10px;
+    }
+    .log-kicker {
+      font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--muted-fg); margin-bottom: 8px;
+    }
+    .ai-banner {
+      display: flex; gap: 8px; align-items: flex-start;
+      border-radius: 10px; background: rgba(95,148,112,0.1); padding: 8px 10px; margin-bottom: 10px;
+      font-size: 10px; line-height: 1.4; color: rgba(238,232,212,0.8);
+    }
+    .field-label { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+    .field-sub { font-size: 10px; color: var(--muted-fg); margin-bottom: 4px; }
+    .field-input {
+      min-height: 36px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg); padding: 8px 12px; font-size: 13px; color: var(--fg);
+    }
+    .field-input.italic { font-family: Lora, serif; font-style: italic; }
+    .attach-call {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      border-radius: 16px; border: 1px dashed rgba(95,148,112,0.4);
+      background: rgba(95,148,112,0.05); padding: 12px; margin-bottom: 10px;
+      font-size: 13px; font-weight: 500;
+    }
+    .count-row { display: flex; align-items: center; gap: 14px; }
+    .count-btn {
+      width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg); display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--fg);
+    }
+    .count-n { font-family: Lora, serif; font-weight: 600; font-size: 22px; min-width: 28px; text-align: center; }
+    .rarity-pill {
+      display: inline-block; font-family: "DM Sans", sans-serif; font-size: 8px;
+      letter-spacing: 0.08em; text-transform: uppercase; color: #4ade80;
+      border: 1px solid rgba(22,101,52,0.5); background: #052e16;
+      border-radius: 4px; padding: 2px 6px;
+    }
+    .share-row {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      border-radius: 16px; border: 1px solid var(--border); background: var(--card);
+      padding: 12px; margin-bottom: 10px;
+    }
+    .toggle {
+      width: 40px; height: 24px; border-radius: 999px; background: var(--primary);
+      position: relative; flex-shrink: 0; margin-top: 2px;
+    }
+    .toggle::after {
+      content: ""; position: absolute; top: 3px; right: 3px;
+      width: 18px; height: 18px; border-radius: 999px; background: #f0ead6;
+    }
+    .save-bar {
+      position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 8;
+    }
+    .save-btn {
+      width: 100%; text-align: center; border-radius: 16px; background: var(--primary);
+      color: var(--primary-fg); font-weight: 700; font-size: 14px; padding: 12px;
+    }
+
+    /* Journal */
+    .j-stats {
+      display: flex; align-items: center; margin: 0 16px 10px;
+      border-radius: 12px; border: 1px solid rgba(47,58,43,0.8); background: rgba(36,48,32,0.4);
+      padding: 8px 0;
+    }
+    .j-stat {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .j-stat + .j-stat { border-left: 1px solid rgba(47,58,43,0.7); }
+    .j-stat-n { font-family: "DM Sans", sans-serif; font-size: 13px; }
+    .j-stat-l { font-size: 10px; color: var(--muted-fg); }
+    .j-date {
+      display: flex; align-items: center; gap: 10px; padding: 0 16px 8px;
+    }
+    .j-date span:first-child {
+      font-family: "DM Sans", sans-serif; font-size: 9px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent); white-space: nowrap;
+    }
+    .j-date .line { flex: 1; height: 1px; background: var(--border); }
+    .j-date span:last-child {
+      font-family: "DM Sans", sans-serif; font-size: 9px; color: rgba(138,158,130,0.4);
+    }
+    .j-list { padding: 0 16px 100px; }
+    .j-entry {
+      display: flex; align-items: center; gap: 10px; padding: 12px;
+      border-radius: 16px; background: var(--card); margin-bottom: 8px;
+    }
+    .j-entry.uncommon {
+      border: 1px solid rgba(180,83,9,0.45); background: rgba(69,26,3,0.5);
+    }
+    .j-thumb {
+      width: 56px; height: 56px; border-radius: 8px; background: var(--muted);
+      overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    }
+    .j-thumb img { width: 100%; height: 100%; object-fit: contain; }
+    .j-body { flex: 1; min-width: 0; }
+    .j-body h4 { font-family: Lora, serif; font-size: 13px; }
+    .j-posted {
+      font-family: "DM Sans", sans-serif; font-size: 8px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: rgba(95,148,112,0.9); margin-top: 2px;
+    }
+    .j-posted.only { color: rgba(138,158,130,0.7); }
+    .j-meta { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted-fg); margin-top: 3px; }
+    .j-count { text-align: right; flex-shrink: 0; }
+    .j-count strong { font-family: "DM Sans", sans-serif; font-size: 13px; color: var(--accent); }
+    .j-count span { display: block; font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(138,158,130,0.5); }
+  </style>
+</head>
+<body>
+  <div id="sheet">
+
+    <!-- 1. Home Feed -->
+    <div class="mockup-cell" id="home-feed">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="hdr">
+            <div class="hdr-left">
+              <div class="logo"><svg viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/></svg></div>
+              <span class="hdr-title">Burd</span>
+            </div>
+            <div class="hdr-actions">
+              <div class="icon-btn mic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f0ead6" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></div>
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="1.75"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="1.75"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+            </div>
+          </div>
+          <div class="search-row">
+            <div class="search"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Search species, locations, #hashtags...</span></div>
+            <div class="filter-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5f9470" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
+          </div>
+          <div class="chips">
+            <span class="chip on">For you</span>
+            <span class="chip off">Friends</span>
+            <span class="chip off">Activity</span>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:0 14px;">
+            <div class="card">
+              <div class="card-photo">
+                <img src="nuthatch-card.jpg" alt="" />
+                <div class="card-gradient"></div>
+                <div class="card-species"><h3>Eurasian Nuthatch</h3><em>Sitta europaea</em></div>
+                <span class="rarity">COMMON</span>
+              </div>
+              <div class="card-meta">
+                <div class="user">
+                  <div class="avatar">A</div>
+                  <div><div class="uname">@alexbirder</div><div class="place">Portland, OR · 2h</div></div>
+                </div>
+                <div class="actions">
+                  <div class="action">
+                    <svg viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                    <span>24</span>
+                  </div>
+                  <div class="action comment">
+                    <svg viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+                    <span>3</span>
+                  </div>
+                  <div class="action">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="opacity:0.5;">
+              <div class="card-photo">
+                <img src="https://inaturalist-open-data.s3.amazonaws.com/photos/236676280/medium.jpg" alt="" />
+                <div class="card-gradient"></div>
+                <div class="card-species"><h3>Red-tailed Hawk</h3><em>Buteo jamaicensis</em></div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar-wrap">
+            <div class="tabbar">
+              <div class="tab active"><svg viewBox="0 0 24 24"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg></div>
+              <div class="tab"><svg viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></div>
+              <div style="padding:0 8px;"><div class="cam"><svg viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div></div>
+              <div class="tab"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
+              <div class="tab"><div class="tab-avatar"><div class="avatar">A</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Photo ID -->
+    <div class="mockup-cell" id="photo-id">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen camera-screen">
+          <img class="camera-bg" src="nuthatch-hero.jpg" alt="" />
+          <div class="camera-top">
+            <div style="display:flex;gap:6px;">
+              <div class="cam-circle"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+              <div class="cam-circle"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+            </div>
+            <div class="cam-right">
+              <div class="cam-pill on"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>Live ID</div>
+              <div class="cam-circle"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+              <div class="cam-circle on"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg></div>
+            </div>
+          </div>
+          <div class="reticle">
+            <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
+          </div>
+          <div class="live-id-card">
+            <img src="nuthatch-hero.jpg" alt="" />
+            <div>
+              <div class="live-id-kicker">✦ LIVE ID</div>
+              <div class="live-id-name">Eurasian Nuthatch</div>
+              <div class="live-id-sci">Sitta europaea</div>
+            </div>
+            <div class="live-id-conf"><strong>87%</strong><span>match</span></div>
+          </div>
+          <div class="camera-bottom">
+            <div class="cam-side"><svg viewBox="0 0 24 24" fill="none" stroke="#eee8d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></div>
+            <div class="shutter-wrap">
+              <div class="shutter"><div class="shutter-inner"></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+              <div class="lib-thumb">
+                <img src="nuthatch-hero.jpg" alt="" />
+                <div class="lib-badge">2</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Sound ID -->
+    <div class="mockup-cell" id="sound-id">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="hdr" style="padding-bottom:8px;">
+            <div class="hdr-left">
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+              <span class="hdr-title">Live Sound ID</span>
+            </div>
+            <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+          </div>
+          <div class="sound-body">
+            <div class="viz-wrap">
+              <div class="viz-readout">
+                <span class="viz-hz">2847 Hz</span>
+                <span class="viz-time">12 s</span>
+              </div>
+              <div class="viz-panel">
+                <div class="viz-strip">
+                  <svg id="spec-svg" viewBox="0 0 340 52" preserveAspectRatio="none"></svg>
+                  <div class="viz-axis">
+                    <span style="top:0">4k</span>
+                    <span style="top:21px">2k</span>
+                    <span style="top:42px">0</span>
+                  </div>
+                </div>
+                <div class="viz-divider"></div>
+                <div class="viz-strip">
+                  <svg id="wave-svg" viewBox="0 0 340 52" preserveAspectRatio="none"></svg>
+                  <div class="viz-axis"><span style="top:21px">lvl</span></div>
+                </div>
+                <div class="viz-time-caption">Time →</div>
+              </div>
+            </div>
+            <div class="section-label">Live detections</div>
+            <div class="live-row">
+              <img src="https://inaturalist-open-data.s3.amazonaws.com/photos/530721418/square.jpg" alt="" />
+              <div class="live-row-body">
+                <h4>Blue Jay</h4>
+                <em>Cyanocitta cristata</em>
+              </div>
+              <div class="live-row-meta"><strong>92%</strong><span>NOW</span></div>
+            </div>
+            <div class="live-row dim">
+              <img src="https://inaturalist-open-data.s3.amazonaws.com/photos/189434971/square.jpg" alt="" />
+              <div class="live-row-body">
+                <h4>Northern Cardinal</h4>
+                <em>Cardinalis cardinalis</em>
+              </div>
+              <div class="live-row-meta"><strong>74%</strong></div>
+            </div>
+            <div class="live-row dim">
+              <img src="https://inaturalist-open-data.s3.amazonaws.com/photos/384965723/square.jpg" alt="" />
+              <div class="live-row-body">
+                <h4>American Goldfinch</h4>
+                <em>Spinus tristis</em>
+              </div>
+              <div class="live-row-meta"><strong>61%</strong></div>
+            </div>
+          </div>
+          <div class="sound-bar">
+            <div class="record-btn"><svg viewBox="0 0 24 24" fill="none" stroke="#5f9470" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></div>
+            <div class="sound-status">Listening...</div>
+            <div class="sound-hint">Tap stop when you're done</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Profile -->
+    <div class="mockup-cell" id="profile">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="hdr" style="padding-bottom:6px;">
+            <div class="hdr-left"><span class="hdr-title">Profile</span></div>
+            <div class="hdr-actions">
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
+              <div class="icon-btn mic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f0ead6" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></div>
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="1.75"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="1.75"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+            </div>
+          </div>
+          <div class="profile-scroll">
+            <div class="cover">
+              <img class="cover-photo" src="https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&amp;h=200&amp;fit=crop&amp;auto=format" alt="" />
+              <div class="cover-fade"></div>
+              <img class="pet" src="pocket-bluebird.svg" alt="" />
+              <div class="cover-edit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>
+            </div>
+            <div class="profile-body">
+              <div class="profile-avatar-wrap">
+                <div class="profile-avatar">A</div>
+                <div class="avatar-edit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>
+              </div>
+              <div class="identity-row">
+                <div class="identity">
+                  <div class="profile-name-row">
+                    <span class="profile-name">Alex Birder</span>
+                    <span class="verified-badge">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#C8A03A" stroke="#C8A03A" stroke-width="2"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/></svg>
+                      <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" style="position:absolute;left:4.5px;top:4.5px;"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  </div>
+                  <div class="profile-handle">@alexbirder · Portland, OR</div>
+                </div>
+                <div class="profile-stats">
+                  <div class="pstat"><div class="pstat-n">42</div><div class="pstat-l">Posts</div></div>
+                  <div class="pstat"><div class="pstat-n">128</div><div class="pstat-l">Species</div></div>
+                  <div class="pstat"><div class="pstat-n">18</div><div class="pstat-l">Friends</div></div>
+                </div>
+              </div>
+              <div class="profile-bio">Pacific Northwest birder. Nuthatches at dawn, hawks at dusk.</div>
+            </div>
+            <div class="posts-section">
+              <div class="posts-hdr">
+                <div class="posts-hdr-left">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c8893a" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+                  <span>Posts</span>
+                </div>
+                <div class="posts-chips">
+                  <span class="chip on">All</span>
+                  <span class="chip off">Photos</span>
+                  <span class="chip off">Audio</span>
+                  <span class="chip off">Reposts</span>
+                </div>
+              </div>
+              <div class="post-grid">
+                <div class="post-cell"><img class="nuthatch" src="nuthatch-card.jpg" alt="" /></div>
+                <div class="post-cell"><img src="bluejay-card.jpg" alt="" /></div>
+                <div class="post-cell"><img src="goldfinch-card.jpg" alt="" /></div>
+              </div>
+              <div class="profile-badges-wrap">
+                <div class="badges-card" style="margin-top:0;">
+                  <div class="badges-hdr">
+                    <div>
+                      <h3>Badges</h3>
+                      <p>24 of 68 earned</p>
+                    </div>
+                    <div class="view-all">View all <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5f9470" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></div>
+                  </div>
+                  <div class="showcase">
+                    <div class="showcase-slot">
+                      <div class="badge-circle green"><svg viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>
+                      <span>Live Look</span>
+                    </div>
+                    <div class="showcase-slot">
+                      <div class="badge-circle green"><svg viewBox="0 0 24 24"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg></div>
+                      <span>Century Species</span>
+                    </div>
+                    <div class="showcase-slot">
+                      <div class="badge-circle teal"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></div>
+                      <span>Live Listener</span>
+                    </div>
+                  </div>
+                  <p style="margin:0 0 10px;text-align:center;font-size:11px;color:#8a9e82;">Tap to choose which badges to display</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar-wrap">
+            <div class="tabbar">
+              <div class="tab"><svg viewBox="0 0 24 24"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg></div>
+              <div class="tab"><svg viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></div>
+              <div style="padding:0 8px;"><div class="cam"><svg viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div></div>
+              <div class="tab"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
+              <div class="tab active"><div class="tab-avatar"><div class="avatar">A</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Profile Badges -->
+    <div class="mockup-cell" id="profile-badges">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="hdr" style="padding-bottom:8px;">
+            <div class="hdr-left">
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#eee8d4" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></div>
+              <span class="hdr-title">Your badges</span>
+            </div>
+          </div>
+          <div style="padding:0 14px 8px;font-family: "DM Sans", sans-serif;font-size:9px;color:#8a9e82;letter-spacing:0.08em;">24 OF 68 EARNED</div>
+          <div style="flex:1;overflow:hidden;padding-bottom:20px;">
+            <div class="family-hdr"><span>Life list</span><span>8/16</span></div>
+            <div class="badge-row">
+              <div class="badge-row-icon green"><svg viewBox="0 0 24 24" stroke="#5f9470"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/></svg></div>
+              <div class="badge-row-body"><h4>Century Species</h4><p>Log 100 unique species</p></div>
+              <div class="badge-check">✓</div>
+            </div>
+            <div class="badge-row">
+              <div class="badge-row-icon green"><svg viewBox="0 0 24 24" stroke="#5f9470"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/></svg></div>
+              <div class="badge-row-body"><h4>Half Century</h4><p>Log 50 unique species</p></div>
+              <div class="badge-check">✓</div>
+            </div>
+            <div class="family-hdr"><span>Capture</span><span>6/14</span></div>
+            <div class="badge-row">
+              <div class="badge-row-icon green"><svg viewBox="0 0 24 24" stroke="#6fa882"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>
+              <div class="badge-row-body"><h4>Live Look</h4><p>Identify a bird with live photo ID</p></div>
+              <div class="badge-check">✓</div>
+            </div>
+            <div class="family-hdr"><span>Sound</span><span>4/8</span></div>
+            <div class="badge-row teal">
+              <div class="badge-row-icon teal"><svg viewBox="0 0 24 24" stroke="#6ba3ad"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div>
+              <div class="badge-row-body"><h4>Live Listener</h4><p>Identify a bird with live sound ID</p></div>
+              <div class="badge-check teal">✓</div>
+            </div>
+            <div class="badge-row teal">
+              <div class="badge-row-icon teal"><svg viewBox="0 0 24 24" stroke="#6ba3ad"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/></svg></div>
+              <div class="badge-row-body"><h4>Ear to the Sky</h4><p>Log 5 audio sightings</p></div>
+              <div class="badge-check teal">✓</div>
+            </div>
+            <div class="family-hdr"><span>Rarity</span><span>2/7</span></div>
+            <div class="badge-row gold">
+              <div class="badge-row-icon gold"><svg viewBox="0 0 24 24" stroke="#c8893a" fill="rgba(200,137,58,0.3)"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></div>
+              <div class="badge-row-body"><h4>Rare Find</h4><p>Spot a rare bird</p></div>
+              <div class="badge-check gold">✓</div>
+            </div>
+            <div style="margin:12px 14px 0;" class="badges-card">
+              <div class="badges-hdr">
+                <div><h3>Profile showcase</h3><p>3 badges on your profile</p></div>
+              </div>
+              <div class="showcase">
+                <div class="showcase-slot">
+                  <div class="badge-circle green"><svg viewBox="0 0 24 24" stroke="#5f9470"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>
+                  <span>Live Look</span>
+                </div>
+                <div class="showcase-slot">
+                  <div class="badge-circle green"><svg viewBox="0 0 24 24" stroke="#5f9470"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/></svg></div>
+                  <span>Century Species</span>
+                </div>
+                <div class="showcase-slot">
+                  <div class="badge-circle teal"><svg viewBox="0 0 24 24" stroke="#6ba3ad"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/></svg></div>
+                  <span>Live Listener</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Log a sighting -->
+    <div class="mockup-cell" id="log-sighting">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="log-hdr">
+            <div class="icon-btn ghost"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+            <span class="hdr-title">Log a sighting</span>
+            <div style="width:32px"></div>
+          </div>
+          <div class="log-scroll">
+            <div class="log-photo">
+              <img src="nuthatch-card.jpg" alt="" />
+            </div>
+            <div class="log-hint">Tap photo to crop or zoom</div>
+            <div class="log-card">
+              <div class="log-kicker">Identification</div>
+              <div class="ai-banner">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5f9470" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                Identified by photo · 87% match. Edit anything that looks off.
+              </div>
+              <div class="field-label">Species</div>
+              <div class="field-input">Eurasian Nuthatch</div>
+              <div style="height:8px"></div>
+              <div class="field-label">Scientific name</div>
+              <div class="field-sub">Optional</div>
+              <div class="field-input italic">Sitta europaea</div>
+            </div>
+            <div class="attach-call">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5f9470" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+              Attach bird call
+            </div>
+            <div class="log-card">
+              <div class="log-kicker">Sighting details</div>
+              <div class="field-label">Rarity</div>
+              <div style="display:flex;gap:10px;align-items:flex-start;border-radius:10px;border:1px solid var(--border);background:var(--bg);padding:10px;margin-bottom:10px;">
+                <span class="rarity-pill">common</span>
+                <span style="font-size:10px;color:var(--muted-fg);line-height:1.4;">Based on species rarity and recent sightings near you.</span>
+              </div>
+              <div class="field-label">Count</div>
+              <div class="count-row">
+                <div class="count-btn">−</div>
+                <div class="count-n">1</div>
+                <div class="count-btn">+</div>
+              </div>
+            </div>
+          </div>
+          <div class="save-bar"><div class="save-btn">Save &amp; post</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Journal -->
+    <div class="mockup-cell" id="journal">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="hdr">
+            <div class="hdr-left"><span class="hdr-title">Journal</span></div>
+            <div class="hdr-actions">
+              <div class="icon-btn mic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f0ead6" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></div>
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="1.75"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+              <div class="icon-btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="1.75"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+            </div>
+          </div>
+          <div class="j-stats">
+            <div class="j-stat">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              <span class="j-stat-n">42</span><span class="j-stat-l">Photos</span>
+            </div>
+            <div class="j-stat">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+              <span class="j-stat-n">18</span><span class="j-stat-l">Sounds</span>
+            </div>
+            <div class="j-stat">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <span class="j-stat-n">60</span><span class="j-stat-l">Logged</span>
+            </div>
+          </div>
+          <div class="search-row">
+            <div class="search"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Search species, locations, #hashtags...</span></div>
+            <div class="filter-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
+          </div>
+          <div class="chips">
+            <span class="chip on">Photos (3)</span>
+            <span class="chip off">Sounds (2)</span>
+            <span class="chip off">Drafts</span>
+          </div>
+          <div class="j-date"><span>Today</span><div class="line"></div><span>3 birds</span></div>
+          <div class="j-list">
+            <div class="j-entry">
+              <div class="j-thumb"><img src="nuthatch-card.jpg" alt="" /></div>
+              <div class="j-body">
+                <h4>Eurasian Nuthatch</h4>
+                <div class="j-posted">Posted</div>
+                <div style="margin-top:4px"><span class="rarity-pill">common</span></div>
+                <div class="j-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>Portland, OR</div>
+                <div class="j-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>8:14 AM</div>
+              </div>
+              <div class="j-count"><strong>×1</strong><span>birds</span></div>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
+            <div class="j-entry uncommon">
+              <div class="j-thumb"><img src="goldfinch-card.jpg" alt="" /></div>
+              <div class="j-body">
+                <h4>American Goldfinch</h4>
+                <div class="j-posted">Posted</div>
+                <div style="margin-top:4px"><span class="rarity-pill" style="color:#fbbf24;border-color:rgba(146,64,14,0.5);background:#451a03;">uncommon</span></div>
+                <div class="j-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>Portland, OR</div>
+                <div class="j-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>7:02 AM</div>
+              </div>
+              <div class="j-count"><strong>×1</strong><span>birds</span></div>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
+            <div class="j-entry">
+              <div class="j-thumb"><img src="bluejay-card.jpg" alt="" /></div>
+              <div class="j-body">
+                <h4>Blue Jay</h4>
+                <div class="j-posted only">Journal only</div>
+                <div style="margin-top:4px"><span class="rarity-pill">common</span></div>
+                <div class="j-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>Forest Park</div>
+                <div class="j-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>6:48 AM</div>
+              </div>
+              <div class="j-count"><strong>×1</strong><span>birds</span></div>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a9e82" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
+          </div>
+          <div class="tabbar-wrap">
+            <div class="tabbar">
+              <div class="tab"><svg viewBox="0 0 24 24"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg></div>
+              <div class="tab active"><svg viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></div>
+              <div style="padding:0 8px;"><div class="cam"><svg viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div></div>
+              <div class="tab"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
+              <div class="tab"><div class="tab-avatar"><div class="avatar">A</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Match lib/liveSoundFeatures visualizer rendering
+    const PLOT_W = 340;
+    const STRIP_H = 52;
+    const FREQ_BINS = 24;
+    const WAVE_BARS = 48;
+
+    function specColor(energy) {
+      const t = Math.max(0, Math.min(1, energy));
+      const r = Math.round(24 + t * 71);
+      const g = Math.round(42 + t * 106);
+      const b = Math.round(32 + t * 48);
+      return `rgba(${r}, ${g}, ${b}, ${0.32 + t * 0.68})`;
+    }
+
+    function waveBarColor(amp) {
+      const t = Math.max(0, Math.min(1, amp));
+      return `rgba(${Math.round(60 + t * 35)}, ${Math.round(110 + t * 38)}, ${Math.round(78 + t * 22)}, ${0.45 + t * 0.55})`;
+    }
+
+    // Spectrogram — freq bins stack from bottom (0 Hz) to top (4k)
+    const specSvg = document.getElementById('spec-svg');
+    const specParts = [`<rect x="0" y="0" width="${PLOT_W}" height="${STRIP_H}" fill="#0e130e"/>`];
+    specParts.push(`<line x1="0" y1="${STRIP_H / 2}" x2="${PLOT_W}" y2="${STRIP_H / 2}" stroke="rgba(138,158,130,0.14)" stroke-width="1"/>`);
+
+    const colCount = 58;
+    const cellW = PLOT_W / colCount;
+    const cellH = STRIP_H / FREQ_BINS;
+
+    for (let c = 0; c < colCount; c++) {
+      const t = c / colCount;
+      const phrase = Math.max(0, Math.sin(t * 9.5) * 0.55 + Math.sin(t * 22 + 1.2) * 0.25);
+      const center = 7 + phrase * 5;
+      for (let b = 0; b < FREQ_BINS; b++) {
+        const dist = Math.abs(b - center);
+        let energy = Math.max(0, 0.92 - dist * 0.11);
+        if (b < 2) energy *= 0.25;
+        if (b > 17) energy *= 0.35;
+        energy *= 0.75 + Math.sin(c * 0.7 + b * 0.4) * 0.2;
+        if (energy <= 0.05) continue;
+        const x = c * cellW;
+        const y = STRIP_H - (b + 1) * cellH;
+        const w = Math.max(1, cellW - 0.15);
+        specParts.push(`<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${(cellH + 0.15).toFixed(2)}" fill="${specColor(energy)}"/>`);
+      }
+    }
+    specSvg.innerHTML = specParts.join('');
+
+    // Waveform — centered bars + polyline overlay
+    const waveSvg = document.getElementById('wave-svg');
+    const waveParts = [`<rect x="0" y="0" width="${PLOT_W}" height="${STRIP_H}" fill="#0e130e"/>`];
+    waveParts.push(`<line x1="0" y1="${STRIP_H / 2}" x2="${PLOT_W}" y2="${STRIP_H / 2}" stroke="rgba(138,158,130,0.2)" stroke-width="1"/>`);
+
+    const barW = PLOT_W / WAVE_BARS;
+    const samples = [];
+    for (let i = 0; i < WAVE_BARS; i++) {
+      const amp = Math.max(0.08, Math.abs(Math.sin(i * 0.38) * 0.55 + Math.sin(i * 0.11 + 2) * 0.35));
+      samples.push(amp);
+      const h = Math.max(2, amp * STRIP_H * 0.88);
+      const x = i * barW;
+      const y = (STRIP_H - h) / 2;
+      waveParts.push(`<rect x="${(x + barW * 0.12).toFixed(2)}" y="${y.toFixed(2)}" width="${Math.max(1.5, barW * 0.76).toFixed(2)}" height="${h.toFixed(2)}" rx="1" fill="${waveBarColor(amp)}"/>`);
+    }
+
+    const midY = STRIP_H / 2;
+    const step = PLOT_W / Math.max(samples.length - 1, 1);
+    const points = samples.map((amp, i) => `${(i * step).toFixed(1)},${(midY - amp * STRIP_H * 0.42).toFixed(1)}`).join(' ');
+    waveParts.push(`<polyline points="${points}" fill="none" stroke="rgba(168,212,180,0.55)" stroke-width="1.25"/>`);
+    waveSvg.innerHTML = waveParts.join('');
+  </script>
+</body>
+</html>

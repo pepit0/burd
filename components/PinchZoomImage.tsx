@@ -127,7 +127,7 @@ function PinchZoomContainer({
       <GestureDetector gesture={gesture}>
         <Animated.View
           onLayout={onLayout}
-          style={[StyleSheet.absoluteFillObject, animatedStyle]}
+          style={[StyleSheet.absoluteFill, animatedStyle]}
           collapsable={false}
         >
           {children}
@@ -181,7 +181,7 @@ export function PinchZoomImage({
     >
       <Image
         source={{ uri }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         contentFit={contentFit}
         recyclingKey={recyclingKey ?? uri}
       />

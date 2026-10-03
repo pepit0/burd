@@ -15,9 +15,9 @@ import Animated from "react-native-reanimated";
 import { FlatList } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Bird, Check, Filter } from "lucide-react-native";
+import { Bird, Check, Filter, SquareStack } from "lucide-react-native";
 import { SearchBar } from "@/components/SearchBar";
-import { HomeSplitHeader, REFRESH_GAP, useTabBarClearance } from "@/components/CollapsibleHeader";
+import { HEADER_BOTTOM_RADIUS, HomeSplitHeader, REFRESH_GAP, anchorRefreshControl, useTabBarClearance } from "@/components/CollapsibleHeader";
 import {
   dismissKeyboardOnScrollDrag,
   keyboardAwareScrollProps,
@@ -81,6 +81,9 @@ const GUIDE_LIST_PADDING = 16;
 const GUIDE_COL_GAP = 12;
 const GUIDE_ROW_PADDING = 16;
 const LOAD_COOLDOWN_MS = 500;
+/** Square cards in the "logged by you" horizontal scroller. */
+const MINI_CARD_SIZE = 108;
+const MINI_CARD_GAP = 10;
 
 function guideCardHeight(screenWidth: number): number {
   return Math.floor(
@@ -144,7 +147,9 @@ const SpeciesCard = memo(function SpeciesCard({
         <View className="absolute right-2 top-2 h-5 w-5 items-center justify-center rounded-full bg-primary">
           <Check size={10} color="#f0ead6" strokeWidth={2.5} />
         </View>
-      ) : null}
+      ) : (
+        <View className="absolute right-2 top-2 h-5 w-5 rounded-full border-2 border-primary" />
+      )}
       <View className="absolute bottom-0 left-0 right-0 p-2.5">
         <ImageOverlayText
           className="font-serif text-sm leading-tight text-foreground"
@@ -166,6 +171,80 @@ const SpeciesCard = memo(function SpeciesCard({
           </View>
         </View>
       </View>
+    </Pressable>
+  );
+});
+
+interface MiniSpeciesCardProps {
+  entry: FieldGuideEntry;
+  size: number;
+  onPress: (id: string) => void;
+}
+
+/**
+ * Compact square cut of {@link SpeciesCard} for the horizontal
+ * "logged by you" strip under the search bar.
+ */
+const MiniSpeciesCard = memo(function MiniSpeciesCard({
+  entry,
+  size,
+  onPress,
+}: MiniSpeciesCardProps) {
+  return (
+    <Pressable
+      onPress={() => onPress(entry.id)}
+      style={{ width: size, height: size }}
+      className="overflow-hidden rounded-2xl border border-border bg-muted active:opacity-90"
+    >
+      <SpeciesImage
+        catalogId={entry.id}
+        scientificName={entry.scientific_name}
+        gridLoader
+        className="h-full w-full"
+      />
+      <LinearGradient
+        colors={[...IMAGE_OVERLAY_GRADIENT]}
+        className="absolute inset-0"
+        pointerEvents="none"
+      />
+      {entry.logged ? (
+        <View className="absolute right-1.5 top-1.5 h-4 w-4 items-center justify-center rounded-full bg-primary">
+          <Check size={8} color="#f0ead6" strokeWidth={2.5} />
+        </View>
+      ) : null}
+      <View className="absolute bottom-0 left-0 right-0 p-2">
+        <ImageOverlayText
+          className="font-serif text-[11px] leading-tight text-foreground"
+          containerClassName="w-full"
+          numberOfLines={2}
+        >
+          {entry.species}
+        </ImageOverlayText>
+      </View>
+    </Pressable>
+  );
+});
+
+interface ViewCollectionCardProps {
+  onPress: () => void;
+}
+
+/**
+ * Lead card of the horizontal "logged by you" strip. Opens the Collection tab.
+ */
+const ViewCollectionCard = memo(function ViewCollectionCard({
+  onPress,
+}: ViewCollectionCardProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{ width: MINI_CARD_SIZE, height: MINI_CARD_SIZE }}
+      className="items-center justify-center gap-1.5 rounded-2xl border border-border bg-muted px-2 active:opacity-90"
+    >
+      <SquareStack size={20} color="#5f9470" strokeWidth={1.75} />
+      <Text className="text-center font-sans-medium text-[11px] leading-tight text-foreground">
+        View collection
+      </Text>
     </Pressable>
   );
 });
@@ -398,7 +477,7 @@ export default function FieldGuideScreen() {
   const guideListContentStyle = {
     flexGrow: rows.length === 0 ? 1 : 0,
     paddingHorizontal: GUIDE_LIST_PADDING,
-    paddingTop: REFRESH_GAP,
+    paddingTop: REFRESH_GAP + HEADER_BOTTOM_RADIUS,
     paddingBottom: tabBarClearance,
   } as const;
 
@@ -407,6 +486,16 @@ export default function FieldGuideScreen() {
     [sightingIndex],
   );
   const progress = (loggedCount / SPECIES_CATALOG.length) * 100;
+
+  /** Species this catalog user has logged — drives the horizontal strip. */
+  const loggedEntries = useMemo(() => {
+    const entries: FieldGuideEntry[] = [];
+    for (const item of SPECIES_CATALOG) {
+      const entry = toFieldGuideEntry(item, sightingIndex, regionalContext);
+      if (entry.logged) entries.push(entry);
+    }
+    return entries;
+  }, [sightingIndex, regionalContext]);
 
   const loadMore = useCallback(() => {
     const total = filteredLengthRef.current;
@@ -454,6 +543,10 @@ export default function FieldGuideScreen() {
     },
     [router],
   );
+
+  const openCollection = useCallback(() => {
+    setTab("collection");
+  }, []);
 
   const renderRow = useCallback(
     ({ item }: { item: GuideRow }) => (
@@ -512,7 +605,7 @@ export default function FieldGuideScreen() {
   const guideToolbar = (
     <View key={tab}>
       {showExploreTab ? (
-        <View className="px-4 pb-1 pt-3">
+        <View className="px-4 pt-5">
           <TourSpotlight target="guide-tabs" style={{ borderRadius: 999 }}>
           <ScrollView
             horizontal
@@ -526,7 +619,7 @@ export default function FieldGuideScreen() {
                 <Pressable
                   key={item.id}
                   onPress={() => setTab(item.id)}
-                  className={`flex-row items-center gap-1 rounded-full px-3 py-1 ${
+                  className={`flex-row items-center gap-1 rounded-full px-3 py-1.5 ${
                     active ? "bg-primary" : "bg-card"
                   } ${
                     isPet
@@ -537,7 +630,7 @@ export default function FieldGuideScreen() {
                   }`}
                 >
                   <Text
-                    className={`text-xs ${
+                    className={`text-sm ${
                       active
                         ? "font-sans-medium text-primary-foreground"
                         : "text-muted-foreground"
@@ -547,7 +640,7 @@ export default function FieldGuideScreen() {
                   </Text>
                   {isPet ? (
                     <Bird
-                      size={12}
+                      size={14}
                       color={active ? "#f0ead6" : "#c8893a"}
                       strokeWidth={2}
                     />
@@ -561,7 +654,7 @@ export default function FieldGuideScreen() {
       ) : null}
 
       {tab === "guide" ? (
-        <View className="gap-3 px-4 pb-0 pt-3">
+        <View className={`gap-3 px-4 ${showExploreTab ? "pt-1.5" : "pt-3"}`}>
           <View className="flex-row items-center gap-2">
             <View className="flex-1">
               <SearchBar
@@ -584,6 +677,30 @@ export default function FieldGuideScreen() {
               />
             </Pressable>
           </View>
+
+          {loggedEntries.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                flexDirection: "row",
+                gap: MINI_CARD_GAP,
+                paddingRight: 4,
+              }}
+            >
+              {showSelfTabs ? (
+                <ViewCollectionCard onPress={openCollection} />
+              ) : null}
+              {loggedEntries.map((entry) => (
+                <MiniSpeciesCard
+                  key={entry.id}
+                  entry={entry}
+                  size={MINI_CARD_SIZE}
+                  onPress={openSpecies}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
 
           <View className="rounded-xl border border-border bg-card p-3.5">
             <View className="mb-2.5 flex-row items-center justify-between">
@@ -610,6 +727,7 @@ export default function FieldGuideScreen() {
     <View className="flex-1 bg-background">
       <HomeSplitHeader
         title={headerTitle}
+        showLogo
         toolbar={guideToolbar}
         toolbarProgress={toolbarProgress}
         onHeightsChange={handleHeightsChange}
@@ -638,11 +756,15 @@ export default function FieldGuideScreen() {
       ) : (
         <>
       {loading && sightings.length === 0 ? (
-        <Animated.View style={[listFrameBaseStyle, listFrameStyle]}>
+        <Animated.View
+          style={[listFrameBaseStyle, listFrameStyle, { paddingTop: HEADER_BOTTOM_RADIUS }]}
+        >
           <TabEmptyState loading />
         </Animated.View>
       ) : error ? (
-        <Animated.View style={[listFrameBaseStyle, listFrameStyle]}>
+        <Animated.View
+          style={[listFrameBaseStyle, listFrameStyle, { paddingTop: HEADER_BOTTOM_RADIUS }]}
+        >
           <TabEmptyState>{error}</TabEmptyState>
         </Animated.View>
       ) : (
@@ -671,13 +793,13 @@ export default function FieldGuideScreen() {
             }}
             onScrollEndDrag={handleListScrollEndDrag}
             onMomentumScrollEnd={handleListScrollEnd}
-            refreshControl={
+            refreshControl={anchorRefreshControl(
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={refresh}
                 tintColor="#5f9470"
-              />
-            }
+              />,
+            )}
             {...keyboardAwareScrollProps}
             ListEmptyComponent={
               <TabEmptyState>

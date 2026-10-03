@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Audio } from "expo-av";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder as useNativeAudioRecorder,
+} from "expo-audio";
 
 export const MAX_AUDIO_CAPTURE_SECONDS = 30;
 
@@ -17,6 +22,14 @@ interface UseAudioRecorderResult {
   reset: () => void;
 }
 
+const RECORDING_AUDIO_MODE = {
+  allowsRecording: true,
+  playsInSilentMode: true,
+  shouldPlayInBackground: false,
+  interruptionMode: "duckOthers",
+  shouldRouteThroughEarpiece: false,
+} as const;
+
 export function useAudioRecorder(
   maxSeconds = MAX_AUDIO_CAPTURE_SECONDS,
 ): UseAudioRecorderResult {
@@ -24,7 +37,8 @@ export function useAudioRecorder(
   const [seconds, setSeconds] = useState(0);
   const [clip, setClip] = useState<AudioClip | null>(null);
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useNativeAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recordingActiveRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopRef = useRef<(() => Promise<AudioClip | null>) | null>(null);
 
@@ -37,17 +51,17 @@ export function useAudioRecorder(
 
   const stopRecording = useCallback(async (): Promise<AudioClip | null> => {
     clearTimer();
-    const recording = recordingRef.current;
-    if (!recording) {
+    if (!recordingActiveRef.current) {
       setIsRecording(false);
       return clip;
     }
 
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      const status = await recording.getStatusAsync();
-      recordingRef.current = null;
+      // Duration must be read before stop(); expo-audio resets it on stop.
+      const statusBefore = recorder.getStatus();
+      await recorder.stop();
+      recordingActiveRef.current = false;
+      const uri = recorder.uri;
       setIsRecording(false);
 
       if (!uri) {
@@ -55,7 +69,7 @@ export function useAudioRecorder(
         return null;
       }
 
-      const durationMs = status.durationMillis ?? 0;
+      const durationMs = statusBefore.durationMillis ?? 0;
       setSeconds(
         Math.min(maxSeconds, Math.max(1, Math.round(durationMs / 1000))),
       );
@@ -63,39 +77,33 @@ export function useAudioRecorder(
       setClip(next);
       return next;
     } catch {
-      recordingRef.current = null;
+      recordingActiveRef.current = false;
       setIsRecording(false);
       setSeconds(0);
       return null;
     }
-  }, [clearTimer, clip, maxSeconds]);
+  }, [clearTimer, clip, maxSeconds, recorder]);
 
   stopRef.current = stopRecording;
 
   const startRecording = useCallback(async (): Promise<boolean> => {
-    const permission = await Audio.requestPermissionsAsync();
+    const permission = await requestRecordingPermissionsAsync();
     if (!permission.granted) return false;
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+      await setAudioModeAsync(RECORDING_AUDIO_MODE);
 
-      if (recordingRef.current) {
+      if (recordingActiveRef.current) {
         await stopRecording();
       }
 
       setClip(null);
       setSeconds(0);
 
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await recording.startAsync();
-      recordingRef.current = recording;
+      // Passing options on every prepare gives each recording a fresh file.
+      await recorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY);
+      recorder.record();
+      recordingActiveRef.current = true;
       setIsRecording(true);
 
       clearTimer();
@@ -111,12 +119,12 @@ export function useAudioRecorder(
 
       return true;
     } catch {
-      recordingRef.current = null;
+      recordingActiveRef.current = false;
       setIsRecording(false);
       setSeconds(0);
       return false;
     }
-  }, [clearTimer, maxSeconds, stopRecording]);
+  }, [clearTimer, maxSeconds, recorder, stopRecording]);
 
   const reset = useCallback(() => {
     void stopRecording();
@@ -125,20 +133,16 @@ export function useAudioRecorder(
   }, [stopRecording]);
 
   useEffect(() => {
-    void Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    });
+    void setAudioModeAsync(RECORDING_AUDIO_MODE);
 
     return () => {
       clearTimer();
-      void recordingRef.current?.stopAndUnloadAsync().catch(() => undefined);
-      recordingRef.current = null;
+      if (recordingActiveRef.current) {
+        recordingActiveRef.current = false;
+        void recorder.stop().catch(() => undefined);
+      }
     };
-  }, [clearTimer]);
+  }, [clearTimer, recorder]);
 
   return {
     isRecording,

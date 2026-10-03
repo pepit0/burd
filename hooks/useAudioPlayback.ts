@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { Audio } from "expo-av";
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+} from "expo-audio";
 import { loadAudioPeaks, seededFallbackPeaks, synthesizeLiveLevels } from "@/lib/audioPeaks";
 import { getUserFacingMessage } from "@/lib/errors";
 import { WebAudioPlaybackEngine } from "@/lib/webAudioPlayback";
@@ -65,13 +69,37 @@ function toAbsolutePosition(relativeMs: number, start: number, end: number): num
   return Math.max(start, Math.min(start + relativeMs, end));
 }
 
+function waitForPlayerLoad(
+  player: AudioPlayer,
+  timeoutMs = 15000,
+): Promise<void> {
+  if (player.isLoaded) return Promise.resolve();
+  return new Promise((resolve) => {
+    let subscription: { remove: () => void } | undefined;
+    const timer = setTimeout(() => {
+      subscription?.remove();
+      resolve();
+    }, timeoutMs);
+    subscription = player.addListener("playbackStatusUpdate", (status) => {
+      if (status.isLoaded || status.error) {
+        clearTimeout(timer);
+        subscription?.remove();
+        resolve();
+      }
+    });
+  });
+}
+
 async function probeNativeDuration(uri: string): Promise<number> {
   try {
-    const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
-    const status = await sound.getStatusAsync();
-    await sound.unloadAsync();
-    if (status.isLoaded && status.durationMillis) {
-      return status.durationMillis;
+    const player = createAudioPlayer(uri, { updateInterval: 100 });
+    try {
+      await waitForPlayerLoad(player);
+      if (player.isLoaded && player.duration > 0) {
+        return player.duration * 1000;
+      }
+    } finally {
+      player.remove();
     }
   } catch {
     // fall through
@@ -84,7 +112,10 @@ export function useAudioPlayback(
   durationMs?: number,
   options?: AudioPlaybackOptions,
 ): AudioPlaybackState {
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
+  const soundListenerSubRef = useRef<
+    ReturnType<AudioPlayer["addListener"]> | null
+  >(null);
   const webEngineRef = useRef<WebAudioPlaybackEngine | null>(null);
   const peaksRef = useRef<number[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -96,6 +127,13 @@ export function useAudioPlayback(
   const loadedDurationRef = useRef(durationMs ?? 0);
 
   optionsRef.current = options;
+
+  const disposePlayer = useCallback(() => {
+    soundListenerSubRef.current?.remove();
+    soundListenerSubRef.current = null;
+    soundRef.current?.remove();
+    soundRef.current = null;
+  }, []);
 
   const [peaks, setPeaks] = useState<number[]>([]);
   const [peaksLoading, setPeaksLoading] = useState(false);
@@ -175,8 +213,8 @@ export function useAudioPlayback(
         webEngineRef.current?.pause();
         webEngineRef.current?.seekTo(trim.start);
       } else if (soundRef.current) {
-        await soundRef.current.pauseAsync().catch(() => undefined);
-        await soundRef.current.setPositionAsync(trim.start).catch(() => undefined);
+        soundRef.current.pause();
+        await soundRef.current.seekTo(trim.start / 1000).catch(() => undefined);
       }
 
       setPlaying(false);
@@ -203,13 +241,11 @@ export function useAudioPlayback(
     }
 
     const sound = soundRef.current;
-    if (!sound) return;
-    const status = await sound.getStatusAsync();
-    if (!status.isLoaded) return;
-    const pos = status.positionMillis ?? 0;
+    if (!sound || !sound.isLoaded) return;
+    const pos = sound.currentTime * 1000;
     if (pos < trim.start || pos >= trim.end - 40) {
-      await sound.setPositionAsync(trim.start);
-      syncVisualPosition(trim.start, status.durationMillis ?? loadedDurationRef.current);
+      await sound.seekTo(trim.start / 1000);
+      syncVisualPosition(trim.start, sound.duration * 1000 || loadedDurationRef.current);
     }
   }, [getTrimBounds, isWeb, syncVisualPosition]);
 
@@ -220,13 +256,11 @@ export function useAudioPlayback(
 
     nativeAnimRef.current = setInterval(() => {
       const sound = soundRef.current;
-      if (!sound) return;
-      void sound.getStatusAsync().then(async (status) => {
-        if (!status.isLoaded || !status.isPlaying) return;
-        const pos = status.positionMillis ?? 0;
-        const dur = status.durationMillis ?? loadedDurationRef.current;
-        if (await stopAtTrimEnd(pos)) return;
-        syncVisualPosition(pos, dur);
+      if (!sound || !sound.isLoaded || !sound.playing) return;
+      const pos = sound.currentTime * 1000;
+      const dur = sound.duration * 1000 || loadedDurationRef.current;
+      void stopAtTrimEnd(pos).then((stopped) => {
+        if (!stopped) syncVisualPosition(pos, dur);
       });
     }, 50);
   }, [stopAtTrimEnd, syncVisualPosition]);
@@ -325,8 +359,7 @@ export function useAudioPlayback(
     setLiveLevels(null);
     setPeaks([]);
 
-    void soundRef.current?.unloadAsync().catch(() => undefined);
-    soundRef.current = null;
+    disposePlayer();
     webEngineRef.current?.dispose();
     webEngineRef.current = null;
     resetPlaybackVisual();
@@ -338,8 +371,7 @@ export function useAudioPlayback(
       setPeaksLoading(false);
       return () => {
         resetPlaybackVisual();
-        void soundRef.current?.unloadAsync().catch(() => undefined);
-        soundRef.current = null;
+        disposePlayer();
         webEngineRef.current?.dispose();
         webEngineRef.current = null;
         mediaPreparedRef.current = false;
@@ -357,12 +389,11 @@ export function useAudioPlayback(
       cancelled = true;
       mediaPreparedRef.current = false;
       resetPlaybackVisual();
-      void soundRef.current?.unloadAsync().catch(() => undefined);
-      soundRef.current = null;
+      disposePlayer();
       webEngineRef.current?.dispose();
       webEngineRef.current = null;
     };
-  }, [uri, durationMs, loadMediaAssets, resetPlaybackVisual]);
+  }, [uri, durationMs, disposePlayer, loadMediaAssets, resetPlaybackVisual]);
 
   useEffect(() => {
     const trim = getTrimBounds();
@@ -423,14 +454,14 @@ export function useAudioPlayback(
 
     if (playing && soundRef.current) {
       try {
-        const status = await soundRef.current.getStatusAsync();
-        if (status.isLoaded) {
+        const sound = soundRef.current;
+        if (sound.isLoaded) {
           syncVisualPosition(
-            status.positionMillis ?? 0,
-            status.durationMillis ?? loadedDurationRef.current,
+            sound.currentTime * 1000,
+            sound.duration * 1000 || loadedDurationRef.current,
           );
         }
-        await soundRef.current.pauseAsync();
+        sound.pause();
         stopNativeAnimationLoop();
         setPlaying(false);
       } catch (e) {
@@ -442,41 +473,37 @@ export function useAudioPlayback(
     setLoading(true);
     setError(null);
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: "duckOthers",
+        shouldRouteThroughEarpiece: false,
       });
 
       const trim = getTrimBounds();
-      const initialPosition = trim.active ? trim.start : 0;
 
       if (!soundRef.current) {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          {
-            shouldPlay: false,
-            progressUpdateIntervalMillis: 50,
-            positionMillis: initialPosition,
-          },
+        const sound = createAudioPlayer(uri, { updateInterval: 50 });
+        soundListenerSubRef.current?.remove();
+        soundListenerSubRef.current = sound.addListener(
+          "playbackStatusUpdate",
           (status) => {
             if (!status.isLoaded) {
-              if ("error" in status && status.error) {
+              if (status.error) {
                 setError(status.error);
                 setPlaying(false);
                 resetPlaybackVisual();
               }
               return;
             }
-            const pos = status.positionMillis ?? 0;
-            const dur = status.durationMillis ?? loadedDurationRef.current;
-            if (status.durationMillis) {
-              setLoadedDurationMs(status.durationMillis);
-              loadedDurationRef.current = status.durationMillis;
+            const pos = status.currentTime * 1000;
+            const dur = status.duration * 1000 || loadedDurationRef.current;
+            if (status.duration > 0) {
+              setLoadedDurationMs(status.duration * 1000);
+              loadedDurationRef.current = status.duration * 1000;
             }
-            const isPlayingNow = status.isPlaying ?? false;
+            const isPlayingNow = status.playing;
             setPlaying(isPlayingNow);
             if (isPlayingNow) {
               void stopAtTrimEnd(pos).then((stopped) => {
@@ -492,7 +519,7 @@ export function useAudioPlayback(
                 optionsRef.current,
               );
               const resetPos = currentTrim.active ? currentTrim.start : 0;
-              void soundRef.current?.setPositionAsync(resetPos).catch(() => undefined);
+              void sound.seekTo(resetPos / 1000).catch(() => undefined);
               syncVisualPosition(resetPos, dur);
               setPlaying(false);
               resetPlaybackVisual();
@@ -500,25 +527,29 @@ export function useAudioPlayback(
           },
         );
         soundRef.current = sound;
+        // expo-audio loads asynchronously; wait before trim positioning.
+        await waitForPlayerLoad(sound);
         await ensureTrimStart();
-        await sound.playAsync();
+        sound.play();
         setPlaying(true);
         startNativeAnimation();
         return;
       }
 
       await ensureTrimStart();
-      const status = await soundRef.current.getStatusAsync();
-      if (status.isLoaded) {
-        const pos = status.positionMillis ?? 0;
-        const dur = status.durationMillis ?? 0;
+      const sound = soundRef.current;
+      if (!sound) return;
+      if (sound.isLoaded) {
+        const pos = sound.currentTime * 1000;
+        const dur = sound.duration * 1000;
         const atTrimEnd = trim.active && pos >= trim.end - 80;
-        if (atTrimEnd || status.didJustFinish) {
-          await soundRef.current.setPositionAsync(trim.start);
+        const atNaturalEnd = dur > 0 && pos >= dur - 100;
+        if (atTrimEnd || atNaturalEnd) {
+          await sound.seekTo(trim.start / 1000);
           syncVisualPosition(trim.start, dur);
         }
       }
-      await soundRef.current.playAsync();
+      sound.play();
       setPlaying(true);
       startNativeAnimation();
     } catch (e) {
@@ -572,15 +603,13 @@ export function useAudioPlayback(
       if (!sound) return;
 
       try {
-        const status = await sound.getStatusAsync();
         const wasPlaying =
-          playingRef.current ||
-          (status.isLoaded && (status.isPlaying ?? false));
+          playingRef.current || (sound.isLoaded && sound.playing);
 
-        await sound.setPositionAsync(absoluteMs);
+        await sound.seekTo(absoluteMs / 1000);
 
         if (wasPlaying) {
-          await sound.playAsync();
+          sound.play();
           setPlaying(true);
           startNativeAnimation();
         }

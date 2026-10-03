@@ -7,7 +7,7 @@ import {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { TOOLBAR_ANIM_MS, useTabBarClearance } from "@/components/CollapsibleHeader";
+import { HEADER_BOTTOM_RADIUS, MIN_TOOLBAR_HEIGHT, TOOLBAR_ANIM_MS, useTabBarClearance } from "@/components/CollapsibleHeader";
 
 /** Upward scroll — show toolbar on the first frame of scroll-up. */
 const SHOW_DELTA = 1;
@@ -86,7 +86,7 @@ export function useCollapsibleToolbar() {
   const handleHeightsChange = useCallback(
     ({ barHeight: bar, toolbarHeight: tool }: { barHeight: number; toolbarHeight: number }) => {
       setBarHeight(bar);
-      if (tool < 48) return;
+      if (tool < MIN_TOOLBAR_HEIGHT) return;
       setToolbarHeight(tool);
     },
     [],
@@ -115,7 +115,10 @@ export function useCollapsibleToolbar() {
   /** Absolute-positioned lists (FlatList) — expand into toolbar space without a bottom gap. */
   const listFrameStyle = useAnimatedStyle(
     () => ({
-      top: barHeight + toolbarProgress.value * toolbarHeight,
+      top:
+        barHeight +
+        toolbarProgress.value * toolbarHeight -
+        HEADER_BOTTOM_RADIUS,
     }),
     [barHeight, toolbarHeight],
   );

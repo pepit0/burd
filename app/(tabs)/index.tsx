@@ -55,12 +55,12 @@ function TabChip({
   return (
     <Pressable
       onPress={onPress}
-      className={`rounded-full px-3 py-1 ${
+      className={`rounded-full px-3 py-1.5 ${
         active ? "bg-primary" : "border border-border bg-card"
       }`}
     >
       <Text
-        className={`text-xs ${
+        className={`text-sm ${
           active ? "font-sans-medium text-primary-foreground" : "text-muted-foreground"
         }`}
       >
@@ -218,15 +218,7 @@ export default function HomeScreen() {
   );
 
   const toolbar = (
-    <View className="gap-3 px-4">
-      {!isActivity && (
-        <SearchBar
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search species, locations, #hashtags..."
-        />
-      )}
-
+    <View className="gap-1.5 px-4 pt-5">
       <TourSpotlight target="feed-tabs" style={{ borderRadius: 999 }}>
       <ScrollView
         horizontal
@@ -241,23 +233,33 @@ export default function HomeScreen() {
             onPress={() => setTab(item.id)}
           />
         ))}
-        {!isActivity && (
+      </ScrollView>
+      </TourSpotlight>
+
+      {!isActivity && (
+        <View className="flex-row items-center gap-2">
+          <View className="flex-1">
+            <SearchBar
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search species, locations, #hashtags..."
+            />
+          </View>
           <Pressable
             onPress={() => setFilterOpen(true)}
-            className={`ml-1 rounded-full border p-1.5 active:opacity-80 ${
+            className={`rounded-xl border p-2.5 active:opacity-80 ${
               activeFilterCount > 0
                 ? "border-primary bg-primary/15"
                 : "border-border bg-card"
             }`}
           >
             <Filter
-              size={13}
+              size={16}
               color={activeFilterCount > 0 ? "#5f9470" : "#8a9e82"}
             />
           </Pressable>
-        )}
-      </ScrollView>
-      </TourSpotlight>
+        </View>
+      )}
     </View>
   );
 

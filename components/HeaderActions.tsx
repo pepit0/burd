@@ -1,4 +1,4 @@
-import { Pressable } from "react-native";
+import { Pressable, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { Mic, Users } from "lucide-react-native";
 import { triggerHaptic, useAccessibility } from "@/components/AccessibilityProvider";
@@ -17,9 +17,12 @@ export function HeaderActions() {
           void triggerHaptic(triggerLiveSoundOpenHaptic, hapticsEnabled);
           router.push("/audio-id");
         }}
-        className="rounded-full bg-primary p-2 active:opacity-90"
+        className="flex-row items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 active:opacity-90"
         accessibilityLabel="Identify bird by sound"
       >
+        <Text className="font-sans-bold text-sm text-primary-foreground">
+          Sound ID
+        </Text>
         <Mic size={18} color="#f0ead6" />
       </Pressable>
       </TourSpotlight>

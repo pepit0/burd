@@ -48,29 +48,35 @@ export const RARITY_BADGE_BOX: Record<"sm" | "lg", ViewStyle> = {
 
 export const RARITY_BADGE_TEXT: Record<"sm" | "lg", TextStyle> = {
   sm: {
-    fontFamily: "JetBrainsMono_400Regular",
+    fontFamily: "DMSans_400Regular",
     fontSize: 9,
     letterSpacing: 2,
     textTransform: "uppercase",
   },
   lg: {
-    fontFamily: "JetBrainsMono_400Regular",
+    fontFamily: "DMSans_400Regular",
     fontSize: 12,
     letterSpacing: 2,
     textTransform: "uppercase",
   },
 };
 
-export const JOURNAL_CARD_RARITY_STYLE: Record<Rarity, ViewStyle | undefined> = {
-  common: undefined,
+/**
+ * Border-only accent per rarity — journal cards use the neutral bg-card surface.
+ * One shade deeper than the badge colors at 60% opacity so the outline settles
+ * into the forest-green theme instead of glowing against it.
+ */
+export const JOURNAL_CARD_RARITY_STYLE: Record<Rarity, ViewStyle> = {
+  common: {
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.6)",
+  },
   uncommon: {
     borderWidth: 1,
-    borderColor: "rgba(180, 83, 9, 0.45)",
-    backgroundColor: "rgba(69, 26, 3, 0.5)",
+    borderColor: "rgba(245, 158, 11, 0.6)",
   },
   rare: {
     borderWidth: 1,
-    borderColor: "rgba(107, 33, 168, 0.45)",
-    backgroundColor: "rgba(59, 7, 100, 0.55)",
+    borderColor: "rgba(168, 85, 247, 0.6)",
   },
 };

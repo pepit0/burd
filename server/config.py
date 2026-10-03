@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -82,6 +84,10 @@ class Settings(BaseSettings):
     # OOM-kill the 2GB VM before serving. Enable only with >2GB RAM.
     audio_warmup: bool = False
 
+    # --- PostHog analytics ---
+    posthog_project_token: str = ""
+    posthog_host: str = ""
+
     regional_min_expected_freq: float = 0.001
     regional_vagrant_confidence: float = 0.55
     regional_geo_alpha: float = 0.4
@@ -107,6 +113,12 @@ class Settings(BaseSettings):
 
             return str(Path(path).parent)
         return path
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached settings instance."""
+    return Settings()
 
 
 settings = Settings()

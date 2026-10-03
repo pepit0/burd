@@ -239,7 +239,7 @@ export const POST_SEND_OFF_DURATION_MS = DURATION_MS;
 
 const styles = StyleSheet.create({
   flash: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(95, 148, 112, 0.28)",
   },
   centerStage: {

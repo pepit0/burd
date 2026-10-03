@@ -26,7 +26,7 @@ import {
 } from "@/components/ProfileBannerPickerSheet";
 import { ProfileBadgeShowcasePickerSheet } from "@/components/ProfileBadgeShowcasePickerSheet";
 import { ProfileAvatarPeek } from "@/components/ProfileAvatarPeek";
-import { ProfileBadgesPreview } from "@/components/ProfileBadges";
+import { BadgeShowcaseSlot, ProfileBadgesPreview } from "@/components/ProfileBadges";
 import { TourSpotlight } from "@/components/TourSpotlight";
 import { ProfileCoverWithPet } from "@/components/ProfileCoverWithPet";
 import { ProfileDetailsEditSheet } from "@/components/ProfileDetailsEditSheet";
@@ -50,7 +50,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { getUserFacingMessage } from "@/lib/errors";
 import { hasCompletedUsernameSetup } from "@/lib/signup";
 import { profileCoverPresetId, type ProfileCoverPresetId } from "@/lib/profileCover";
-import { normalizeShowcaseBadgeIds } from "@/lib/profileShowcaseBadges";
+import { normalizeShowcaseBadgeIds, resolveShowcaseBadges } from "@/lib/profileShowcaseBadges";
 import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { postedDate } from "@/lib/sightingFormat";
 import { getPetSoundEnabled } from "@/lib/pocketBird/petSoundStorage";
@@ -71,6 +71,9 @@ import {
   TERMS_OF_SERVICE_URL,
 } from "@/lib/legalUrls";
 
+
+/** Matches the profile header container's `-mt-9` so padded content sits below the banner. */
+const PROFILE_BANNER_OVERLAP = 36;
 
 function SettingsRow({
   icon: Icon,
@@ -284,6 +287,11 @@ export default function ProfileScreen() {
     },
   ];
 
+  const showcaseSlots = useMemo(
+    () => resolveShowcaseBadges(badges, profile?.showcase_badge_ids),
+    [badges, profile?.showcase_badge_ids],
+  );
+
   async function saveProfileDetails(fullName: string, bio: string) {
     setProfileSaving(true);
     try {
@@ -360,7 +368,7 @@ export default function ProfileScreen() {
 
   if (loading && !profile) {
     return (
-      <ScrollScreen title="Profile">
+      <ScrollScreen title="Profile" showLogo>
         <ActivityIndicator className="mt-20" color="#5f9470" />
       </ScrollScreen>
     );
@@ -368,7 +376,7 @@ export default function ProfileScreen() {
 
   if (!profile && user && !hasCompletedUsernameSetup(user.user_metadata)) {
     return (
-      <ScrollScreen title="Profile">
+      <ScrollScreen title="Profile" showLogo>
         <ActivityIndicator className="mt-20" color="#5f9470" />
       </ScrollScreen>
     );
@@ -388,6 +396,7 @@ export default function ProfileScreen() {
     <>
       <ScrollScreen
         title="Profile"
+        showLogo
         headerAction={settingsAction}
         contentClassName="pb-36"
         refreshControl={
@@ -407,19 +416,21 @@ export default function ProfileScreen() {
         />
 
         <View className="-mt-9 px-4">
-          <View className="mb-3 flex-row items-end gap-3">
-            <ProfileAvatarPeek
-              avatarUrl={profile?.avatar_url}
-              avatarColor={profile?.avatar_color ?? "#5f9470"}
-              displayName={displayNamePlain}
-              editable
-              uploading={avatarUploading}
-              onPress={() => void pickProfilePhoto()}
-            />
-          </View>
-
-          <View className="flex-row items-start justify-between gap-3">
-            <View className="min-w-0 flex-1">
+          <View className="flex-row items-start gap-2">
+            <View style={{ marginTop: 8, marginBottom: -8, marginLeft: -3, flexShrink: 0 }}>
+              <ProfileAvatarPeek
+                avatarUrl={profile?.avatar_url}
+                avatarColor={profile?.avatar_color ?? "#5f9470"}
+                displayName={displayNamePlain}
+                editable
+                uploading={avatarUploading}
+                onPress={() => void pickProfilePhoto()}
+              />
+            </View>
+            <View
+              className="min-w-0 flex-1"
+              style={{ paddingTop: PROFILE_BANNER_OVERLAP }}
+            >
               <DisplayNameWithBadges
                 text={displayName}
                 isVerified={profile?.is_verified}
@@ -430,36 +441,60 @@ export default function ProfileScreen() {
                 className="font-serif-semibold text-xl text-foreground"
                 onPressName={() => setDetailsEditOpen(true)}
               />
-              <Text className="mt-0.5 font-mono text-xs text-muted-foreground">
+              <Text
+                style={{ marginTop: -2 }}
+                className="font-mono text-xs text-muted-foreground"
+                numberOfLines={1}
+              >
                 @{profile?.username ?? "birder"}
                 {profile?.location_name ? ` · ${profile.location_name}` : ""}
               </Text>
             </View>
-            <View className="mr-2 -mt-0.5">
-              <ProfileStatsRow stats={stats} variant="inline" />
+          </View>
+
+          <View className="mt-3.5 flex-row items-start gap-3">
+            <View className="min-w-0 flex-1">
+              {profile?.bio ? (
+                <LinkableText className="font-sans text-sm leading-relaxed text-foreground/70">
+                  {profile.bio}
+                </LinkableText>
+              ) : (
+                <Text className="font-sans text-sm text-muted-foreground/70">
+                  Add a short bio about your birding.
+                </Text>
+              )}
+              {error ? (
+                <Text className="mt-3 font-sans text-xs text-destructive">{error}</Text>
+              ) : null}
+            </View>
+            <View className="shrink-0 items-end">
+              {showcaseSlots.some((slot) => slot !== null) ? (
+                <Pressable
+                  onPress={() => setBadgeShowcasePickerOpen(true)}
+                  className="mb-2 flex-row items-center gap-3 px-2.5 active:opacity-70"
+                  accessibilityRole="button"
+                  accessibilityLabel="Displayed badges. Tap to choose which badges to display."
+                >
+                  {showcaseSlots.map((slot, index) =>
+                    slot ? (
+                      <View key={slot.id} className="w-12 items-center">
+                        <BadgeShowcaseSlot badge={slot} small showLabel={false} />
+                      </View>
+                    ) : (
+                      <View key={index} className="w-12" />
+                    ),
+                  )}
+                </Pressable>
+              ) : null}
+              <View className="overflow-hidden rounded-xl border border-border bg-card px-2.5 py-1">
+                <ProfileStatsRow stats={stats} variant="inline" />
+              </View>
             </View>
           </View>
         </View>
         </TourSpotlight>
 
-        <View className="px-4">
-          {profile?.bio ? (
-            <LinkableText className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
-              {profile.bio}
-            </LinkableText>
-          ) : (
-            <Text className="mt-2.5 font-sans text-sm text-muted-foreground/70">
-              Add a short bio about your birding.
-            </Text>
-          )}
-
-          {error ? (
-            <Text className="mt-3 font-sans text-xs text-destructive">{error}</Text>
-          ) : null}
-
-        </View>
-
-        <View className={`mt-6 border-t border-border ${isPostsEmpty ? "flex-1" : ""}`}>
+        <View className={`mt-2 border-t border-border ${isPostsEmpty ? "flex-1" : ""}`}>
           <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
           {isPostsEmpty ? (
             <View className="flex-1 justify-between">

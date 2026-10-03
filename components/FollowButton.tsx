@@ -15,7 +15,7 @@ export function FollowButton({
   onSecondaryPress,
   size = "sm",
 }: FriendButtonProps) {
-  const pad = size === "md" ? "px-5 py-2.5" : "px-3.5 py-2";
+  const pad = size === "md" ? "px-5 py-2" : "px-3.5 py-2";
 
   const isFriends = status === "friends";
   const isOutgoing = status === "outgoing";

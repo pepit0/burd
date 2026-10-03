@@ -1,13 +1,20 @@
+import atexit
 from contextlib import asynccontextmanager
 from datetime import datetime
 import asyncio
 import logging
+import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import settings
+from posthog import Posthog
+
+from config import get_settings, settings
 from schemas import HealthResponse, IdentifyResponse, ModelStatus, NativeLogit
+
+# PostHog client — initialised in lifespan; None when token is not configured.
+posthog_client: Posthog | None = None
 
 
 def _configure_logging() -> None:
@@ -56,6 +63,23 @@ _inference_lock = asyncio.Semaphore(1)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global posthog_client
+    _settings = get_settings()
+    if _settings.posthog_project_token:
+        posthog_client = Posthog(
+            api_key=_settings.posthog_project_token,
+            host=_settings.posthog_host,
+            enable_exception_autocapture=True,
+        )
+        atexit.register(posthog_client.shutdown)
+        logger.info("PostHog analytics initialised")
+    else:
+        logger.warning(
+            "POSTHOG_PROJECT_TOKEN variable required by PostHog is missing or "
+            "un-configured, this causes events to be silently missed. "
+            "This error stops appearing once POSTHOG_PROJECT_TOKEN is configured"
+        )
+
     image_classifier.load()
     try:
         audio_classifier.load()
@@ -86,6 +110,10 @@ async def lifespan(app: FastAPI):
             logger.warning("audio warmup skipped: %s", exc)
 
     yield
+
+    # Shutdown: flush any queued PostHog events before the process exits.
+    if posthog_client is not None:
+        posthog_client.shutdown()
 
 
 app = FastAPI(title="Burd Inference API", version="0.1.0", lifespan=lifespan)
@@ -159,6 +187,7 @@ async def identify_image(
     live_photo: str | None = Form(default=None),
     skip_validation: str | None = Form(default=None),
 ) -> IdentifyResponse:
+    request_id = str(uuid.uuid4())
     data = await image.read()
     if not data:
         raise HTTPException(status_code=400, detail="Empty image upload")
@@ -173,11 +202,26 @@ async def identify_image(
                 )
             )
     except Exception as exc:
+        if posthog_client is not None:
+            posthog_client.capture(
+                request_id,
+                "identification_failed",
+                properties={"endpoint": "image", "error_type": type(exc).__name__},
+            )
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     validation = validate_image(data, preds)
     bypass_validation = is_live or _parse_form_bool(skip_validation)
     if validation.enabled and not validation.passed and not bypass_validation:
         failed = [c.message for c in validation.checks if not c.passed]
+        if posthog_client is not None:
+            posthog_client.capture(
+                request_id,
+                "image_validation_failed",
+                properties={
+                    "model": image_classifier.model_name,
+                    "checks_failed": len(failed),
+                },
+            )
         raise HTTPException(
             status_code=422,
             detail={
@@ -192,6 +236,20 @@ async def identify_image(
         longitude,
         observed_at or datetime.utcnow().isoformat(),
     )
+    if posthog_client is not None:
+        posthog_client.capture(
+            request_id,
+            "image_identified",
+            properties={
+                "model": image_classifier.model_name,
+                "mock": image_classifier.mock,
+                "prediction_count": len(preds),
+                "top_confidence": round(preds[0].confidence, 4) if preds else 0.0,
+                "regional_context_applied": regional_applied,
+                "has_location": latitude is not None and longitude is not None,
+                "is_live_photo": is_live,
+            },
+        )
     return IdentifyResponse(
         predictions=preds,
         count=count,
@@ -220,6 +278,7 @@ async def identify_audio(
     observed_at: str | None = Form(default=None),
     live_sound: str | None = Form(default=None),
 ) -> IdentifyResponse:
+    request_id = str(uuid.uuid4())
     is_live = _parse_live_sound(live_sound)
     data = await audio.read()
     logger.info(
@@ -241,6 +300,12 @@ async def identify_audio(
             )
     except Exception as exc:
         logger.exception("Audio identify failed")
+        if posthog_client is not None:
+            posthog_client.capture(
+                request_id,
+                "identification_failed",
+                properties={"endpoint": "audio", "error_type": type(exc).__name__},
+            )
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     raw_preds = list(preds)
@@ -413,6 +478,20 @@ async def identify_audio(
                 NativeLogit(species_code=species, logit=float(mean_logits[class_idx]))
             )
 
+    if posthog_client is not None:
+        posthog_client.capture(
+            request_id,
+            "audio_identified",
+            properties={
+                "model": audio_classifier.model_name,
+                "mock": audio_classifier.mock,
+                "prediction_count": len(preds),
+                "heard_count": len(heard),
+                "regional_context_applied": regional_applied,
+                "has_location": latitude is not None and longitude is not None,
+                "is_live": is_live,
+            },
+        )
     return IdentifyResponse(
         predictions=preds,
         heard_species=heard,

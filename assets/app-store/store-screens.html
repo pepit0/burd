@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Burd App Store — 3-panel 6.9"</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111; padding: 40px; }
+
+    /* 3 × 440×956 → 3 × 1320×2868 at 3× */
+    #panorama {
+      width: 1320px;
+      height: 956px;
+      position: relative;
+      overflow: hidden;
+      background: #bdd4bd;
+      font-family: Inter, system-ui, sans-serif;
+      color: #fff;
+    }
+
+    .copy {
+      position: absolute;
+      top: 48px;
+      z-index: 8;
+      width: 392px;
+    }
+    .copy.c1 { left: 26px; }
+    .copy.c3 { left: 906px; width: 380px; }
+
+    .kicker {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .headline {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.048em;
+      line-height: 1.06;
+    }
+    .headline.one-line {
+      font-size: 32px;
+      letter-spacing: -0.04em;
+    }
+
+    /* 3D stage for the combined hero (panels 1–2) */
+    .stage {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 880px;
+      height: 956px;
+      perspective: 1280px;
+      perspective-origin: 52% 42%;
+      z-index: 2;
+    }
+
+    .device {
+      position: absolute;
+      transform-style: preserve-3d;
+    }
+    .rig {
+      position: relative;
+      transform-style: preserve-3d;
+    }
+
+    .chassis {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 46px;
+      padding: 10px;
+      transform-style: preserve-3d;
+    }
+    .chassis.black {
+      background: linear-gradient(155deg, #5a5a60 0%, #2a2a2e 18%, #141416 52%, #0b0b0c 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.28),
+        inset 0 -2px 0 rgba(0,0,0,0.45),
+        22px 48px 70px rgba(28, 42, 28, 0.40);
+    }
+    .chassis.gold {
+      background: linear-gradient(155deg, #f3e8d2 0%, #ddccab 32%, #c4ae84 68%, #a89064 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.55),
+        inset 0 -1px 0 rgba(90,70,40,0.25),
+        28px 52px 68px rgba(28, 42, 28, 0.30);
+    }
+
+    .screen {
+      width: 100%;
+      height: 100%;
+      border-radius: 38px;
+      overflow: hidden;
+      background: #181e16;
+      position: relative;
+    }
+    .screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+    }
+    .island {
+      position: absolute;
+      top: 11px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90px;
+      height: 26px;
+      background: #050505;
+      border-radius: 20px;
+      z-index: 4;
+    }
+
+    /* Visible phone thickness */
+    .edge {
+      position: absolute;
+      top: 18px;
+      right: 0;
+      bottom: 18px;
+      width: 18px;
+      transform-origin: left center;
+      transform: translateX(1px) rotateY(90deg);
+      border-radius: 3px;
+    }
+    .lip {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 0;
+      height: 16px;
+      transform-origin: bottom center;
+      transform: rotateX(90deg);
+      border-radius: 3px;
+    }
+    .chassis.black .edge,
+    .chassis.black .lip {
+      background: linear-gradient(180deg, #4a4a50, #1c1c1e 40%, #090909);
+    }
+    .chassis.gold .edge,
+    .chassis.gold .lip {
+      background: linear-gradient(180deg, #ead9b6, #c4a874 45%, #8d7348);
+    }
+
+    /* Foreground Photo ID — centered on the gutter so both panels show it */
+    .device.photo {
+      left: 236px;
+      top: 178px;
+      z-index: 4;
+    }
+    .device.photo .rig {
+      width: 408px;
+      height: 848px;
+      transform: rotateX(16deg) rotateY(-26deg) rotateZ(-16deg) translateZ(56px);
+    }
+
+    /* Background Sound ID — more yaw, sits behind and to the right */
+    .device.sound {
+      left: 508px;
+      top: 236px;
+      z-index: 1;
+    }
+    .device.sound .rig {
+      width: 312px;
+      height: 664px;
+      transform: rotateX(21deg) rotateY(-44deg) rotateZ(14deg) translateZ(-84px);
+    }
+
+    /* Panel 3 — slight 3D so it belongs with the set, still readable */
+    .device.log {
+      left: 934px;
+      top: 236px;
+      z-index: 2;
+      perspective: 1400px;
+    }
+    .device.log .rig {
+      width: 312px;
+      height: 672px;
+      transform: rotateX(6deg) rotateY(-10deg) rotateZ(-3deg);
+    }
+
+    .laurel {
+      position: absolute;
+      left: 20px;
+      bottom: 44px;
+      z-index: 9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 92px;
+      color: #fff;
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 0.01em;
+      text-align: center;
+      line-height: 1.15;
+    }
+    .laurel svg { display: block; margin-bottom: 2px; }
+
+    .stamp {
+      position: absolute;
+      left: 678px;
+      bottom: 58px;
+      z-index: 9;
+      width: 158px;
+      height: 158px;
+    }
+    .stamp svg { width: 100%; height: 100%; display: block; }
+    .stamp span {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-weight: 800;
+      font-size: 13px;
+      line-height: 1.2;
+      color: #6a8f6a;
+      padding: 28px 22px;
+    }
+  </style>
+</head>
+<body>
+  <div id="panorama">
+    <div class="copy c1">
+      <p class="kicker">The #1 Birding app</p>
+      <h1 class="headline">Identify with<br />Live Photo &amp;<br />Sound ID</h1>
+    </div>
+    <div class="copy c3">
+      <h1 class="headline one-line">Log Every Sighting</h1>
+    </div>
+
+    <div class="stage">
+      <div class="device sound">
+        <div class="rig">
+          <div class="chassis gold">
+            <div class="edge"></div>
+            <div class="lip"></div>
+            <div class="screen">
+              <img src="screens/sound-id.png" alt="Live Sound ID" />
+              <div class="island"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="device photo">
+        <div class="rig">
+          <div class="chassis black">
+            <div class="edge"></div>
+            <div class="lip"></div>
+            <div class="screen">
+              <img src="screens/photo-id.png" alt="Live Photo ID" />
+              <div class="island"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="device log">
+      <div class="rig">
+        <div class="chassis black">
+          <div class="edge"></div>
+          <div class="lip"></div>
+          <div class="screen">
+            <img src="screens/log-sighting.png" alt="Log a sighting" />
+            <div class="island"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="laurel">
+      <svg width="88" height="72" viewBox="0 0 88 72" fill="none" aria-hidden="true">
+        <path d="M12 62c-8-10-10-26-4-40 3 1 6 3 8 6M16 22c6 4 10 12 12 22M22 12c8 6 12 16 14 28M10 48c8 2 12 8 14 14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M76 62c8-10 10-26 4-40-3 1-6 3-8 6M72 22c-6 4-10 12-12 22M66 12c-8 6-12 16-14 28M78 48c-8 2-12 8-14 14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M18 30c-2-6 2-10 6-8M14 40c-3-5 0-10 5-9M20 18c0-5 5-8 8-5" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+        <path d="M70 30c2-6-2-10-6-8M74 40c3-5 0-10-5-9M68 18c0-5-5-8-8-5" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+        <text x="44" y="42" text-anchor="middle" fill="#fff" font-family="Inter,sans-serif" font-size="20" font-weight="800">#1</text>
+      </svg>
+      Bird App
+    </div>
+
+    <div class="stamp">
+      <svg viewBox="0 0 160 160" aria-hidden="true">
+        <path fill="#fff" d="M40 104c-16-4-28-20-24-38 10-2 20 2 26 10 4-16 18-26 34-26 8-14 26-18 40-10 10-8 26-8 36 2 12 0 22 10 24 22 12 6 16 20 10 32 10 10 6 26-6 34 2 14-8 28-22 30-2 12-14 20-26 18-8 10-24 10-34 2-12 8-28 2-34-10-12 2-24-6-28-18-8 0-16-8-16-18 0-8 4-14 10-18Z"/>
+      </svg>
+      <span>Add other<br />Birders</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -16,6 +16,7 @@ import {
   dismissKeyboardOnScrollDrag,
   keyboardAwareScrollProps,
 } from "@/components/DismissKeyboard";
+import { HEADER_BOTTOM_RADIUS } from "@/components/CollapsibleHeader";
 import { SpeciesImage } from "@/components/SpeciesImage";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { useRegionalLocationLabel } from "@/hooks/useRegionalLocationLabel";
@@ -124,7 +125,13 @@ export function FieldGuideExploreTab({
     : `${likelySpecies.length} Likely birds today near ${label?.display ?? "your area"}`;
 
   const frameStyle = [
-    { position: "absolute" as const, left: 0, right: 0, bottom: 0 },
+    {
+      position: "absolute" as const,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingTop: HEADER_BOTTOM_RADIUS,
+    },
     listFrameStyle,
   ];
 

@@ -1,4 +1,8 @@
-import { Audio } from "expo-av";
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+} from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import {
   encodeWavBase64,
@@ -12,30 +16,33 @@ let unlockTweetPath: string | null = null;
 
 async function ensurePlaybackMode(): Promise<void> {
   if (audioModeReady) return;
-  await Audio.setAudioModeAsync({
-    allowsRecordingIOS: false,
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: false,
-    shouldDuckAndroid: true,
-    playThroughEarpieceAndroid: false,
+  await setAudioModeAsync({
+    allowsRecording: false,
+    playsInSilentMode: true,
+    shouldPlayInBackground: false,
+    interruptionMode: "duckOthers",
+    shouldRouteThroughEarpiece: false,
   });
   audioModeReady = true;
 }
 
 async function playWav(uri: string, volume: number): Promise<void> {
-  const { sound } = await Audio.Sound.createAsync(
-    { uri },
-    { shouldPlay: true, volume },
-  );
+  const player: AudioPlayer = createAudioPlayer(uri, {
+    updateInterval: 100,
+  });
+  player.volume = volume;
 
-  sound.setOnPlaybackStatusUpdate((status) => {
-    if (status.isLoaded && status.didJustFinish) {
-      void sound.unloadAsync();
+  const subscription = player.addListener("playbackStatusUpdate", (status) => {
+    if (status.didJustFinish) {
+      subscription.remove();
+      player.remove();
     }
   });
+
+  player.play();
 }
 
-/** Procedural chirp synthesized to WAV and played with expo-av. */
+/** Procedural chirp synthesized to WAV and played with expo-audio. */
 export async function playBirdChirp(): Promise<void> {
   await ensurePlaybackMode();
 
@@ -51,17 +58,20 @@ export async function playBirdChirp(): Promise<void> {
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  const { sound } = await Audio.Sound.createAsync(
-    { uri: path },
-    { shouldPlay: true, volume: 1 },
-  );
+  const player: AudioPlayer = createAudioPlayer(path, {
+    updateInterval: 100,
+  });
+  player.volume = 1;
 
-  sound.setOnPlaybackStatusUpdate((status) => {
-    if (status.isLoaded && status.didJustFinish) {
-      void sound.unloadAsync();
+  const subscription = player.addListener("playbackStatusUpdate", (status) => {
+    if (status.didJustFinish) {
+      subscription.remove();
+      player.remove();
       void FileSystem.deleteAsync(path, { idempotent: true });
     }
   });
+
+  player.play();
 }
 
 /** Short two-note tweet for badge and card unlocks. */

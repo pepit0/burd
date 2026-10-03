@@ -76,7 +76,7 @@ export function ProfileStatsRow({ stats, variant = "boxed" }: ProfileStatsRowPro
             key={s.label}
             stat={s}
             variant="inline"
-            className="h-14 w-14 items-center justify-center"
+            className="h-9 w-12 items-center justify-center"
           />
         ))}
       </View>

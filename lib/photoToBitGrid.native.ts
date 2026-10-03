@@ -1,4 +1,4 @@
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { decode as decodeBase64 } from "base64-arraybuffer";
 import { decode as decodeJpeg } from "jpeg-js";

@@ -90,7 +90,7 @@ export function SightingPhotoCarousel({
         style={
           useBlurredFill
             ? { width: foregroundWidth, height }
-            : StyleSheet.absoluteFillObject
+            : StyleSheet.absoluteFill
         }
         contentFit={contentFit}
         recyclingKey={uri}
@@ -139,7 +139,7 @@ export function SightingPhotoCarousel({
             {useBlurredFill ? (
               <Image
                 source={{ uri: photo.photo_url }}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 blurRadius={28}
                 recyclingKey={`${photo.photo_url}-blur`}

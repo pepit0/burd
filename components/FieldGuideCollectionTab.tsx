@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SpeciesCard } from "@/components/SpeciesCard";
 import { TabEmptyState } from "@/components/TabEmptyState";
+import { HEADER_BOTTOM_RADIUS } from "@/components/CollapsibleHeader";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppTourOptional } from "@/components/AppTourProvider";
@@ -165,7 +166,7 @@ export function FieldGuideCollectionTab({
         style={{ flex: 1 }}
         contentContainerStyle={{
           paddingHorizontal: GRID_PADDING,
-          paddingTop: 12,
+          paddingTop: HEADER_BOTTOM_RADIUS + 12,
           paddingBottom: tabBarClearance + 16,
           flexDirection: "row",
           flexWrap: "wrap",

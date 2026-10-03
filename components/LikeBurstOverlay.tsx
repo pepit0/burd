@@ -230,7 +230,7 @@ export function LikeBurstOverlay({
 
 const styles = StyleSheet.create({
   flash: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(240, 234, 214, 0.35)",
   },
   centerStage: {

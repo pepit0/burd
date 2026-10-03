@@ -230,11 +230,11 @@ const styles = StyleSheet.create({
     elevation: 1400,
   },
   fullScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: `rgba(10, 15, 8, ${FULL_SCRIM_OPACITY})`,
   },
   centerWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 28,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppState, Pressable, View } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 import type { PocketBirdAnimationId } from "@/lib/pocketBird/animations";

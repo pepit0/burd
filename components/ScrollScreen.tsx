@@ -12,8 +12,10 @@ import {
 import {
   DEFAULT_TAB_HEADER_HEIGHT,
   FixedTabHeader,
+  HEADER_BOTTOM_RADIUS,
   HomeSplitHeader,
   REFRESH_GAP,
+  anchorRefreshControl,
 } from "@/components/CollapsibleHeader";
 import { useCollapsibleToolbar } from "@/hooks/useCollapsibleToolbar";
 
@@ -107,13 +109,13 @@ export function ScrollScreen<T = unknown>({
 
   const scrollContentStyle = {
     flexGrow: 1,
-    paddingTop: REFRESH_GAP,
+    paddingTop: REFRESH_GAP + HEADER_BOTTOM_RADIUS,
     paddingBottom: tabBarClearance,
   } as const;
 
   const listContentStyle = {
     flexGrow: 1,
-    paddingTop: REFRESH_GAP,
+    paddingTop: REFRESH_GAP + HEADER_BOTTOM_RADIUS,
     paddingBottom: tabBarClearance,
   } as const;
 
@@ -123,6 +125,11 @@ export function ScrollScreen<T = unknown>({
       {toolbar ? <View className="pb-4 pt-1">{toolbar}</View> : null}
     </>
   );
+
+  // Scroll frames tuck behind the header; offset the spinner so it stays visible.
+  const anchoredRefreshControl = refreshControl
+    ? anchorRefreshControl(refreshControl)
+    : undefined;
 
   if (hideHeaderOnScroll && toolbar) {
     return (
@@ -161,7 +168,7 @@ export function ScrollScreen<T = unknown>({
               onScrollEndDrag={handleScrollEndDrag}
               onMomentumScrollEnd={handleMomentumScrollEnd}
               contentContainerStyle={listContentStyle}
-              refreshControl={refreshControl}
+              refreshControl={anchoredRefreshControl}
               removeClippedSubviews
               initialNumToRender={3}
               maxToRenderPerBatch={4}
@@ -184,7 +191,7 @@ export function ScrollScreen<T = unknown>({
               onScrollEndDrag={handleScrollEndDrag}
               onMomentumScrollEnd={handleMomentumScrollEnd}
               contentContainerStyle={scrollContentStyle}
-              refreshControl={refreshControl}
+              refreshControl={anchoredRefreshControl}
               {...keyboardAwareScrollProps}
             >
               <DismissKeyboardArea>
@@ -203,10 +210,10 @@ export function ScrollScreen<T = unknown>({
       <ScrollView
         ref={scrollRef}
         className="flex-1"
-        style={{ marginTop: headerHeight }}
+        style={{ marginTop: headerHeight - HEADER_BOTTOM_RADIUS }}
         contentContainerStyle={scrollContentStyle}
         showsVerticalScrollIndicator={false}
-        refreshControl={refreshControl}
+        refreshControl={anchoredRefreshControl}
         onScrollBeginDrag={dismissKeyboardOnScrollDrag}
         {...keyboardAwareScrollProps}
       >

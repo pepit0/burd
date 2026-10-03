@@ -27,7 +27,7 @@ async function waitForReadableFile(uri: string): Promise<void> {
 }
 
 /**
- * expo-av temp URIs can be unreadable for a moment after stopAndUnloadAsync.
+ * Recording temp URIs can be unreadable for a moment after stop().
  * Copy to a stable cache path before multipart upload so fetch can stream bytes.
  */
 export async function stabilizeAudioForUpload(uri: string): Promise<string> {

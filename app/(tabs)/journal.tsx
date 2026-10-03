@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
-  Camera,
   ChevronRight,
   Clock,
   Feather,
@@ -18,9 +17,6 @@ import {
   MapPin,
   Plus,
   Trash2,
-  Volume2,
-  Zap,
-  type LucideIcon,
 } from "lucide-react-native";
 import { SearchBar } from "@/components/SearchBar";
 import { TourSpotlight } from "@/components/TourSpotlight";
@@ -33,8 +29,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMySightings } from "@/hooks/useMySightings";
 import { useResolvedCities } from "@/hooks/useResolvedCities";
 import { useCaptureDrafts } from "@/hooks/useCaptureDrafts";
-import { getUserFacingMessage } from "@/lib/errors";
-import { deleteMySighting } from "@/lib/sightings";
 import { isAudioSighting, isPhotoSighting } from "@/lib/sightingMedia";
 import { setPendingCapture } from "@/lib/pendingCapture";
 import {
@@ -58,12 +52,6 @@ import type { Sighting } from "@/types";
 import type { CaptureDraft } from "@/lib/captureDrafts";
 
 type JournalMediaTab = "photos" | "sounds" | "drafts";
-
-const STAT_ICONS: Record<string, LucideIcon> = {
-  camera: Camera,
-  volume: Volume2,
-  zap: Zap,
-};
 
 const MEDIA_TABS: { id: JournalMediaTab; label: string }[] = [
   { id: "photos", label: "Photos" },
@@ -161,23 +149,6 @@ export default function JournalScreen() {
     }, [silentRefresh, refreshDrafts]),
   );
 
-  const stats = useMemo(
-    () => [
-      {
-        icon: "camera",
-        label: "Photos",
-        value: ownedSightings.filter((s) => isPhotoSighting(s)).length,
-      },
-      {
-        icon: "volume",
-        label: "Sounds",
-        value: ownedSightings.filter((s) => isAudioSighting(s)).length,
-      },
-      { icon: "zap", label: "Logged", value: ownedSightings.length },
-    ],
-    [ownedSightings],
-  );
-
   const mediaTabCounts = useMemo(
     () => ({
       photos: ownedSightings.filter((s) => matchesMediaTab(s, "photos")).length,
@@ -252,33 +223,6 @@ export default function JournalScreen() {
     );
   }
 
-  function confirmDeleteSighting(sighting: Sighting) {
-    if (!userId || sighting.user_id !== userId) return;
-    Alert.alert(
-      "Delete from journal?",
-      sighting.published_at
-        ? "This permanently deletes the sighting from your journal and profile. This cannot be undone."
-        : "This permanently deletes the sighting from your journal. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              try {
-                await deleteMySighting(userId, sighting.id);
-                await refresh();
-              } catch (e) {
-                Alert.alert("Could not delete", getUserFacingMessage(e));
-              }
-            })();
-          },
-        },
-      ],
-    );
-  }
-
   const emptyTabCopy =
     mediaTab === "sounds"
       ? "No sound sightings yet. Use Sound ID or the camera mic to log one."
@@ -309,49 +253,48 @@ export default function JournalScreen() {
           )}
         </View>
         <View className="min-w-0 flex-1">
-          <Text className="font-serif text-sm text-foreground" numberOfLines={1}>
-            {e.species}
-          </Text>
-          {!e.published_at ? (
-            <Text className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
-              Journal only
+          <View className="flex-row items-center gap-2">
+            <Text
+              className="shrink font-serif text-sm text-foreground"
+              numberOfLines={1}
+            >
+              {e.species}
             </Text>
-          ) : (
-            <Text className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-primary/90">
-              Posted
-            </Text>
-          )}
-          <View className="mt-1">
-            <RarityBadge rarity={rarity} />
+            <Text className="font-mono text-sm text-accent">×{e.count}</Text>
+            <View className="flex-1" />
+            {/* Right edge matches the badge below (card edge − chevron 13px − gap 12px). */}
+            <View className="mr-[25px]">
+              {!e.published_at ? (
+                <Text className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
+                  Not posted
+                </Text>
+              ) : (
+                <Text className="font-mono text-[9px] uppercase tracking-wider text-primary/90">
+                  Posted
+                </Text>
+              )}
+            </View>
           </View>
           <View className="mt-1 flex-row items-center gap-1">
             <MapPin size={9} color="#8a9e82" />
             <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
               {cityFor(e)}
             </Text>
-          </View>
-          <View className="mt-0.5 flex-row items-center gap-1">
+            <Text className="text-[11px] text-muted-foreground/40">·</Text>
             <Clock size={9} color="#8a9e82" />
-            <Text className="text-[10px] text-muted-foreground/80">
+            <Text
+              className="text-[10px] text-muted-foreground/80"
+              numberOfLines={1}
+            >
               {formatJournalWhen(when)}
             </Text>
+            <View className="flex-1" />
+            <View className="flex-row items-center gap-3">
+              <RarityBadge rarity={rarity} />
+              <ChevronRight size={13} color="#8a9e82" />
+            </View>
           </View>
         </View>
-        <View className="items-end">
-          <Text className="font-mono text-sm text-accent">×{e.count}</Text>
-          <Text className="mt-0.5 text-[9px] uppercase tracking-wider text-muted-foreground/50">
-            birds
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => confirmDeleteSighting(e)}
-          hitSlop={8}
-          className="rounded-full p-2 active:opacity-70"
-          accessibilityLabel="Delete sighting"
-        >
-          <Trash2 size={14} color="#8a9e82" />
-        </Pressable>
-        <ChevronRight size={13} color="#8a9e82" />
       </Pressable>
     );
   }
@@ -365,26 +308,35 @@ export default function JournalScreen() {
   }
 
   const toolbar = (
-    <View className="gap-3 px-4">
-      <View className="flex-row items-center rounded-xl border border-border/80 bg-muted/40 py-2">
-        {stats.map((stat, index) => {
-          const Icon = STAT_ICONS[stat.icon];
-          return (
-            <View
-              key={stat.label}
-              className={`min-w-0 flex-1 flex-row items-center justify-center gap-1.5 px-2 ${
-                index > 0 ? "border-l border-border/70" : ""
-              }`}
-            >
-              <Icon size={13} color="#8a9e82" />
-              <Text className="font-mono text-sm tabular-nums text-foreground">
-                {stat.value}
-              </Text>
-              <Text className="text-[11px] text-muted-foreground">{stat.label}</Text>
-            </View>
-          );
-        })}
-      </View>
+    <View className="gap-1.5 px-4 pt-5">
+      <TourSpotlight target="journal-tabs" style={{ borderRadius: 999 }}>
+        <View className="flex-row items-center justify-start gap-2">
+          {MEDIA_TABS.map((tab) => {
+            const active = mediaTab === tab.id;
+            const count = mediaTabCounts[tab.id];
+            const label = count > 0 ? `${tab.label} (${count})` : tab.label;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setMediaTab(tab.id)}
+                className={`rounded-full px-3 py-1.5 ${
+                  active ? "bg-primary" : "border border-border bg-card"
+                }`}
+              >
+                <Text
+                  className={`text-sm ${
+                    active
+                      ? "font-sans-medium text-primary-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </TourSpotlight>
 
       <View className="flex-row items-center gap-2">
         <View className="flex-1">
@@ -409,35 +361,6 @@ export default function JournalScreen() {
           />
         </Pressable>
       </View>
-
-      <TourSpotlight target="journal-tabs" style={{ borderRadius: 999 }}>
-        <View className="flex-row items-center justify-start gap-2">
-          {MEDIA_TABS.map((tab) => {
-            const active = mediaTab === tab.id;
-            const count = mediaTabCounts[tab.id];
-            const label = count > 0 ? `${tab.label} (${count})` : tab.label;
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => setMediaTab(tab.id)}
-                className={`rounded-full px-3 py-1 ${
-                  active ? "bg-primary" : "border border-border bg-card"
-                }`}
-              >
-                <Text
-                  className={`text-xs ${
-                    active
-                      ? "font-sans-medium text-primary-foreground"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </TourSpotlight>
     </View>
   );
 
@@ -445,6 +368,7 @@ export default function JournalScreen() {
     <View className="flex-1">
       <ScrollScreen
         title="Journal"
+        showLogo
         toolbar={toolbar}
         contentClassName="pb-36 pt-2 gap-6"
         refreshControl={

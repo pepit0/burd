@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     elevation: 1600,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(10, 15, 8, 0.92)",
   },
   tourBackdrop: {

@@ -116,12 +116,16 @@ export function BadgeRow({ badge }: { badge: ProfileBadge }) {
 export function BadgeShowcaseSlot({
   badge,
   compact = false,
+  showLabel = true,
+  small = false,
 }: {
   badge: ProfileBadge | null;
   compact?: boolean;
+  showLabel?: boolean;
+  small?: boolean;
 }) {
-  const iconSize = compact ? 18 : 22;
-  const circleSize = compact ? "h-12 w-12" : "h-14 w-14";
+  const iconSize = small ? 15 : compact ? 18 : 22;
+  const circleSize = small ? "h-9 w-9" : compact ? "h-12 w-12" : "h-14 w-14";
 
   if (!badge) {
     return (
@@ -131,7 +135,7 @@ export function BadgeShowcaseSlot({
         >
           <Circle size={iconSize} color="#8a9e82" strokeWidth={1.5} />
         </View>
-        {!compact ? (
+        {showLabel && !compact ? (
           <Text className="text-center font-sans text-[10px] text-muted-foreground">Empty</Text>
         ) : null}
       </View>
@@ -153,14 +157,16 @@ export function BadgeShowcaseSlot({
           fill={style.earnedIconFill}
         />
       </View>
-      <Text
-        className={`text-center font-serif text-foreground ${
-          compact ? "text-[10px] leading-3" : "text-xs leading-4"
-        }`}
-        numberOfLines={2}
-      >
-        {badge.label}
-      </Text>
+      {showLabel ? (
+        <Text
+          className={`text-center font-serif text-foreground ${
+            compact ? "text-[10px] leading-3" : "text-xs leading-4"
+          }`}
+          numberOfLines={2}
+        >
+          {badge.label}
+        </Text>
+      ) : null}
     </View>
   );
 }

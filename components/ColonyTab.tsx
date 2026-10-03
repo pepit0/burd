@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { PocketBirdPet } from "@/components/PocketBirdPet";
 import { ImageOverlayText } from "@/components/ImageOverlayText";
+import { HEADER_BOTTOM_RADIUS } from "@/components/CollapsibleHeader";
 import { PocketBirdHatPicker } from "@/components/PocketBirdHatPicker";
 import { PocketBirdSpeciesPicker } from "@/components/PocketBirdSpeciesPicker";
 import { useAuth } from "@/hooks/useAuth";
@@ -112,7 +113,10 @@ export function ColonyTab({ tabBarClearance }: ColonyTabProps) {
   return (
     <ScrollView
       className="flex-1 px-3"
-      contentContainerStyle={{ paddingBottom: tabBarClearance + 16 }}
+      contentContainerStyle={{
+        paddingTop: HEADER_BOTTOM_RADIUS,
+        paddingBottom: tabBarClearance + 16,
+      }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >

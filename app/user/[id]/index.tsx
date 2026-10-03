@@ -12,7 +12,7 @@ import { ChevronLeft, MoreHorizontal } from "lucide-react-native";
 import { FollowButton } from "@/components/FollowButton";
 import { DisplayNameWithBadges } from "@/components/DisplayNameWithBadges";
 import { ProfileAvatarPeek } from "@/components/ProfileAvatarPeek";
-import { ProfileBadgesPreview } from "@/components/ProfileBadges";
+import { BadgeShowcaseSlot, ProfileBadgesPreview } from "@/components/ProfileBadges";
 import {
   PROFILE_BANNER_HEIGHT,
   PROFILE_PET_SIZE,
@@ -39,6 +39,10 @@ import { requestFieldGuideView } from "@/lib/navigationIntent";
 import { getPetSoundEnabled } from "@/lib/pocketBird/petSoundStorage";
 import { isProfilePetVisible, resolveProfilePetHatId, resolveProfilePetSpeciesId } from "@/lib/profilePet";
 import { stripDisplayNameColorCodes } from "@/lib/displayNameColors";
+import { resolveShowcaseBadges } from "@/lib/profileShowcaseBadges";
+
+/** Matches the profile header container's `-mt-9` so padded content sits below the banner. */
+const PROFILE_BANNER_OVERLAP = 36;
 
 export default function UserProfileScreen() {
   const router = useRouter();
@@ -132,6 +136,11 @@ export default function UserProfileScreen() {
     },
   ];
 
+  const showcaseSlots = useMemo(
+    () => resolveShowcaseBadges(badges, profile?.showcase_badge_ids),
+    [badges, profile?.showcase_badge_ids],
+  );
+
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <View className="flex-row items-center border-b border-border px-3 pb-2.5 pt-1">
@@ -167,12 +176,37 @@ export default function UserProfileScreen() {
             />
 
             <View className="-mt-9 px-4">
-              <View className="mb-3 flex-row items-end gap-3">
-                <ProfileAvatarPeek
-                  avatarUrl={profile.avatar_url}
-                  avatarColor={profile.avatar_color}
-                  displayName={displayNamePlain}
-                />
+              <View className="flex-row items-start gap-2">
+                <View style={{ marginTop: 8, marginBottom: -8, marginLeft: -3, flexShrink: 0 }}>
+                  <ProfileAvatarPeek
+                    avatarUrl={profile.avatar_url}
+                    avatarColor={profile.avatar_color}
+                    displayName={displayNamePlain}
+                  />
+                </View>
+                <View
+                  className="min-w-0 flex-1"
+                  style={{ paddingTop: PROFILE_BANNER_OVERLAP }}
+                >
+                  <DisplayNameWithBadges
+                    text={displayName}
+                    isVerified={profile.is_verified}
+                    isBeta={profile.is_beta}
+                    interactiveBadges
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    badgeSize="md"
+                    className="font-serif-semibold text-xl text-foreground"
+                  />
+                  <Text
+                    style={{ marginTop: -2 }}
+                    className="font-mono text-xs text-muted-foreground"
+                    numberOfLines={1}
+                  >
+                    @{profile.username}
+                    {profile.location_name ? ` · ${profile.location_name}` : ""}
+                  </Text>
+                </View>
               </View>
 
               {!isSelf ? (
@@ -185,7 +219,7 @@ export default function UserProfileScreen() {
                   />
                   <Pressable
                     onPress={() => setUserOptionsOpen(true)}
-                    className="rounded-full border border-border bg-card/90 p-2 active:opacity-90"
+                    className="rounded-full border border-border bg-card/90 p-1.5 active:opacity-90"
                     accessibilityLabel="User options"
                   >
                     <MoreHorizontal size={18} color="#8a9e82" />
@@ -193,31 +227,44 @@ export default function UserProfileScreen() {
                 </View>
               ) : null}
 
-              <View className="flex-row items-start justify-between gap-3">
+              <View className="mt-2.5 flex-row items-start gap-3">
                 <View className="min-w-0 flex-1">
-                  <DisplayNameWithBadges
-                    text={displayName}
-                    isVerified={profile.is_verified}
-                    isBeta={profile.is_beta}
-                    interactiveBadges
-                    badgeSize="md"
-                    className="font-serif-semibold text-xl text-foreground"
-                  />
-                  <Text className="-mt-0.5 font-mono text-xs text-muted-foreground">
-                    @{profile.username}
-                    {profile.location_name ? ` · ${profile.location_name}` : ""}
-                  </Text>
+                  {profile.bio ? (
+                    <LinkableText className="font-sans text-sm leading-relaxed text-foreground/70">
+                      {profile.bio}
+                    </LinkableText>
+                  ) : null}
                 </View>
-                <View className="mr-2 -mt-0.5">
-                  <ProfileStatsRow stats={stats} variant="inline" />
+                <View className="shrink-0 items-end">
+                  {showcaseSlots.some((slot) => slot !== null) ? (
+                    <Pressable
+                      onPress={() =>
+                        router.push({
+                          pathname: "/badges",
+                          params: { userId: profileId, username: profile?.username ?? "" },
+                        })
+                      }
+                      className="mb-2 flex-row items-center gap-3 px-2.5 active:opacity-70"
+                      accessibilityRole="button"
+                      accessibilityLabel="Displayed badges. View all badges."
+                    >
+                      {showcaseSlots.map((slot, index) =>
+                        slot ? (
+                          <View key={slot.id} className="w-12 items-center">
+                            <BadgeShowcaseSlot badge={slot} small showLabel={false} />
+                          </View>
+                        ) : (
+                          <View key={index} className="w-12" />
+                        ),
+                      )}
+                    </Pressable>
+                  ) : null}
+                  <View className="overflow-hidden rounded-xl border border-border bg-card px-2.5 py-1">
+                    <ProfileStatsRow stats={stats} variant="inline" />
+                  </View>
                 </View>
               </View>
 
-              {profile.bio ? (
-                <LinkableText className="mt-2.5 font-sans text-sm leading-relaxed text-foreground/70">
-                  {profile.bio}
-                </LinkableText>
-              ) : null}
             </View>
 
             {showProfilePet ? (
@@ -244,7 +291,7 @@ export default function UserProfileScreen() {
             ) : null}
           </View>
 
-          <View className={`mt-6 border-t border-border ${isPostsEmpty ? "flex-1" : ""}`}>
+          <View className={`mt-2 border-t border-border ${isPostsEmpty ? "flex-1" : ""}`}>
             <ProfilePostsFilterBar value={postsFilter} onChange={setPostsFilter} />
             {isPostsEmpty ? (
               <View className="flex-1 justify-between">

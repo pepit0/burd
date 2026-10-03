@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
-import { View } from "react-native";
+import type { ReactElement, ReactNode } from "react";
+import { cloneElement, useCallback, useEffect, useState } from "react";
+import { View, type RefreshControlProps } from "react-native";
 import Animated, {
   useAnimatedStyle,
   type SharedValue,
@@ -12,7 +12,33 @@ export const DEFAULT_TAB_HEADER_HEIGHT = 110;
 export const TOOLBAR_ANIM_MS = 260;
 /** Space above list content where pull-to-refresh spinner appears. */
 export const REFRESH_GAP = 8;
-const MIN_TOOLBAR_HEIGHT = 48;
+/**
+ * Rounded bottom corners for sticky headers. Scroll frames start this far
+ * behind the header so content tucks under the corners while scrolling.
+ */
+export const HEADER_BOTTOM_RADIUS = 40;
+/**
+ * Floor for trusting a toolbar layout measurement. The bare toolbar shell
+ * (`pt-1 pb-4`) is 20px, so anything at or below 24 is an empty/invalid
+ * layout and the previous height is kept. Real toolbars can be shorter than
+ * a standard 48px bar — e.g. the field guide's tab-row-only toolbar (~46px)
+ * on the Collection/Explore/My Pet tabs.
+ */
+export const MIN_TOOLBAR_HEIGHT = 24;
+
+/**
+ * Scroll frames tuck HEADER_BOTTOM_RADIUS behind the opaque header so content
+ * scrolls under the rounded bottom corners — which also hides the top-anchored
+ * pull-to-refresh spinner behind the header. Offset the spinner by the same
+ * tuck so it renders just below the header edge instead.
+ */
+export function anchorRefreshControl(
+  control: ReactElement<RefreshControlProps>,
+): ReactElement<RefreshControlProps> {
+  return cloneElement(control, {
+    progressViewOffset: control.props.progressViewOffset ?? HEADER_BOTTOM_RADIUS,
+  });
+}
 
 interface TabHeaderProps {
   children: ReactNode;
@@ -26,7 +52,11 @@ export function FixedTabHeader({ children, onHeightChange }: TabHeaderProps) {
   return (
     <View
       className="absolute left-0 right-0 top-0 z-20 bg-background/95"
-      style={{ paddingTop: insets.top }}
+      style={{
+        paddingTop: insets.top,
+        borderBottomLeftRadius: HEADER_BOTTOM_RADIUS,
+        borderBottomRightRadius: HEADER_BOTTOM_RADIUS,
+      }}
       onLayout={(event) => onHeightChange?.(event.nativeEvent.layout.height)}
     >
       {children}
@@ -81,7 +111,11 @@ export function HomeSplitHeader({
     <>
       <View
         className="absolute left-0 right-0 top-0 z-30 bg-background"
-        style={{ paddingTop: insets.top }}
+        style={{
+          paddingTop: insets.top,
+          borderBottomLeftRadius: HEADER_BOTTOM_RADIUS,
+          borderBottomRightRadius: HEADER_BOTTOM_RADIUS,
+        }}
         onLayout={(event) => {
           setBarHeight(event.nativeEvent.layout.height);
         }}
@@ -94,7 +128,13 @@ export function HomeSplitHeader({
           pointerEvents="box-none"
           className="absolute left-0 right-0 z-20 overflow-hidden bg-background"
           style={[
-            { top: barHeight, left: 0, right: 0 },
+            {
+              top: barHeight,
+              left: 0,
+              right: 0,
+              borderBottomLeftRadius: HEADER_BOTTOM_RADIUS,
+              borderBottomRightRadius: HEADER_BOTTOM_RADIUS,
+            },
             toolbarAnimatedStyle,
           ]}
         >
